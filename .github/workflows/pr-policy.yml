@@ -1,0 +1,31 @@
+name: Verification des branches
+
+on:
+  pull_request:
+    branches: [staging, main]
+    types: [opened, synchronize, reopened, edited]
+
+permissions: {}
+
+jobs:
+  verify:
+    name: Verifier le sens de la PR
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+
+    steps:
+      - name: Verifier la provenance
+        env:
+          TARGET_BRANCH: ${{ github.base_ref }}
+          SOURCE_BRANCH: ${{ github.head_ref }}
+          SOURCE_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          TARGET_REPO: ${{ github.repository }}
+        run: |
+          if [[ "$TARGET_BRANCH" == "main" ]]; then
+            if [[ "$SOURCE_BRANCH" != "staging" || "$SOURCE_REPO" != "$TARGET_REPO" ]]; then
+              echo "::error::Une PR vers main doit provenir de staging dans ce depot."
+              exit 1
+            fi
+          fi
+
+          echo "Le sens de la PR est correct."
