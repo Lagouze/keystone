@@ -25,8 +25,11 @@
     }
   },
   "vault": {
-    "wasmHash": null,
-    "testVaultId": null
+    "wasmHash": "173fc4aa48b40a051862a720fa3d4827efd03ad25f4e7549b3314c4cba3f8516",
+    "testVaultId": "CCLE3RBDYNMRMBVTAPXLQ5JRWQOGR3RHOQYCMH43N6VYY6T2OGSZCB2N",
+    "uploadTx": "cf9812534038af3f17741140dcb5963ceae8ef6b6c3645cfe1a1bff2bc35431d",
+    "deployTx": "66af48946f18f1a16673c78eb37a76ace759c1ba0b9ab35ec825df65c9ecbdec",
+    "testDepositTx": "178689208be148899ac567ac6c68da6526e040b39962d313d9594a4eeca07202"
   },
-  "updatedAt": "2026-10-25T21:27:06.116Z"
+  "updatedAt": "2026-10-25T22:46:00.000Z"
 }

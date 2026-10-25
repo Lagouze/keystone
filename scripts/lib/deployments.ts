@@ -18,7 +18,14 @@ export interface Deployments {
   explorerTxBase: string;
   accounts: { issuer: string | null; fund: string | null; bank: string | null; keeper: string | null };
   assets: Partial<Record<AssetId, DeployedAsset>>;
-  vault: { wasmHash: string | null; testVaultId: string | null }; // provided by the contract pole
+  vault: {
+    wasmHash: string | null;
+    testVaultId: string | null;
+    // proofs provided by the contract pole and the keeper (hashes of confirmed Testnet transactions)
+    uploadTx?: string;
+    deployTx?: string;
+    testDepositTx?: string;
+  };
   updatedAt: string;
 }
 
