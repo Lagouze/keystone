@@ -192,6 +192,40 @@ describe("MTA rule", () => {
   });
 });
 
+describe("failure handling", () => {
+  it("keeps the new rate when the posting fails, tells the stream, and a 0 bp shock retries", async () => {
+    const k = (keeper = makeKeeper("keeper", undefined, "1000000000")); // cap of 100 units
+    await k.post("/session", { asset: "KMMF" });
+    await k.post("/session/deposit", { units: "3000000000" });
+    const states: SessionState[] = [];
+    k.sessions.subscribe((m) => { if (m.event === "state") states.push(m.data); });
+    const r = await k.post("/session/rate-shock", { bp: -50 }); // needs about 243 units
+    expect([r.status, r.body.error.code]).toEqual([409, "AboveCap"]);
+    expect(states).toHaveLength(1);
+    expect(states[0]!.swap.floatRatePct).toBe("1.534");
+    expect(feed(k).at(-1)).toMatchObject({ type: "margin_set", status: "failed" });
+    expect((await k.get("/session")).body.margin).toEqual(states[0]!.margin);
+    const retry = await k.post("/session/rate-shock", { bp: 0 });
+    expect(retry.body.error.code).toBe("AboveCap");
+  });
+
+  it("a failed POST /session keeps the previous session and its history", async () => {
+    let fail = false;
+    const k = (keeper = makeKeeper("keeper", async () => {
+      if (fail) throw new Error("ECB down and no cache");
+      return { period: "2026-09", rateMilli: 2034, fetchedAt: "x", source: "ecb" as const };
+    }));
+    const a = (await k.post("/session", { asset: "KMMF" })).body as SessionState;
+    await k.post("/session/deposit", { units: "100" });
+    fail = true;
+    expect((await k.post("/session", { asset: "KBOND" })).status).toBe(503);
+    const still = (await k.get("/session")).body as SessionState;
+    expect(still.sessionId).toBe(a.sessionId);
+    expect(still.vault.availableUnits).toBe("100");
+    expect(feed(k).map((e) => e.type)).toEqual(["session_started", "deposit"]);
+  });
+});
+
 describe("scenario 2: default (KBOND)", () => {
   it("refuses settlement during the grace period, then transfers the collateral to the bank", async () => {
     const k = start();

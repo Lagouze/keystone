@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { KeystoneConfig, SignerMode } from "@keystone/shared";
+import type { EuriborResult } from "../src/euribor.ts";
 import { FakeVaultClient } from "../src/fake-vault-client.ts";
 import { buildServer } from "../src/server.ts";
 import { loadScenarioFile } from "../src/scenarios.ts";
@@ -21,13 +22,14 @@ export const config = (signerMode: SignerMode): KeystoneConfig => ({
 });
 
 /** A keeper on the in-memory vault, with a controllable ledger clock and a fixed starting Euribor of 2.034 %. */
-export function makeKeeper(signerMode: SignerMode = "keeper") {
+export function makeKeeper(signerMode: SignerMode = "keeper", euribor?: () => Promise<EuriborResult>, maxRequiredUnits?: string) {
   const clock = { seconds: 1_800_000_000n };
   const client = new FakeVaultClient({ now: () => clock.seconds });
   const cfg = config(signerMode);
   const sessions = new SessionManager({
-    client, config: cfg, scenario,
-    euribor: async () => ({ period: "2026-09", rateMilli: 2034, fetchedAt: "2026-10-25T00:00:00.000Z", source: "ecb" }),
+    client, config: cfg,
+    scenario: maxRequiredUnits ? { ...scenario, csa: { ...scenario.csa, maxRequiredUnits } } : scenario,
+    euribor: euribor ?? (async () => ({ period: "2026-09", rateMilli: 2034, fetchedAt: "2026-10-25T00:00:00.000Z", source: "ecb" })),
     now: () => new Date(Number(clock.seconds) * 1000),
   });
   const app = buildServer(cfg, sessions);

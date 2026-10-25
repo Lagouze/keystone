@@ -38,11 +38,11 @@ interface Session {
   margin: MarginResult;              // last computed requirement, frozen after a default
   lastPostedValueCents: bigint;
   lastState: SessionState | null;
+  feed: ActivityEvent[];             // activity history of this session
 }
 
 export class SessionManager {
   private session: Session | null = null;
-  private activities: ActivityEvent[] = [];
   private readonly listeners = new Set<(m: StreamMessage) => void>();
   private queue: Promise<unknown> = Promise.resolve();
   private seq = 0;
@@ -58,7 +58,7 @@ export class SessionManager {
 
   /** Messages to replay on a new SSE connection: the whole history, then the current state. */
   replay(): StreamMessage[] {
-    const out: StreamMessage[] = this.activities.map((data) => ({ event: "activity", data: { ...data } }));
+    const out: StreamMessage[] = (this.session?.feed ?? []).map((data) => ({ event: "activity", data: { ...data } }));
     if (this.session?.lastState) out.push({ event: "state", data: this.session.lastState });
     return out;
   }
@@ -71,10 +71,8 @@ export class SessionManager {
   // ---- reads -----------------------------------------------------------------------------
 
   async getState(): Promise<SessionState> {
-    const s = this.require();
-    const state = await this.buildState(s);
-    s.lastState = state;
-    return state;
+    // Read only: the cached state of the stream is refreshed by the write operations.
+    return this.buildState(this.require());
   }
 
   // ---- writes ----------------------------------------------------------------------------
@@ -98,10 +96,9 @@ export class SessionManager {
         id: randomUUID(), asset, vaultId: null, swap, collateral,
         floatRateMilli: rate.rateMilli, floatRateSource: rate.source,
         margin: computeMargin(swap, rate.rateMilli, collateral),
-        lastPostedValueCents: 0n, lastState: null,
+        lastPostedValueCents: 0n, lastState: null, feed: [],
       };
-      this.session = s;
-      this.activities = [];
+      // The new session replaces the current one only once its vault is deployed.
       const { accounts } = this.deps.config;
       const deployed = await this.chain(s, "session_started", "Deploying a new vault", async () => {
         const r = await this.deps.client.deploy({
@@ -109,11 +106,10 @@ export class SessionManager {
           maxRequired: BigInt(scenario.csa.maxRequiredUnits), gracePeriodSecs: BigInt(scenario.csa.gracePeriodSecs),
         });
         return { ...r, events: [] as VaultEvent[] };
-      }, (r) => ({ title: `Vault deployed for ${info.code}`, detail: `Vault ${r.vaultId}` })).catch((e) => {
-        this.session = null; // no vault: nothing to operate on
-        throw e;
-      });
+      }, (r) => ({ title: `Vault deployed for ${info.code}`, detail: `Vault ${r.vaultId}` }));
       s.vaultId = deployed.vaultId;
+      this.session = s;
+      for (const e of s.feed) this.emit({ event: "activity", data: { ...e } }); // clients now know this session id
       return this.publishState(s);
     });
   }
@@ -186,18 +182,24 @@ export class SessionManager {
           (post ? "Posting the requirement to the vault." : "Change below the MTA: no transaction sent."),
       });
 
-      if (post) {
-        const epoch = before.epoch + 1n;
-        if (epoch > BigInt(Number.MAX_SAFE_INTEGER)) throw new KeeperError("InternalError", "epoch out of range");
-        await this.chain(s, "margin_set", `Posting margin requirement (epoch ${epoch})`,
-          () => this.deps.client.postMargin(s.vaultId!, epoch, margin.requiredUnits),
-          (r) => ({
-            title: `Margin requirement posted (epoch ${epoch}): ${formatUnits(margin.requiredUnits)} ${s.asset} required`,
-            detail: `Locked ${formatUnits(r.state.locked)}, shortfall ${formatUnits(r.state.shortfall)} ${s.asset}`,
-          }),
-          before.locked,
-        );
-        s.lastPostedValueCents = margin.requiredValueCents;
+      try {
+        if (post) {
+          const epoch = before.epoch + 1n;
+          if (epoch > BigInt(Number.MAX_SAFE_INTEGER)) throw new KeeperError("InternalError", "epoch out of range");
+          await this.chain(s, "margin_set", `Posting margin requirement (epoch ${epoch})`,
+            () => this.deps.client.postMargin(s.vaultId!, epoch, margin.requiredUnits),
+            (r) => ({
+              title: `Margin requirement posted (epoch ${epoch}): ${formatUnits(margin.requiredUnits)} ${s.asset} required`,
+              detail: `Locked ${formatUnits(r.state.locked)}, shortfall ${formatUnits(r.state.shortfall)} ${s.asset}`,
+            }),
+            before.locked,
+          );
+          s.lastPostedValueCents = margin.requiredValueCents;
+        }
+      } catch (e) {
+        // The new rate and requirement are kept: tell the stream, a 0 bp shock retries the posting.
+        await this.publishState(s).catch(() => undefined);
+        throw e;
       }
       return this.publishState(s);
     });
@@ -261,7 +263,7 @@ export class SessionManager {
 
   private add(s: Session, e: Omit<ActivityEvent, "id" | "sessionId" | "ts">): ActivityEvent {
     const entry: ActivityEvent = { id: `${s.id}-${++this.seq}`, sessionId: s.id, ts: this.now().toISOString(), ...e };
-    this.activities.push(entry);
+    s.feed.push(entry);
     this.emit({ event: "activity", data: { ...entry } });
     return entry;
   }
