@@ -41,7 +41,7 @@ export function VaultCard({ session, asset, now }: VaultCardProps) {
         label={`Locked ${fmt(vault.lockedUnits)}, available ${fmt(vault.availableUnits)}, shortfall ${fmt(vault.shortfallUnits)} ${asset.code}`}
       />
       <p className="mt-4 text-xs text-ink-subtle">
-        Vault contract{' '}
+        Posted on-chain: {fmt(vault.requiredUnits)} {asset.code} required · vault contract{' '}
         <span className="font-mono" title={session.vaultId}>
           {shortAddress(session.vaultId)}
         </span>{' '}

@@ -39,7 +39,12 @@ export default function App() {
                 : `Keeper ${k.connection === 'open' ? 'live' : k.connection}`}
           </span>
           {k.session && k.config && (
-            <NewSession config={k.config} busy={k.busy === 'start'} onStart={k.startSession} />
+            <NewSession
+              config={k.config}
+              busy={k.busy === 'start'}
+              disabled={k.busy !== null && k.busy !== 'start'}
+              onStart={k.startSession}
+            />
           )}
         </div>
       </header>
@@ -58,8 +63,19 @@ export default function App() {
         )}
         {k.loadError && (
           <Banner tone="danger" live>
-            Could not load the dashboard ({k.loadError.code}). {k.loadError.message}
-            {!mocks && <> Keeper URL: {KEEPER_URL}</>}
+            <div className="flex items-start justify-between gap-4">
+              <span>
+                Could not load the dashboard ({k.loadError.code}). {k.loadError.message}
+                {!mocks && <> Keeper URL: {KEEPER_URL}</>}
+              </span>
+              <button
+                type="button"
+                className="shrink-0 text-xs font-medium underline-offset-2 hover:underline"
+                onClick={() => window.location.reload()}
+              >
+                Retry
+              </button>
+            </div>
           </Banner>
         )}
         {k.error && (
@@ -132,6 +148,7 @@ function Dashboard({ k, now, mocks }: { k: KeystoneHook; now: number; mocks: boo
 interface StartProps {
   config: KeystoneConfig
   busy: boolean
+  disabled?: boolean
   onStart(asset: AssetId): void
 }
 
@@ -163,7 +180,7 @@ function StartSession({ config, busy, onStart }: StartProps) {
   )
 }
 
-function NewSession({ config, busy, onStart }: StartProps) {
+function NewSession({ config, busy, disabled, onStart }: StartProps) {
   const [asset, setAsset] = useState<AssetId>(config.assets[0]?.id ?? 'KMMF')
   return (
     <span className="flex items-center gap-2">
@@ -175,6 +192,7 @@ function NewSession({ config, busy, onStart }: StartProps) {
       />
       <Button
         busy={busy}
+        disabled={disabled}
         onClick={() => {
           if (window.confirm('Start a new session? A new vault is deployed and the activity feed is cleared.')) {
             onStart(asset)

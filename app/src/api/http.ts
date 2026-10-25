@@ -55,18 +55,47 @@ export function createHttpClient(baseUrl: string): KeeperClient {
     rateShock: (bp) => request('POST', '/session/rate-shock', { bp }),
     settleDefault: () => request('POST', '/session/settle-default'),
     subscribe(listener: StreamListener) {
-      const source = new EventSource(`${baseUrl}/events`)
+      let source: EventSource | null = null
+      let retry: number | undefined
+      let closed = false
+
+      const parse = <T,>(message: Event): T | null => {
+        try {
+          return JSON.parse((message as MessageEvent<string>).data) as T
+        } catch {
+          console.warn('Unreadable SSE message', message)
+          return null
+        }
+      }
+
+      const open = () => {
+        source = new EventSource(`${baseUrl}/events`)
+        source.addEventListener('open', () => listener.onConnection('open'))
+        source.addEventListener('error', () => {
+          listener.onConnection('reconnecting')
+          // EventSource retries by itself, except after an HTTP error or a wrong content type.
+          if (source?.readyState === EventSource.CLOSED && !closed) {
+            retry = window.setTimeout(open, 3000)
+          }
+        })
+        // The keeper replays the whole history on every connection.
+        source.addEventListener('activity', (message) => {
+          const event = parse<ActivityEvent>(message)
+          if (event?.id) listener.onActivity(event)
+        })
+        source.addEventListener('state', (message) => {
+          const state = parse<SessionState>(message)
+          if (state?.sessionId) listener.onState(state)
+        })
+      }
+
       listener.onConnection('connecting')
-      source.addEventListener('open', () => listener.onConnection('open'))
-      // EventSource reconnects by itself; the keeper replays the history on every connection.
-      source.addEventListener('error', () => listener.onConnection('reconnecting'))
-      source.addEventListener('activity', (message) => {
-        listener.onActivity(JSON.parse((message as MessageEvent<string>).data) as ActivityEvent)
-      })
-      source.addEventListener('state', (message) => {
-        listener.onState(JSON.parse((message as MessageEvent<string>).data) as SessionState)
-      })
-      return () => source.close()
+      open()
+      return () => {
+        closed = true
+        window.clearTimeout(retry)
+        source?.close()
+      }
     },
   }
 }

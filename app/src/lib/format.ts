@@ -5,12 +5,13 @@ const MINUS = '−'
 
 /** Parses a user amount ("300", "12.5") into smallest units. Throws a readable Error when invalid. */
 export function parseUnits(input: string, decimals: number): string {
-  const text = input.trim().replace(/[,\s]/g, '')
-  const match = /^(\d+)(?:\.(\d+))?$/.exec(text)
-  if (!match) throw new Error('Enter a positive amount, for example 300.')
-  const [, whole, fraction = ''] = match
+  const text = input.trim().replace(/[\s_]/g, '')
+  if (text.includes(',')) throw new Error('Use a dot for decimals and no thousands separator, for example 12.5.')
+  const match = /^(\d*)(?:\.(\d*))?$/.exec(text)
+  if (!match || !/\d/.test(text)) throw new Error('Enter a positive amount, for example 300.')
+  const [, whole = '', fraction = ''] = match
   if (fraction.length > decimals) throw new Error(`Use at most ${decimals} decimals.`)
-  const value = BigInt(whole!) * 10n ** BigInt(decimals) + BigInt(fraction.padEnd(decimals, '0') || '0')
+  const value = BigInt(whole || '0') * 10n ** BigInt(decimals) + BigInt(fraction.padEnd(decimals, '0') || '0')
   if (value <= 0n) throw new Error('Enter an amount greater than zero.')
   return value.toString()
 }
@@ -27,12 +28,11 @@ export function formatUnits(units: string, decimals: number, maxFraction = 2): s
     .padStart(decimals, '0')
     .slice(0, maxFraction)
     .replace(/0+$/, '')
+  if (abs > 0n && whole === '0' && !fraction) {
+    // Never show a non-zero amount (a shortfall, say) as 0.
+    return `${negative ? MINUS : ''}<0.${'0'.repeat(Math.max(0, maxFraction - 1))}1`
+  }
   return `${negative ? MINUS : ''}${whole}${fraction ? `.${fraction}` : ''}`
-}
-
-/** Smallest units → approximate number, for proportions only (never for amounts sent to the keeper). */
-export function unitsToNumber(units: string, decimals: number): number {
-  return Number(BigInt(units)) / 10 ** decimals
 }
 
 /** "-240210.11" → "−240,210.11" */

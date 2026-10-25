@@ -4,6 +4,7 @@
 // out of the bundle when mocks are off.
 import type { ActivityEvent, AssetId, KeystoneConfig, SessionState } from '@keystone/shared'
 import { mockConfig, mockConfigKeeperSigner, mockAddress, mockTxHash } from '@keystone/shared/mocks'
+import { formatEur, formatUnits } from '../lib/format.ts'
 import type { FundSigner, KeeperClient, StreamListener } from './client.ts'
 import { KeystoneError } from './errors.ts'
 
@@ -42,7 +43,7 @@ interface Session {
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
-const whole = (units: bigint) => (units / ONE).toString()
+const amount = (units: bigint) => formatUnits(units.toString(), DECIMALS, DECIMALS)
 
 /** Plan section 6: flat curve, quarterly payments over 5 years, fund pays fixed. */
 function requirement(ratePct: number, unitPriceEur: number, haircutPct: number) {
@@ -121,8 +122,7 @@ export function createMockClient(signerMode: KeystoneConfig['signerMode']): Keep
     listeners.forEach((l) => l.onActivity(event))
   }
 
-  function publishState(): SessionState {
-    const s = requireSession()
+  function publishState(s: Session): SessionState {
     s.updatedAt = new Date().toISOString()
     const state = snapshot(s)
     listeners.forEach((l) => l.onState(state))
@@ -135,6 +135,7 @@ export function createMockClient(signerMode: KeystoneConfig['signerMode']): Keep
   }
 
   function entry(
+    s: Session,
     kind: ActivityEvent['kind'],
     type: ActivityEvent['type'],
     title: string,
@@ -143,7 +144,7 @@ export function createMockClient(signerMode: KeystoneConfig['signerMode']): Keep
     sequence += 1
     return {
       id: `mock-${sequence}`,
-      sessionId: requireSession().id,
+      sessionId: s.id,
       ts: new Date().toISOString(),
       kind,
       type,
@@ -154,69 +155,57 @@ export function createMockClient(signerMode: KeystoneConfig['signerMode']): Keep
   }
 
   /**
-   * Plays one mock transaction: the main entry goes out `pending`, then after a short delay the
-   * change is applied and the main entry plus the entries it derives are confirmed with one hash.
+   * Plays one mock transaction on session `s`, once its checks have passed: the main entry goes
+   * out `pending`, then after a short delay the change is applied and the main entry plus the
+   * entries it derives are confirmed with one hash.
    */
   async function transaction(
+    s: Session,
     main: ActivityEvent,
     apply: (now: number) => ActivityEvent[],
   ): Promise<SessionState> {
     publish(main)
     await sleep(CONFIRM_MS)
-    const now = Date.now()
-    let derived: ActivityEvent[]
-    try {
-      derived = apply(now)
-    } catch (error) {
+    if (session !== s) {
       publish({ ...main, status: 'failed' })
-      throw error
+      throw new KeystoneError('TxFailed', 'The session was replaced before confirmation.', 502)
     }
+    const derived = apply(Date.now())
     sequence += 1
     const hash = mockTxHash(sequence)
     const proof = { status: 'confirmed' as const, txHash: hash, explorerUrl: `${config.explorerTxBase}${hash}` }
     publish({ ...main, ...proof })
     derived.forEach((e) => publish({ ...e, ...proof }))
-    return publishState()
+    return publishState(s)
   }
 
   /** Entries derived from a rebalance: margin call opened, cured, collateral released. */
-  function rebalanceEntries(before: Vault, after: Vault, code: string): ActivityEvent[] {
+  function rebalanceEntries(s: Session, before: Vault, code: string): ActivityEvent[] {
+    const after = s.vault
     const out: ActivityEvent[] = []
     if (before.status === 'active' && after.status === 'margin_call') {
       out.push(
-        entry('chain', 'margin_call', `Margin call: ${whole(after.shortfall)} ${code} missing`,
+        entry(s, 'chain', 'margin_call', `Margin call: ${amount(after.shortfall)} ${code} missing`,
           `Deadline ${new Date(after.callDeadline!).toISOString().slice(11, 19)} UTC`),
       )
     }
     if (before.status === 'margin_call' && after.status === 'active') {
-      out.push(entry('chain', 'cured', 'Margin call cured'))
+      out.push(entry(s, 'chain', 'cured', 'Margin call cured'))
     }
     if (after.locked < before.locked) {
-      out.push(entry('chain', 'released', `${whole(before.locked - after.locked)} ${code} released`))
+      out.push(entry(s, 'chain', 'released', `${amount(before.locked - after.locked)} ${code} released`))
     }
     return out
   }
 
-  function applyDeposit(amount: bigint, now: number, code: string): ActivityEvent[] {
-    const s = requireSession()
-    if (s.vault.status === 'defaulted') throw new KeystoneError('Defaulted', 'Vault defaulted.', 409)
-    if (amount > s.fund) throw new KeystoneError('TxFailed', 'The fund does not hold enough tokens.', 502)
-    const before = { ...s.vault }
-    s.fund -= amount
-    s.vault.available += amount
-    rebalance(s.vault, now)
-    return rebalanceEntries(before, s.vault, code)
-  }
-
-  function applyWithdraw(amount: bigint, now: number): ActivityEvent[] {
-    const s = requireSession()
-    if (amount > s.vault.available) {
+  /** What the keeper's simulation would reject before any transaction is sent. */
+  function checkMove(s: Session, kind: 'deposit' | 'withdraw', value: bigint): void {
+    if (kind === 'deposit') {
+      if (s.vault.status === 'defaulted') throw new KeystoneError('Defaulted', 'Vault defaulted.', 409)
+      if (value > s.fund) throw new KeystoneError('TxFailed', 'The fund does not hold enough tokens.', 502)
+    } else if (value > s.vault.available) {
       throw new KeystoneError('InsufficientAvailable', 'Amount above the available collateral.', 409)
     }
-    s.vault.available -= amount
-    s.fund += amount
-    if (s.vault.status !== 'defaulted') rebalance(s.vault, now)
-    return []
   }
 
   function checkSignerMode(expected: KeystoneConfig['signerMode']): void {
@@ -227,21 +216,33 @@ export function createMockClient(signerMode: KeystoneConfig['signerMode']): Keep
 
   async function move(kind: 'deposit' | 'withdraw', units: string): Promise<SessionState> {
     const s = requireSession()
-    const amount = parseAmount(units)
+    const value = parseAmount(units)
+    checkMove(s, kind, value)
     const code = asset(s.asset).code
     const main =
       kind === 'deposit'
-        ? entry('chain', 'deposit', `Fund deposited ${whole(amount)} ${code}`)
-        : entry('chain', 'withdraw', `Fund withdrew ${whole(amount)} ${code}`)
-    return transaction(main, (now) =>
-      kind === 'deposit' ? applyDeposit(amount, now, code) : applyWithdraw(amount, now),
-    )
+        ? entry(s, 'chain', 'deposit', `Fund deposited ${amount(value)} ${code}`)
+        : entry(s, 'chain', 'withdraw', `Fund withdrew ${amount(value)} ${code}`)
+    return transaction(s, main, (now) => {
+      const before = { ...s.vault }
+      if (kind === 'deposit') {
+        s.fund -= value
+        s.vault.available += value
+      } else {
+        s.vault.available -= value
+        s.fund += value
+      }
+      // No rebalancing after a default (section 3.3).
+      if (s.vault.status === 'defaulted') return []
+      rebalance(s.vault, now)
+      return rebalanceEntries(s, before, code)
+    })
   }
 
   async function prepare(kind: 'deposit' | 'withdraw', units: string) {
     checkSignerMode('freighter')
-    requireSession()
-    parseAmount(units)
+    const s = requireSession()
+    checkMove(s, kind, parseAmount(units))
     await sleep(300)
     return { txXdr: `MOCK-XDR:${kind}:${units}` }
   }
@@ -254,7 +255,7 @@ export function createMockClient(signerMode: KeystoneConfig['signerMode']): Keep
     async startSession(id) {
       const info = asset(id)
       sequence += 1
-      session = {
+      const s: Session = {
         id: `mock-session-${id.toLowerCase()}-${sequence}`,
         asset: id,
         vaultId: mockAddress('C', `VAULT${sequence}`),
@@ -274,8 +275,9 @@ export function createMockClient(signerMode: KeystoneConfig['signerMode']): Keep
         bank: 0n,
         updatedAt: new Date().toISOString(),
       }
+      session = s
       activity = []
-      return transaction(entry('chain', 'session_started', `Vault deployed for ${info.code}`), () => [])
+      return transaction(s, entry(s, 'chain', 'session_started', `Vault deployed for ${info.code}`), () => [])
     },
 
     prepareDeposit: (units) => prepare('deposit', units),
@@ -315,39 +317,39 @@ export function createMockClient(signerMode: KeystoneConfig['signerMode']): Keep
         requiredUnits: req.units.toString(),
       }
       const sign = bp > 0 ? '+' : '−'
-      publish({
-        ...entry('sim', 'rate_shock', `Rate shock ${sign}${Math.abs(bp)} bp`,
-          `Euribor 3M ${from.toFixed(3)} % → ${to.toFixed(3)} %; requirement ${req.value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EUR = ${whole(req.units)} ${info.code}`),
-      })
-      if (Math.abs(req.value - s.lastPostedValueEur) < MTA_EUR) return publishState()
+      publish(
+        entry(s, 'sim', 'rate_shock', `Rate shock ${sign}${Math.abs(bp)} bp`,
+          `Euribor 3M ${from.toFixed(3)} % → ${to.toFixed(3)} %; requirement ${formatEur(req.value.toFixed(2))} EUR = ${amount(req.units)} ${info.code}`),
+      )
+      // Section 4: below the MTA, no transaction, only the sim entry.
+      if (Math.abs(req.value - s.lastPostedValueEur) < MTA_EUR) return publishState(s)
 
       const epoch = s.vault.epoch + 1
-      const main = entry('chain', 'margin_set', `Requirement posted: ${whole(req.units)} ${info.code}`, `Epoch ${epoch}`)
-      return transaction(main, (now) => {
+      const main = entry(s, 'chain', 'margin_set', `Requirement posted: ${amount(req.units)} ${info.code}`, `Epoch ${epoch}`)
+      return transaction(s, main, (now) => {
         const before = { ...s.vault }
         s.vault.epoch = epoch
         s.vault.required = req.units
         s.lastPostedValueEur = req.value
         rebalance(s.vault, now)
-        return rebalanceEntries(before, s.vault, info.code)
+        return rebalanceEntries(s, before, info.code)
       })
     },
 
     async settleDefault() {
       const s = requireSession()
+      const v = s.vault
+      if (v.status !== 'margin_call') throw new KeystoneError('NotInMarginCall', 'No open margin call.', 409)
+      if (v.callDeadline !== null && Date.now() < v.callDeadline) {
+        throw new KeystoneError('GracePeriodRunning', 'Grace period still running.', 409)
+      }
+      if (v.shortfall === 0n) throw new KeystoneError('NoShortfall', 'Nothing is missing.', 409)
+      const settled = v.locked
       const code = asset(s.asset).code
-      const main = entry('chain', 'defaulted', 'Default settled')
-      return transaction(main, (now) => {
-        const v = s.vault
-        if (v.status !== 'margin_call') throw new KeystoneError('NotInMarginCall', 'No open margin call.', 409)
-        if (v.callDeadline !== null && now < v.callDeadline) {
-          throw new KeystoneError('GracePeriodRunning', 'Grace period still running.', 409)
-        }
-        if (v.shortfall === 0n) throw new KeystoneError('NoShortfall', 'Nothing is missing.', 409)
-        const settled = v.locked
+      const main = entry(s, 'chain', 'defaulted', `Default settled: ${amount(settled)} ${code} transferred to the bank`)
+      return transaction(s, main, () => {
         s.bank += settled
         Object.assign(v, { locked: 0n, required: 0n, shortfall: 0n, callDeadline: null, status: 'defaulted' })
-        main.title = `Default settled: ${whole(settled)} ${code} transferred to the bank`
         return []
       })
     },

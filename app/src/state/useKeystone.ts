@@ -30,15 +30,19 @@ export function useKeystone() {
   const [step, setStep] = useState<string | null>(null)
   const [error, setError] = useState<ShownError | null>(null)
 
-  // Ignore a state older than the one shown (responses and SSE can arrive in either order).
-  const acceptState = useCallback((next: SessionState) => {
-    setSession((current) =>
-      current &&
-      current.sessionId === next.sessionId &&
-      Date.parse(next.updatedAt) < Date.parse(current.updatedAt)
-        ? current
-        : next,
-    )
+  const inFlight = useRef(false)
+
+  /**
+   * Shows a new state unless it is older than the one shown (responses and SSE can arrive in
+   * either order). Only the stream and "start session" may switch to another session, so a late
+   * response about a replaced session cannot bring it back.
+   */
+  const acceptState = useCallback((next: SessionState, allowSwitch = true) => {
+    setSession((current) => {
+      if (!current) return next
+      if (current.sessionId !== next.sessionId) return allowSwitch ? next : current
+      return Date.parse(next.updatedAt) < Date.parse(current.updatedAt) ? current : next
+    })
   }, [])
 
   useEffect(() => {
@@ -56,7 +60,7 @@ export function useKeystone() {
         if (current) acceptState(current)
         unsubscribe = backend.client.subscribe({
           onActivity: (event) => setEvents((list) => upsert(list, event)),
-          onState: acceptState,
+          onState: (state) => acceptState(state),
           onConnection: setConnection,
         })
       } catch (e) {
@@ -72,14 +76,17 @@ export function useKeystone() {
   const run = useCallback(
     async (action: Action, task: (backend: Backend) => Promise<SessionState>) => {
       const backend = backendRef.current
-      if (!backend) return
+      // One action at a time: a second click or Enter never sends a second transaction.
+      if (!backend || inFlight.current) return
+      inFlight.current = true
       setBusy(action)
       setError(null)
       try {
-        acceptState(await task(backend))
+        acceptState(await task(backend), action === 'start')
       } catch (e) {
         setError(describeError(e))
       } finally {
+        inFlight.current = false
         setBusy(null)
         setStep(null)
       }
@@ -104,7 +111,7 @@ export function useKeystone() {
     (kind: 'deposit' | 'withdraw', input: string) =>
       run(kind, async ({ client, signer }) => {
         const units = toUnits(input)
-        if (!config) throw new KeystoneError('NoSession', 'Configuration not loaded.')
+        if (!config) throw new KeystoneError('NotReady', 'Configuration not loaded.')
         if (config.signerMode === 'keeper') {
           setStep('Submitting…')
           return kind === 'deposit' ? client.deposit(units) : client.withdraw(units)
@@ -130,12 +137,6 @@ export function useKeystone() {
     }),
     [moveFunds, run],
   )
-
-  // A new session clears the history (section 4): drop entries of previous sessions.
-  const sessionId = session?.sessionId
-  useEffect(() => {
-    if (sessionId) setEvents((list) => list.filter((e) => e.sessionId === sessionId))
-  }, [sessionId])
 
   // docs/interfaces.md section 4: ignore entries whose sessionId is not the current session.
   const activity = useMemo(

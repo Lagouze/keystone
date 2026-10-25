@@ -31,15 +31,25 @@ const MESSAGES: Record<string, string> = {
   RpcUnavailable: 'Stellar Testnet did not answer in time. The activity feed shows the final outcome.',
   // Front
   KeeperUnreachable: 'The keeper is unreachable. Check that it is running.',
+  NotReady: 'The dashboard is still loading. Try again in a moment.',
   InvalidInput: 'Check the amount.',
   FreighterMissing: 'Freighter is not installed or not enabled in this browser.',
   FreighterAccessDenied: 'Freighter did not share the account with Keystone.',
+  FreighterUnavailable: 'Freighter did not answer. Unlock it and try again.',
   FreighterWrongNetwork: 'Freighter is not on Testnet. Switch its network to Testnet.',
   FreighterWrongAccount: 'The active Freighter account is not the demo fund account.',
   FreighterSignatureRefused: 'The signature was declined in Freighter.',
 }
 
-const DETAILED = new Set(['BadRequest', 'TxFailed', 'InvalidInput', 'FreighterWrongAccount', 'FreighterWrongNetwork'])
+const DETAILED = new Set([
+  'BadRequest',
+  'TxFailed',
+  'InvalidInput',
+  'FreighterUnavailable',
+  'FreighterWrongAccount',
+  'FreighterWrongNetwork',
+  'FreighterSignatureRefused',
+])
 
 /** Human-readable text for any error, keeping the code visible for debugging. */
 export function describeError(error: unknown): { code: string; message: string } {

@@ -31,7 +31,9 @@ export function Button({
       aria-disabled={busy || undefined}
       aria-busy={busy || undefined}
       onClick={(event: MouseEvent<HTMLButtonElement>) => {
-        if (!busy) onClick?.(event)
+        // Also stops a submit button from submitting its form again while busy.
+        if (busy) event.preventDefault()
+        else onClick?.(event)
       }}
       className={cx(
         'inline-flex h-10 items-center justify-center gap-2 rounded-control px-4 text-sm font-medium transition-colors',

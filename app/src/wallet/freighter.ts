@@ -15,7 +15,7 @@ export const signWithFreighter: FundSigner = async (txXdr, config) => {
   }
 
   const network = await getNetworkDetails()
-  if (network.error) throw new KeystoneError('FreighterAccessDenied', network.error.message)
+  if (network.error) throw new KeystoneError('FreighterUnavailable', network.error.message)
   if (network.networkPassphrase !== config.networkPassphrase) {
     throw new KeystoneError('FreighterWrongNetwork', `Freighter is on ${network.network || 'another network'}.`)
   }
@@ -37,6 +37,9 @@ export const signWithFreighter: FundSigner = async (txXdr, config) => {
   })
   if (signed.error || !signed.signedTxXdr) {
     throw new KeystoneError('FreighterSignatureRefused', signed.error?.message ?? 'Signature declined.')
+  }
+  if (signed.signerAddress && signed.signerAddress !== config.accounts.fund) {
+    throw new KeystoneError('FreighterWrongAccount', `Signed by ${shortAddress(signed.signerAddress)}.`)
   }
   return signed.signedTxXdr
 }
