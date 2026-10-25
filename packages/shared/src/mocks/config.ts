@@ -1,5 +1,5 @@
-import type { AssetInfo, KeystoneConfig } from "../types";
-import { mockAddress } from "./helpers";
+import type { AssetInfo, KeystoneConfig } from "../types.ts";
+import { mockAddress } from "./helpers.ts";
 
 export const mockAssets: AssetInfo[] = [
   {

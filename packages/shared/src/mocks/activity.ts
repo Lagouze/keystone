@@ -1,8 +1,8 @@
 // Activity feed of scenario 1 (KMMF), in order. Entries produced by the same
 // transaction share the same mock hash. All hashes are fake and start with MOCK.
-import type { ActivityEvent } from "../types";
-import { mockConfig } from "./config";
-import { mockTxHash } from "./helpers";
+import type { ActivityEvent } from "../types.ts";
+import { mockConfig } from "./config.ts";
+import { mockTxHash } from "./helpers.ts";
 
 const sessionId = "mock-session-kmmf";
 

@@ -1,6 +1,6 @@
 // Checks that the mocks respect docs/interfaces.md v1.0 (formats, display rules, vault rules).
 import { describe, expect, it } from "vitest";
-import type { ActivityEvent, SessionState } from "../src";
+import type { ActivityEvent, SessionState } from "../src/index.ts";
 import {
   mockConfig,
   mockConfirmedDeposit,
@@ -8,7 +8,7 @@ import {
   mockScenario1Activity,
   mockSessions,
   units,
-} from "../src/mocks";
+} from "../src/mocks/index.ts";
 
 const UNITS = /^\d+$/;
 const EUR = /^-?\d+\.\d{2}$/;

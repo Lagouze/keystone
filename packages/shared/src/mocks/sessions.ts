@@ -1,8 +1,8 @@
 // One SessionState per vault status. Values follow docs/plan.md section 6 with a
 // mock starting rate of 2.034 % (K = 2.034 %), N = 10 M EUR, P = 1 000 EUR, h = 2 %.
 // The fund starts with 1 000 units of each asset.
-import type { SessionState } from "../types";
-import { mockAddress, units } from "./helpers";
+import type { SessionState } from "../types.ts";
+import { mockAddress, units } from "./helpers.ts";
 
 const swap = (floatRatePct: string): SessionState["swap"] => ({
   notionalEur: "10000000.00",
