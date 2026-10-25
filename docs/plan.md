@@ -39,7 +39,7 @@ Deadline de soumission : **lundi 26 octobre, 12:00 heure de Lisbonne**. Gel du c
 | A6 | Paramètres financiers de la section 6 validés. |
 | A7 | **Deux actifs fictifs émis par l'équipe : KMMF et KBOND. Etherfuse est abandonné.** Test du 25 octobre : un ordre CETES de la sandbox Etherfuse (API v2) a été financé mais n'a jamais été livré sur Stellar Testnet. L'équipe Etherfuse a confirmé que cette fonctionnalité de la v2 n'est pas terminée et devrait marcher fin de journée le 26 octobre, après la deadline. KBOND est émis par l'équipe en EUR (pas de décote de change). Etherfuse n'est plus une piste pour ce hackathon. |
 | A8 | Hébergement de l'URL publique (front statique + keeper Node en `SIGNER=keeper`) : **à trancher** au jalon J2 (01:30), confié au pôle keeper. |
-| A9 | **Claudex abandonné**, un seul agent par machine (Claude Code sur les Mac, Codex sur le Windows). Revue de chaque PR par un sous-agent Claude neuf sur la machine de l'auteur ; PR du contrat relues en plus par Claude Code sur le Mac de Grégoire (grille renforcée). Remplace A5 et toute mention de Claudex ou de seconde relecture Codex dans ce plan : voir `AGENTS.md` section 7. |
+| A9 | **Claudex abandonné**, un seul agent par machine (Claude Code sur les Mac, Codex sur le Windows). Revue de chaque PR par un sous-agent Claude neuf sur la machine de l'auteur ; PR du contrat relues par Liel avec la grille renforcée, plus une passe Codex de fin de tâche (plus de relecture depuis le Mac de Grégoire). Remplace A5 et toute mention de Claudex ou de seconde relecture Codex dans ce plan : voir `AGENTS.md` section 7. |
 
 ## 3. Architecture
 
@@ -299,7 +299,7 @@ Conséquence pour chaque pôle : chaque PR met à jour la section du README qui 
 | Tu écris dans | `contracts/`, `packages/vault-client/` (bindings générés). Le hash WASM et l'ID du vault de test sont transmis au keeper, qui les consigne dans `deployments/testnet.json` |
 | Tu fournis | WASM uploadé, hash WASM, un vault de test déployé, bindings TypeScript, événements et erreurs conformes à la spécification |
 | Tu attends | Rien de l'extérieur pour démarrer. Pour tes tests on-chain : deux comptes Testnet (fonds et banque) et un actif de test. Si le bootstrap du keeper n'est pas encore prêt, crée les tiens avec friendbot et un actif jetable. |
-| Ton relecteur | Une session Codex neuve sur ton Windows (première relecture, diff seul), puis Claude Code sur le Mac de Grégoire (pôle keeper), grille renforcée, via commentaire de PR (A9) |
+| Ton relecteur | Une session Codex neuve sur ton Windows (première relecture, diff seul), puis une relecture par toi-même avec la grille renforcée et une passe Codex de fin de tâche (A9) |
 
 ### Outillage
 
@@ -377,7 +377,7 @@ Le keeper est au milieu du système. Il consomme le contrat, sert le front, calc
 | Tu écris dans | `keeper/`, `scripts/`, `packages/shared/`, `deployments/testnet.json` (y compris le hash WASM et le vault de test fournis par le contrat), `.env.example`, et les documents partagés en tant que coordinateur |
 | Tu fournis | Types et mocks partagés (en premier : le front en dépend), bootstrap Testnet, API REST + SSE, modèle de marge, scénarios, script e2e |
 | Tu attends | Du pôle contrat : WASM uploadé, hash, bindings dans `packages/vault-client` (C1 vers 21:30). Du front : rien, sinon ses retours sur l'API. |
-| Relecture | Sous-agent Claude neuf sur ton Mac (A9). Tu relis aussi **les PR du contrat** avec Claude Code (grille renforcée) et postes la revue en commentaire. |
+| Relecture | Sous-agent Claude neuf sur ton Mac (A9). Les PR du contrat ne sont plus relues depuis ton Mac (A9). |
 
 ### Outillage
 
