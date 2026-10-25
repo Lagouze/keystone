@@ -130,6 +130,19 @@ deployments/testnet.json   public on-chain identifiers
 
 *Not tested yet.* Each command will be listed with what it does once it has been run successfully (build, test, bootstrap Testnet, start keeper, start dashboard, end-to-end script).
 
+### Dashboard (`app/`)
+
+Run from `app/`. Tested with Node 24.21 and npm 11.19. The dashboard is a standalone npm package until the root npm workspaces are set up.
+
+| Command | What it does |
+| --- | --- |
+| `npm ci` | Installs the dashboard dependencies from `app/package-lock.json` |
+| `npm run dev` | Starts the Vite dev server on `http://localhost:5173` |
+| `npm run typecheck` | Type-checks the dashboard and the shared types it imports from `packages/shared` |
+| `npm run build` | Type-checks, then builds the static site into `app/dist/` |
+
+The dashboard reads `VITE_KEEPER_URL` (default `http://localhost:8787/api`) and `VITE_USE_MOCKS`. At this stage it only shows a placeholder screen: no keeper call, no wallet.
+
 ## 10. Demo instructions
 
 *To be written once the end-to-end flow works.* Two scenarios are planned:
@@ -157,7 +170,7 @@ Only the status "verified" counts as done, and only with a proof link.
 | 6 | Deposit, lock and release with verifiable results | Not started | |
 | 7 | Separate default scenario with on-chain transfer to the bank | Not started | |
 | 8 | Real Stellar Testnet transactions shown with proof | Not started | |
-| 9 | Dashboard showing asset choice, steps and on-chain proof | Not started | |
+| 9 | Dashboard showing asset choice, steps and on-chain proof | In progress (app scaffold) | |
 | 10 | End-to-end integration of the three poles | Not started | |
 | 11 | Submission: public repo, README, public URL, video, pitch deck | Not started | |
 | 12 | Continuous quality: Claudex review, tests, README updates | In place from phase zero | This repository's PR history |

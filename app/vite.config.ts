@@ -7,10 +7,14 @@ import { defineConfig } from 'vite'
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
-    alias: {
-      '@keystone/shared': fileURLToPath(
-        new URL('../packages/shared/src/types.ts', import.meta.url),
-      ),
-    },
+    // Exact match only, so that future subpaths (e.g. mocks) can get their own alias.
+    alias: [
+      {
+        find: /^@keystone\/shared$/,
+        replacement: fileURLToPath(
+          new URL('../packages/shared/src/types.ts', import.meta.url),
+        ),
+      },
+    ],
   },
 })
