@@ -1,0 +1,42 @@
+{
+  "swap": {
+    "notionalEur": "10000000",
+    "tenorYears": 5,
+    "paymentsPerYear": 4,
+    "direction": "fund_pays_fixed"
+  },
+  "csa": {
+    "thresholdEur": "0",
+    "mtaEur": "50000.00",
+    "gracePeriodSecs": 90,
+    "maxRequiredUnits": "100000000000"
+  },
+  "assets": {
+    "KMMF": { "label": "Tokenized money market fund shares (KMMF)", "unitPriceEur": "1000.00", "haircutPct": "2.00" },
+    "KBOND": { "label": "Tokenized sovereign bond (KBOND)", "unitPriceEur": "1000.00", "haircutPct": "2.00" }
+  },
+  "scenarios": [
+    {
+      "id": "margin-and-release",
+      "asset": "KMMF",
+      "steps": [
+        { "action": "deposit", "units": "3000000000" },
+        { "action": "rate_shock", "bp": -50 },
+        { "action": "rate_shock", "bp": -30 },
+        { "action": "deposit", "note": "the fund tops up the shortfall, status goes back to active" },
+        { "action": "rate_shock", "bp": 60 },
+        { "action": "withdraw", "note": "the fund withdraws what was released" }
+      ]
+    },
+    {
+      "id": "default",
+      "asset": "KBOND",
+      "steps": [
+        { "action": "deposit", "units": "3000000000" },
+        { "action": "rate_shock", "bp": -100 },
+        { "action": "wait_grace_period" },
+        { "action": "settle_default" }
+      ]
+    }
+  ]
+}
