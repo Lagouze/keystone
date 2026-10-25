@@ -66,8 +66,8 @@ Bootstrap script --issues KMMF and KBOND--> fund account                 Fund an
 | KMMF SAC contract ID | [`CDB3KHRGMFXFRXEVVJUNUCDVPIR5RPKSSCTP5JUBK32F2ZMOZQVLMIA5`](https://stellar.expert/explorer/testnet/contract/CDB3KHRGMFXFRXEVVJUNUCDVPIR5RPKSSCTP5JUBK32F2ZMOZQVLMIA5) |
 | KBOND asset (code:issuer) | `KBOND:GDWMFOSV4L2O66PDZ4BL4K5HEJJLGMGXXWLHUJNJ4N4ZICSUSBGTGNGX` |
 | KBOND SAC contract ID | [`CDB2XDXZ4CPE242D5KYIKQ2L2PQKENQCSYTW6PA5ROHOX5QWDBKVEUPF`](https://stellar.expert/explorer/testnet/contract/CDB2XDXZ4CPE242D5KYIKQ2L2PQKENQCSYTW6PA5ROHOX5QWDBKVEUPF) |
-| `keystone_vault` WASM hash | *not yet deployed* (provided by the contract pole) |
-| Example vault contract ID | *not yet deployed* (provided by the contract pole) |
+| `keystone_vault` WASM hash | `173fc4aa48b40a051862a720fa3d4827efd03ad25f4e7549b3314c4cba3f8516` (C1 build, [upload](https://stellar.expert/explorer/testnet/tx/cf9812534038af3f17741140dcb5963ceae8ef6b6c3645cfe1a1bff2bc35431d)) |
+| Example vault contract ID | [`CCLE3RBDYNMRMBVTAPXLQ5JRWQOGR3RHOQYCMH43N6VYY6T2OGSZCB2N`](https://stellar.expert/explorer/testnet/contract/CCLE3RBDYNMRMBVTAPXLQ5JRWQOGR3RHOQYCMH43N6VYY6T2OGSZCB2N) (C1: deposit, withdraw, post_margin; cap 1 000 KMMF, grace period 90 s; no `settle_default` yet) |
 | Demo bank account | [`GAUHK4ZBP2W5VSKLJOTTKKHWUB2MGFXBMHYLSH3EERTVYYMVPWSR7W6C`](https://stellar.expert/explorer/testnet/account/GAUHK4ZBP2W5VSKLJOTTKKHWUB2MGFXBMHYLSH3EERTVYYMVPWSR7W6C) (trustlines on KMMF and KBOND) |
 | Keeper account | [`GDGUJHZGU57RU4RHARM37GU2IDX4KV7V23XVFORDWRYIBWIIQ6U7G4TO`](https://stellar.expert/explorer/testnet/account/GDGUJHZGU57RU4RHARM37GU2IDX4KV7V23XVFORDWRYIBWIIQ6U7G4TO) |
 | Demo fund account (Freighter) | [`GDQ6AWAXZWIOCBHDSFIIKCWV3PQ6ZJE6BBC4VJCWA3SCFB4G7A2TMQOY`](https://stellar.expert/explorer/testnet/account/GDQ6AWAXZWIOCBHDSFIIKCWV3PQ6ZJE6BBC4VJCWA3SCFB4G7A2TMQOY) (trustlines on KMMF and KBOND, holds 1 000 of each) |
@@ -91,7 +91,17 @@ Setup transactions (Testnet bootstrap):
 | Fund trustline on KBOND | [`dd531751…5cff`](https://stellar.expert/explorer/testnet/tx/dd531751e447c167f36430666dde853e8345b5b495ba4e1550d14b73ff455cff) |
 | 1 000 KBOND issued to the fund | [`637fa5e9…f463`](https://stellar.expert/explorer/testnet/tx/637fa5e953241c7a7a2f474b4239e44871d67e60af667419aff8f16a0f8ff463) |
 
-Collateral flow: *none yet.* Links will be listed here for a deposit, a margin posting that locks collateral, a release and withdrawal, and a default settlement.
+Contract C1 (deployed by the contract pole, recorded in `deployments/testnet.json`):
+
+| Step | Transaction |
+| --- | --- |
+| `keystone_vault` WASM upload (ledger 5387705) | [`cf981253…431d`](https://stellar.expert/explorer/testnet/tx/cf9812534038af3f17741140dcb5963ceae8ef6b6c3645cfe1a1bff2bc35431d) |
+| Vault deployment (ledger 5388742) | [`66af4894…bdec`](https://stellar.expert/explorer/testnet/tx/66af48946f18f1a16673c78eb37a76ace759c1ba0b9ab35ec825df65c9ecbdec) |
+| Deposit of 1 KMMF signed by the demo fund account (ledger 5388931) | [`17868920…7202`](https://stellar.expert/explorer/testnet/tx/178689208be148899ac567ac6c68da6526e040b39962d313d9594a4eeca07202) |
+
+All three were read back from the Soroban RPC with status `SUCCESS`. After the deposit, the vault reports `available = 10000000` (1 KMMF), `locked = 0`, status `Active`; the vault's KMMF balance went from 0 to `10000000`, the fund's from `10000000000` to `9990000000`, and the transaction emitted one `deposited` event with `{amount: 10000000}`. The deposit was signed with the fund key from a throwaway script (not Freighter, which is untested).
+
+Collateral flow beyond the deposit: *none yet.* Links will be listed here for a margin posting that locks collateral, a release and withdrawal, and a default settlement.
 
 ## 7. Repository structure and poles
 
@@ -215,11 +225,11 @@ Only the status "verified" counts as done, and only with a proof link.
 | 1 | Swap + CSA scenario and margin model | In progress | Model and reference-value tests in `keeper/`; not yet posted on-chain |
 | 2 | KMMF and KBOND issued on Testnet | Verified | [KMMF issued](https://stellar.expert/explorer/testnet/tx/ec2b3c50209bbdfa0851274c03b6cd339b20fdc86774f170cf76d4a65315a532), [KBOND issued](https://stellar.expert/explorer/testnet/tx/637fa5e953241c7a7a2f474b4239e44871d67e60af667419aff8f16a0f8ff463), [KMMF SAC](https://stellar.expert/explorer/testnet/tx/bc7d9d9a2a15473b5bae6b81461cac9a68003235dea60056605c8b2631df0e11), [KBOND SAC](https://stellar.expert/explorer/testnet/tx/08089cde2ab558289d0a18c8f85817e18297bb40b41c6506c2d109462b47dcd3) |
 | 3 | Manual choice of collateral class in the UI | Not started | |
-| 4 | Soroban vault: authorized deposit, available / locked accounting | Not started | |
-| 5 | Keeper: exposure and margin computation, posting to the vault | In progress | Computation and API on an in-memory vault; posting to the real vault waits for the contract |
-| 6 | Deposit, lock and release with verifiable results | Not started | |
+| 4 | Soroban vault: authorized deposit, available / locked accounting | In progress (deposit verified) | [Vault deployed](https://stellar.expert/explorer/testnet/tx/66af48946f18f1a16673c78eb37a76ace759c1ba0b9ab35ec825df65c9ecbdec), [deposit of 1 KMMF](https://stellar.expert/explorer/testnet/tx/178689208be148899ac567ac6c68da6526e040b39962d313d9594a4eeca07202). Locking and default settlement not yet proven on-chain |
+| 5 | Keeper: exposure and margin computation, posting to the vault | In progress | Computation and API on an in-memory vault; the real vault client waits for the contract PR (#10) to be merged |
+| 6 | Deposit, lock and release with verifiable results | In progress (deposit verified) | [Deposit of 1 KMMF](https://stellar.expert/explorer/testnet/tx/178689208be148899ac567ac6c68da6526e040b39962d313d9594a4eeca07202); lock and release not yet proven |
 | 7 | Separate default scenario with on-chain transfer to the bank | Not started | |
-| 8 | Real Stellar Testnet transactions shown with proof | Not started | |
+| 8 | Real Stellar Testnet transactions shown with proof | In progress | Setup, vault deployment and one deposit listed in section 6; the keeper and dashboard do not use them yet |
 | 9 | Dashboard showing asset choice, steps and on-chain proof | In progress (dashboard on mocks; real keeper and Freighter not tested yet) | |
 | 10 | End-to-end integration of the three poles | Not started | |
 | 11 | Submission: public repo, README, public URL, video, pitch deck | Not started | |
