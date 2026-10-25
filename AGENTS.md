@@ -21,7 +21,7 @@ Ne te fie pas à une copie locale ancienne : fais `git fetch` et lis la version 
 
 | Pôle | Opérateur | Branche | Tu écris dans |
 | --- | --- | --- | --- |
-| `contract` | Liel (Windows, Codex) | `contract/collateral` | `contracts/`, `packages/vault-client/`, clé `wasmHash` de `deployments/testnet.json`, section Contrat du README |
+| `contract` | Liel (Windows, Codex) | `contract/collateral` | `contracts/`, `packages/vault-client/`, section Contrat du README |
 | `keeper` | Grégoire (Mac, Claude Code + Codex) | `back/keeper` | `keeper/`, `scripts/`, `packages/shared/`, `deployments/`, `.env.example`, et les documents partagés en tant que coordinateur documentaire |
 | `front` | Nathan (Mac, Claude Code + Codex) | `front/dashboard` | `app/`, section Front du README, `docs/demo-script.md` (avec le keeper) |
 

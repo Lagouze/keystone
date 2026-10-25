@@ -118,7 +118,7 @@ contracts/keystone_vault/              pôle contrat
 packages/vault-client/                 pôle contrat (bindings TS générés, jamais modifiés à la main)
 keeper/, scripts/, packages/shared/    pôle keeper
 app/                                   pôle front
-deployments/testnet.json               IDs publics (le contrat écrit le hash WASM, le keeper le reste)
+deployments/testnet.json               IDs publics (écrit par le keeper ; le contrat fournit le hash WASM et le vault de test)
 .env.example                           variables attendues, sans valeur secrète
 ```
 
@@ -295,7 +295,7 @@ Conséquence pour chaque pôle : chaque PR met à jour la section du README qui 
 | | |
 | --- | --- |
 | Branche | `contract/collateral` |
-| Tu écris dans | `contracts/`, `packages/vault-client/` (bindings générés), la clé `wasmHash` de `deployments/testnet.json` |
+| Tu écris dans | `contracts/`, `packages/vault-client/` (bindings générés). Le hash WASM et l'ID du vault de test sont transmis au keeper, qui les consigne dans `deployments/testnet.json` |
 | Tu fournis | WASM uploadé, hash WASM, un vault de test déployé, bindings TypeScript, événements et erreurs conformes à la spécification |
 | Tu attends | Rien de l'extérieur pour démarrer. Pour tes tests on-chain : deux comptes Testnet (fonds et banque) et un actif de test. Si le bootstrap du keeper n'est pas encore prêt, crée les tiens avec friendbot et un actif jetable. |
 | Ton relecteur | Claude Code, sur le Mac de Grégoire (pôle keeper), via commentaire de PR |
@@ -338,20 +338,20 @@ Conséquence pour chaque pôle : chaque PR met à jour la section du README qui 
     - `stellar contract deploy --wasm-hash <hash> -- <arguments du constructeur>` pour un vault de test ;
     - un dépôt réel sur ce vault.
 - Bindings : `stellar contract bindings typescript --network testnet --contract-id <id> --output-dir packages/vault-client`, puis vérifier qu'ils compilent.
-- **Critère de réussite** : `cargo test` vert ; hash WASM et ID du vault de test dans `deployments/testnet.json` ; hash de la transaction de dépôt réel collé dans la PR ; bindings présents.
+- **Critère de réussite** : `cargo test` vert ; hash WASM et ID du vault de test transmis au keeper (PR ou Issue) et consignés dans `deployments/testnet.json` ; hash de la transaction de dépôt réel collé dans la PR ; bindings présents.
 - Revue **renforcée**. PR vers `staging`, annoncée dans l'Issue de kickoff avec mention `[agent:keeper]`.
 
 #### C2 — Défaut (objectif 23:30)
 
-- `settle_default` et le statut `Defaulted`, qui bloque `deposit` et `post_margin` mais laisse `withdraw` du disponible.
+- `settle_default` et le statut `Defaulted`, qui bloque `deposit` et `post_margin` (erreur `Defaulted`) ; après le règlement, `locked = required = shortfall = call_deadline = 0` et plus aucun rééquilibrage.
 - Tests :
     - refusé hors `MarginCall` ;
     - refusé avant l'échéance (avancer le temps avec les utilitaires de test du ledger) ;
     - refusé sans déficit ;
     - après l'échéance, la banque reçoit exactement `locked` et le fonds garde `available` ;
-    - après le défaut, `deposit` et `post_margin` sont refusés et `withdraw` du disponible fonctionne ;
+    - après le défaut, `deposit` et `post_margin` renvoient `Defaulted`, `locked`, `required`, `shortfall` et `call_deadline` valent 0, et `withdraw` au-delà du disponible (nul dans le parcours normal) renvoie `InsufficientAvailable` ;
     - personne d'autre que la banque ne reçoit de tokens.
-- Nouveau upload du WASM. Mettre à jour `wasmHash` dans `deployments/testnet.json` et régénérer les bindings si l'interface a bougé (elle ne devrait pas).
+- Nouveau upload du WASM. Transmettre le nouveau hash WASM au keeper, qui met à jour `deployments/testnet.json`, et régénérer les bindings si l'interface a bougé (elle ne devrait pas).
 - **Critère de réussite** : tests verts et un défaut réel joué sur Testnet, hash collé dans la PR.
 
 #### Ensuite
@@ -373,7 +373,7 @@ Le keeper est au milieu du système. Il consomme le contrat, sert le front, calc
 | | |
 | --- | --- |
 | Branche | `back/keeper` |
-| Tu écris dans | `keeper/`, `scripts/`, `packages/shared/`, `deployments/testnet.json` (sauf `wasmHash`), `.env.example`, et les documents partagés en tant que coordinateur |
+| Tu écris dans | `keeper/`, `scripts/`, `packages/shared/`, `deployments/testnet.json` (y compris le hash WASM et le vault de test fournis par le contrat), `.env.example`, et les documents partagés en tant que coordinateur |
 | Tu fournis | Types et mocks partagés (en premier : le front en dépend), bootstrap Testnet, API REST + SSE, modèle de marge, scénarios, script e2e |
 | Tu attends | Du pôle contrat : WASM uploadé, hash, bindings dans `packages/vault-client` (C1 vers 21:30). Du front : rien, sinon ses retours sur l'API. |
 | Relecture | Claudex sur ton Mac (Claude Code d'abord, Codex en seconde relecture). Tu relis aussi **les PR du contrat** avec Claude Code et postes la revue en commentaire. |

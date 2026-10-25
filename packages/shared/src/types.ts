@@ -1,7 +1,7 @@
 // Keystone shared types — exact copy of docs/interfaces.md, section 5.
 // Do not edit here without updating docs/interfaces.md in the same PR.
 
-export type AssetId = "KMMF" | "BOND"; // BOND = KBOND, fictitious tokenized sovereign bond
+export type AssetId = "KMMF" | "KBOND"; // both fictitious, issued by the team on Testnet
 export type VaultStatus = "active" | "margin_call" | "defaulted";
 export type SignerMode = "freighter" | "keeper";
 
@@ -13,7 +13,7 @@ export interface AssetInfo {
   decimals: number;      // 7
   label: string;         // human-readable name shown in the UI
   unitPriceEur: string;  // simulated
-  haircutPct: string;
+  haircutPct: string;    // percent, "2.00" = 2 %
 }
 
 export interface KeystoneConfig {
@@ -32,20 +32,20 @@ export interface SessionState {
   updatedAt: string;      // ISO 8601
   swap: {
     notionalEur: string;
-    fixedRatePct: string;
-    floatRatePct: string;
+    fixedRatePct: string;   // percent, 3 decimals
+    floatRatePct: string;   // percent, 3 decimals
     floatRateSource: "ecb" | "cache" | "scenario";
     tenorYears: number;
     direction: "fund_pays_fixed";
   };
   margin: {
-    mtmFundEur: string;
+    mtmFundEur: string;     // negative when the fund loses
     thresholdEur: string;
     mtaEur: string;
     requiredValueEur: string;
     unitPriceEur: string;
     haircutPct: string;
-    requiredUnits: string;
+    requiredUnits: string;  // last computed Q, may differ from vault.requiredUnits under the MTA
   };
   vault: {
     availableUnits: string;
@@ -56,7 +56,7 @@ export interface SessionState {
     epoch: number;
     callDeadline: string | null; // ISO 8601, null outside a margin call
   };
-  balances: { fundUnits: string; bankUnits: string };
+  balances: { fundUnits: string; bankUnits: string }; // in the session's asset
 }
 
 export type ActivityType =
@@ -65,6 +65,7 @@ export type ActivityType =
 
 export interface ActivityEvent {
   id: string;
+  sessionId: string;             // session that produced the entry
   ts: string;                    // ISO 8601
   kind: "sim" | "chain";         // local computation or real Testnet transaction
   type: ActivityType;
