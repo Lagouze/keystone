@@ -140,7 +140,7 @@ Chaque changement est revu avant d'ouvrir la PR par un **sous-agent Claude neuf*
 
 - **Mac de Grégoire et de Nathan** : Claude Code écrit ; un sous-agent Claude neuf relit le diff.
 - **Windows de Liel** : Codex écrit. Le Windows n'ayant pas Claude, la première relecture y est faite par une session Codex neuve, dans les mêmes conditions que le sous-agent (diff seul, sans la conversation de l'auteur).
-- **PR du pôle contrat** : en plus, Claude Code sur le Mac de Grégoire les relit avec la grille renforcée et poste sa revue en commentaire de la PR.
+- **PR du pôle contrat** : Liel relit lui-même le diff avec la grille renforcée, et Codex fait une passe de relecture en fin de tâche. Plus de relecture depuis le Mac de Grégoire.
 
 ## 8. Tests
 
@@ -165,7 +165,7 @@ Une PR correspond à une tâche du plan, reste petite et vise `staging`. Elle su
 
 **Avant toute fusion, l'humain vérifie :**
 
-- la revue au niveau requis (section 7), résumée dans la PR, et pour le contrat la revue renforcée postée par Claude Code depuis le Mac de Grégoire ;
+- la revue au niveau requis (section 7), résumée dans la PR, et pour le contrat la revue renforcée faite par Liel avec la grille, plus la passe Codex de fin de tâche ;
 - les tests lancés, avec leur résultat collé, ou la limite signalée ;
 - le README, `AGENTS.md` et `docs/interfaces.md`, consultés et mis à jour si nécessaire ;
 - l'impact sur les autres pôles, nul ou approuvé via `interface-change` ;

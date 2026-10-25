@@ -4,7 +4,7 @@ Keystone is a programmable collateral engine for an OTC interest rate swap betwe
 
 Built during HackMeridian 2026 (Lisbon, 25–26 October 2026), track Genesis.
 
-> **Project status: phase zero (documentation and interfaces).** No application code has been written yet. Every section below marked *not yet available* or *not tested* will be filled with real, verified values as the build progresses. The progress table (section 12) is the reference.
+> **Project status: build in progress.** The shared types, the Testnet bootstrap, the margin model and a keeper API running on an in-memory vault exist; the Soroban contract is not integrated yet, so nothing in the keeper touches Testnet. Every section below marked *not yet available* or *not tested* will be filled with real, verified values as the build progresses. The progress table (section 12) is the reference.
 
 ## 1. Summary
 
@@ -145,6 +145,7 @@ Verified on the keeper machine (macOS). Not yet verified on Windows.
 | `KEEPER_SECRET` | keeper | Deploys vaults, posts margin, submits settlement |
 | `SIGNER` | keeper | `freighter` (default) or `keeper` |
 | `PORT` | keeper | API port, default 8787 |
+| `KEEPER_BACKEND` | keeper | Temporary: must be `fake` (in-memory vault, fake hashes, no Testnet transaction) until the contract client is wired |
 | `VITE_KEEPER_URL` | dashboard | Keeper API base URL |
 | `VITE_USE_MOCKS` | dashboard | `true` to run on mocks |
 
@@ -154,12 +155,15 @@ Only commands that have been run successfully are listed. Run them from the repo
 
 | Command | What it does | Status |
 | --- | --- | --- |
-| `npm run typecheck` | Type-checks every workspace that defines a `typecheck` script (today: `app`, `packages/shared` and `scripts`) | Verified (macOS) |
-| `npm test` | Runs the tests of every workspace that defines a `test` script (today: Vitest checks of the shared mocks and of the script helpers) | Verified (macOS) |
+| `npm run typecheck` | Type-checks every workspace that defines a `typecheck` script (today: `app`, `packages/shared`, `scripts` and `keeper`) | Verified (macOS) |
+| `npm test` | Runs the tests of every workspace that defines a `test` script (today: Vitest checks of the shared mocks, the script helpers, the margin model with reference values, the Euribor cache and the keeper API on the in-memory vault) | Verified (macOS): 51 keeper tests pass |
 | `npm run init-env` | Creates `.env` from `.env.example` if needed and generates the Testnet keys still empty (issuer, bank, keeper). Never generates `FUND_SECRET`, never overwrites a value, prints public keys only | Verified (macOS) |
 | `npm run bootstrap` | Idempotent Testnet bootstrap: issuer, bank and keeper accounts (friendbot), bank trustlines, KMMF and KBOND Stellar Asset Contracts, and, when `FUND_SECRET` is set, fund trustlines and issuance up to 1 000 units of each asset (the fund address is derived from `FUND_SECRET`). Writes `deployments/testnet.json` | Verified (macOS) over seven runs (the first stopped on a bug, since fixed); once everything exists, a run sends no transaction |
+| `KEEPER_BACKEND=fake npm run keeper` | Starts the keeper API on `http://127.0.0.1:8787/api` (`SIGNER` and `PORT` from the environment) on an **in-memory fake vault**: the rules of `docs/interfaces.md` section 3 are simulated, transaction hashes start with `FAKE` and their explorer links do not open. Routes: `/health`, `/config`, `/session` (POST, GET), `/session/deposit`, `/session/withdraw`, `/session/deposit/prepare`, `/session/withdraw/prepare`, `/session/submit`, `/session/rate-shock`, `/session/settle-default`, `/events` (SSE) | Verified (macOS) with `curl`, `SIGNER=keeper`, against the live ECB API. Freighter signing is not tested: the fake `prepare` / `submit` do not produce real XDR |
 
-Still to come, once they work: start keeper, end-to-end script. Dashboard commands are listed below.
+Still to come, once they work: real Testnet vault client (after the contract) and the end-to-end script. Dashboard commands are listed below.
+
+**Keeper model** (`keeper/src/margin.ts`, parameters in `keeper/scenarios/default.json`): flat curve, 20 quarterly periods, `Q = ceil(V / (P × (1 − h)))` in the token's smallest unit, requirement posted only when it moved by at least the MTA (50 000 EUR). The starting rate is the last ECB Euribor 3M observation (`keeper/data/euribor-cache.json` is the versioned fallback seed, shown as `cache`; it is rewritten only when the ECB value changes, so a run may modify it). Reference values for 0, −50 and −80 bp (computed outside the code, in Python with 50-digit decimals) are checked in `keeper/test/margin.test.ts`.
 
 `packages/shared` (`@keystone/shared`) holds the shared types, an exact copy of [`docs/interfaces.md`](docs/interfaces.md) section 5, and mocks under `@keystone/shared/mocks`: a `KeystoneConfig`, one `SessionState` per vault status and the activity feed of scenario 1. Every address and transaction hash in the mocks is fake and starts with `MOCK`. The package ships TypeScript sources with explicit `.ts` import extensions: Vite, `tsx` and Node 24 load them directly, and a consuming TypeScript project needs `allowImportingTsExtensions` (with `noEmit`) or a bundler resolution.
 
@@ -199,7 +203,7 @@ Verified so far: both scenarios on the mock keeper; the HTTP and SSE client agai
 ## 11. Workflow
 
 - Each pole works on its branch and opens pull requests into `staging`. No direct commit on `main` or `staging`. Humans merge.
-- Every change is reviewed before its pull request by a fresh Claude sub-agent that only sees the diff (Codex on the Windows contract machine), contract pull requests get an extra security review by Claude Code, and every change is tested before merge and updates this README when relevant. See [`AGENTS.md`](AGENTS.md) section 7.
+- Every change is reviewed before its pull request by a fresh Claude sub-agent that only sees the diff (Codex on the Windows contract machine), contract pull requests are reviewed by the contract owner with the reinforced checklist plus a final Codex pass, and every change is tested before merge and updates this README when relevant. See [`AGENTS.md`](AGENTS.md) section 7.
 - Rules for agents: [`AGENTS.md`](AGENTS.md). Interfaces: [`docs/interfaces.md`](docs/interfaces.md). Decisions: [`docs/decisions.md`](docs/decisions.md). Plan: [`docs/plan.md`](docs/plan.md).
 
 ## 12. Progress
@@ -208,11 +212,11 @@ Only the status "verified" counts as done, and only with a proof link.
 
 | # | P0 item | Status | Proof |
 | --- | --- | --- | --- |
-| 1 | Swap + CSA scenario and margin model | Not started | |
+| 1 | Swap + CSA scenario and margin model | In progress | Model and reference-value tests in `keeper/`; not yet posted on-chain |
 | 2 | KMMF and KBOND issued on Testnet | Verified | [KMMF issued](https://stellar.expert/explorer/testnet/tx/ec2b3c50209bbdfa0851274c03b6cd339b20fdc86774f170cf76d4a65315a532), [KBOND issued](https://stellar.expert/explorer/testnet/tx/637fa5e953241c7a7a2f474b4239e44871d67e60af667419aff8f16a0f8ff463), [KMMF SAC](https://stellar.expert/explorer/testnet/tx/bc7d9d9a2a15473b5bae6b81461cac9a68003235dea60056605c8b2631df0e11), [KBOND SAC](https://stellar.expert/explorer/testnet/tx/08089cde2ab558289d0a18c8f85817e18297bb40b41c6506c2d109462b47dcd3) |
 | 3 | Manual choice of collateral class in the UI | Not started | |
 | 4 | Soroban vault: authorized deposit, available / locked accounting | Not started | |
-| 5 | Keeper: exposure and margin computation, posting to the vault | Not started | |
+| 5 | Keeper: exposure and margin computation, posting to the vault | In progress | Computation and API on an in-memory vault; posting to the real vault waits for the contract |
 | 6 | Deposit, lock and release with verifiable results | Not started | |
 | 7 | Separate default scenario with on-chain transfer to the bank | Not started | |
 | 8 | Real Stellar Testnet transactions shown with proof | Not started | |
