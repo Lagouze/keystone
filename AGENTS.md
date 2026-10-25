@@ -1,6 +1,6 @@
 # AGENTS.md — Règles de travail des agents Keystone
 
-Ce fichier s'applique à tous les agents (Claude Code, Codex) et à leurs opérateurs humains. Il fait foi pour la manière de travailler. Les interfaces font l'objet de `docs/interfaces.md`, les tâches de `docs/plan.md`.
+Ce fichier s'applique à tous les agents (Claude Code sur les Mac, Codex sur le Windows) et à leurs opérateurs humains. Il fait foi pour la manière de travailler. Les interfaces font l'objet de `docs/interfaces.md`, les tâches de `docs/plan.md`.
 
 ## 1. Avant d'agir
 
@@ -17,13 +17,15 @@ Ce fichier s'applique à tous les agents (Claude Code, Codex) et à leurs opéra
 
 Ne te fie pas à une copie locale ancienne : fais `git fetch` et lis la version de `staging`.
 
+Ne lis que les sections utiles à ta tâche. Ne relis jamais `docs/brief.md` en entier : `docs/plan.md`, `docs/interfaces.md` et `docs/decisions.md` font foi (décision A9).
+
 ## 2. Pôles et périmètres
 
 | Pôle | Opérateur | Branche | Tu écris dans |
 | --- | --- | --- | --- |
 | `contract` | Liel (Windows, Codex) | `contract/collateral` | `contracts/`, `packages/vault-client/`, section Contrat du README |
-| `keeper` | Grégoire (Mac, Claude Code + Codex) | `back/keeper` | `keeper/`, `scripts/`, `packages/shared/`, `deployments/`, `.env.example`, et les documents partagés en tant que coordinateur documentaire |
-| `front` | Nathan (Mac, Claude Code + Codex) | `front/dashboard` | `app/`, section Front du README, `docs/demo-script.md` (avec le keeper) |
+| `keeper` | Grégoire (Mac, Claude Code) | `back/keeper` | `keeper/`, `scripts/`, `packages/shared/`, `deployments/`, `.env.example`, et les documents partagés en tant que coordinateur documentaire |
+| `front` | Nathan (Mac, Claude Code) | `front/dashboard` | `app/`, section Front du README, `docs/demo-script.md` (avec le keeper) |
 
 Pour modifier un fichier d'un autre pôle, ouvre une Issue ou propose la modification dans une PR que le pôle propriétaire relit.
 
@@ -113,15 +115,17 @@ Un `READY` sans SHA, ou publié avant le tour 4, ne compte pas.
 
 Un ajout compatible (champ optionnel, nouvel événement) peut se faire directement dans la PR qui en a besoin, à condition d'y mentionner le pôle consommateur.
 
-## 7. Revue Claudex
+## 7. Revue des PR
 
-Chaque changement de code est revu avant d'ouvrir la PR. L'intensité dépend du risque.
+Claudex n'est plus utilisé (décision A9). Chaque machine a un seul agent : Claude Code sur les Mac de Grégoire et de Nathan, Codex sur le Windows de Liel.
+
+Chaque changement est revu avant d'ouvrir la PR par un **sous-agent Claude neuf**, lancé sur la machine de l'auteur. Ce sous-agent ne voit pas la conversation de l'agent auteur : il reçoit seulement la commande qui donne le diff (`git diff origin/staging...HEAD`), cette section et les sections utiles de `docs/interfaces.md`. L'auteur corrige ce qu'il relève et résume la revue dans la PR. L'intensité dépend du risque.
 
 | Niveau | Concerne | Revue exigée |
 | --- | --- | --- |
-| Léger | Style, textes, animations, documentation seule | Un passage Claudex sur le diff, résumé d'une ligne dans la PR |
-| Standard | Logique du keeper, API, état du front, scripts | Passage Claudex complet et tests du pôle verts |
-| Renforcé | Contrat, calcul de marge, autorisations, toute modification d'interface | L'agent qui n'a pas écrit le code relit avec la grille ci-dessous, l'auteur corrige, second passage, tests négatifs, et un humain lit le diff du contrat |
+| Léger | Style, textes, animations, documentation seule | Un passage du sous-agent sur le diff, résumé d'une ligne dans la PR |
+| Standard | Logique du keeper, API, état du front, scripts | Passage complet du sous-agent et tests du pôle verts |
+| Renforcé | Contrat, calcul de marge, autorisations, toute modification d'interface | Passage du sous-agent avec la grille ci-dessous, correction par l'auteur, second passage par un nouveau sous-agent, tests négatifs, et un humain lit le diff du contrat |
 
 **Grille de la revue renforcée :**
 
@@ -134,10 +138,9 @@ Chaque changement de code est revu avant d'ouvrir la PR. L'intensité dépend du
 
 **Organisation des machines :**
 
-- **Mac de Grégoire et de Nathan** : Claude Code écrit, Codex fait la seconde relecture. Le compte ChatGPT Plus est partagé entre les trois machines : sur les Mac, Codex sert à la relecture, pour garder du quota au Windows.
-- **Windows de Liel** : Codex écrit et fait une première relecture. Claude Code, sur le Mac de Grégoire, relit ensuite la PR et poste sa revue en commentaire.
-
-**Commandes Claudex :** à compléter par chaque opérateur avec les commandes réellement testées sur sa machine pendant la phase zéro. Tant que ce n'est pas fait, la revue consiste à demander explicitement au second agent de relire le diff (`git diff staging...HEAD`) avec la grille ci-dessus.
+- **Mac de Grégoire et de Nathan** : Claude Code écrit ; un sous-agent Claude neuf relit le diff.
+- **Windows de Liel** : Codex écrit. Le Windows n'ayant pas Claude, la première relecture y est faite par une session Codex neuve, dans les mêmes conditions que le sous-agent (diff seul, sans la conversation de l'auteur).
+- **PR du pôle contrat** : Liel relit lui-même le diff avec la grille renforcée, et Codex fait une passe de relecture en fin de tâche. Plus de relecture depuis le Mac de Grégoire.
 
 ## 8. Tests
 
@@ -162,7 +165,7 @@ Une PR correspond à une tâche du plan, reste petite et vise `staging`. Elle su
 
 **Avant toute fusion, l'humain vérifie :**
 
-- la revue Claudex au niveau requis, résumée dans la PR ;
+- la revue au niveau requis (section 7), résumée dans la PR, et pour le contrat la revue renforcée faite par Liel avec la grille, plus la passe Codex de fin de tâche ;
 - les tests lancés, avec leur résultat collé, ou la limite signalée ;
 - le README, `AGENTS.md` et `docs/interfaces.md`, consultés et mis à jour si nécessaire ;
 - l'impact sur les autres pôles, nul ou approuvé via `interface-change` ;

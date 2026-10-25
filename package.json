@@ -1,0 +1,18 @@
+{
+  "name": "keystone",
+  "private": true,
+  "description": "Keystone — programmable collateral engine on Stellar Testnet",
+  "workspaces": [
+    "app",
+    "keeper",
+    "packages/*",
+    "scripts"
+  ],
+  "scripts": {
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "init-env": "npm run init-env -w @keystone/scripts",
+    "bootstrap": "npm run bootstrap -w @keystone/scripts",
+    "keeper": "npm run start -w @keystone/keeper"
+  }
+}

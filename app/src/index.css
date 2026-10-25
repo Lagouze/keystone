@@ -1,0 +1,43 @@
+@import "tailwindcss";
+
+/* Direction A "Ledger clair" (chosen by the team): light surfaces, one accent, large numbers. */
+@theme {
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --color-canvas: #fafaf8;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f3f3f0;
+  --color-line: #e5e5e2;
+  --color-line-strong: #d4d4cf;
+
+  --color-ink: #111111;
+  --color-ink-muted: #5c5c58;
+  --color-ink-subtle: #73736e;
+
+  --color-accent: #1f3a8a;
+  --color-accent-hover: #182e6e;
+  --color-accent-soft: #e8edfa;
+  --color-accent-light: #afc0ee;
+
+  --color-success: #2f9461;
+  --color-success-soft: #e4f3ea;
+  --color-success-ink: #1e6b43;
+
+  --color-warning: #f5b544;
+  --color-warning-soft: #fff1d6;
+  --color-warning-ink: #7a4b00;
+
+  --color-danger: #c2410c;
+  --color-danger-soft: #fdece4;
+  --color-danger-ink: #9a3412;
+
+  --radius-card: 1rem;
+  --radius-control: 0.625rem;
+}
+
+@layer base {
+  body {
+    @apply bg-canvas font-sans text-ink antialiased;
+  }
+}
