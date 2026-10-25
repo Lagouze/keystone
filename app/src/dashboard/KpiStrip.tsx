@@ -7,10 +7,13 @@ import { cx } from '../ui/cx.ts'
 export function KpiStrip({ session, asset }: { session: SessionState; asset: AssetInfo }) {
   const { swap, margin, vault } = session
   const mtm = Number(margin.mtmFundEur)
-  const shockBp = Math.round((Number(swap.floatRatePct) - Number(swap.fixedRatePct)) * 100)
+  // Gap between the floating and the fixed leg, in bp (shown as a gap, not as the cumulated shock).
+  const gapBp = Math.round((Number(swap.floatRatePct) - Number(swap.fixedRatePct)) * 100)
+  const SOURCE = { ecb: 'ECB', cache: 'ECB, cached', scenario: 'scenario' } as const
   const items = [
     {
       label: 'Fund mark-to-market',
+      sim: true,
       value: `${formatEur(margin.mtmFundEur)} EUR`,
       tone: mtm < 0 ? 'text-danger' : mtm > 0 ? 'text-success' : '',
     },
@@ -18,7 +21,7 @@ export function KpiStrip({ session, asset }: { session: SessionState; asset: Ass
       label: 'Euribor 3M',
       sim: true,
       value: `${swap.floatRatePct}%`,
-      extra: shockBp === 0 ? undefined : `${shockBp > 0 ? '+' : '−'}${Math.abs(shockBp)} bp`,
+      hint: `vs fixed ${swap.fixedRatePct}% · ${gapBp > 0 ? '+' : gapBp < 0 ? '−' : '±'}${Math.abs(gapBp)} bp · source: ${SOURCE[swap.floatRateSource]}`,
     },
     { label: `${asset.code} NAV`, sim: true, value: `${formatEur(margin.unitPriceEur)} EUR` },
     { label: 'Required on-chain', value: `${formatUnits(vault.requiredUnits, asset.decimals)} ${asset.code}` },
@@ -40,13 +43,13 @@ export function KpiStrip({ session, asset }: { session: SessionState; asset: Ass
             </dt>
             <dd className={cx('mt-1.5 text-lg tabular-nums sm:text-xl', item.tone)}>
               {item.value}
-              {item.extra && <span className="ml-2 text-sm text-sim">{item.extra}</span>}
             </dd>
+            {item.hint && <dd className="mt-0.5 text-xs text-ink-subtle">{item.hint}</dd>}
           </div>
         ))}
       </dl>
       <p className="label-caps mx-auto max-w-7xl px-4 pb-2 text-right sm:px-6">
-        As of {formatUtcTime(session.updatedAt)} UTC · epoch {vault.epoch} · ledger time
+        As of {formatUtcTime(session.updatedAt)} UTC · epoch {vault.epoch}
       </p>
     </div>
   )

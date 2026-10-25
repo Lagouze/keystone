@@ -22,7 +22,7 @@
   --color-chain: #1f5fbf;
   --color-chain-hover: #174a96;
   --color-chain-soft: #e8f0fc;
-  --color-chain-light: #9db5de;
+  --color-chain-light: #7092cf; /* 3.1:1 on white, for the 'available' segment */
 
   --color-sim: #5b4ba6;
   --color-sim-soft: #efebfa;

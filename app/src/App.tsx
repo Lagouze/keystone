@@ -95,13 +95,13 @@ function TopBar({ k, mocks }: { k: KeystoneHook; mocks: boolean }) {
     <header className="border-b border-line bg-surface">
       <div className="mx-auto flex min-h-16 max-w-7xl flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-3 sm:px-6">
         <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
-          <span className="text-lg font-medium tracking-tight">Keystone</span>
+          <h1 className="text-lg font-medium tracking-tight">Keystone</h1>
           <span className="rounded-full border border-line-strong px-2.5 py-1 text-[0.6875rem] font-medium tracking-wider text-ink-muted">
             STELLAR TESTNET
           </span>
           {swap && (
             <span className="text-sm text-ink-muted">
-              Fund ↔ Bank · EUR {formatEur(swap.notionalEur).replace(/\.00$/, '')} swap, fund pays fixed · {swap.tenorYears}Y
+              Fund ↔ Bank · EUR {formatEur(swap.notionalEur).replace(/\.00$/, '')} swap · fund pays {swap.fixedRatePct}% fixed, receives Euribor 3M · {swap.tenorYears}Y
             </span>
           )}
         </div>

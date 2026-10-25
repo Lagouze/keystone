@@ -33,9 +33,9 @@ export function StatusCard(props: StatusCardProps) {
     headline = `${fmt(vault.shortfallUnits)} ${code} missing. Cover before ${
       vault.callDeadline ? formatUtcTime(vault.callDeadline) : '—'
     } UTC, or the ${fmt(vault.lockedUnits)} locked ${code} go to the bank.`
-    detail = `The fund's loss now requires ${formatEur(margin.requiredValueEur)} EUR of collateral, ${fmt(
-      vault.requiredUnits,
-    )} ${code} after the ${margin.haircutPct}% haircut. The vault already locks all it holds.`
+    detail = `Rates moved against the fund: the requirement posted on-chain is ${fmt(vault.requiredUnits)} ${code} (latest computation: ${formatEur(
+      margin.requiredValueEur,
+    )} EUR, ${margin.haircutPct}% haircut). The vault already locks all it holds.`
   } else if (vault.status === 'defaulted') {
     headline = `Defaulted. The locked collateral was transferred to the bank.`
     detail = `Exactly the locked amount, enforced by the Soroban vault. The bank now holds ${fmt(
@@ -46,9 +46,7 @@ export function StatusCard(props: StatusCardProps) {
     detail = 'Deposit collateral, then move rates: the keeper reprices the swap and posts the requirement on-chain.'
   } else {
     headline = `Covered. ${fmt(vault.availableUnits)} ${code} free to withdraw.`
-    detail = `The vault locks ${fmt(vault.lockedUnits)} ${code}, exactly what the margin requires (${formatEur(
-      margin.requiredValueEur,
-    )} EUR after haircut). No cash set aside.`
+    detail = `The vault locks ${fmt(vault.lockedUnits)} ${code}, the requirement posted on-chain. No cash set aside: the fund pays the fixed rate and receives Euribor, so it owes the bank collateral when rates fall.`
   }
 
   return (
@@ -75,7 +73,9 @@ export function StatusCard(props: StatusCardProps) {
             disabled={otherBusy('deposit')}
             onClick={() => props.onDeposit(formatUnits(vault.shortfallUnits, asset.decimals, asset.decimals).replace(/,/g, ''))}
           >
-            {busy === 'deposit' ? (props.step ?? 'Depositing…') : `Deposit ${fmt(vault.shortfallUnits)} ${code}`}
+            {busy === 'deposit'
+              ? (props.step ?? 'Depositing…')
+              : `Deposit ${formatUnits(vault.shortfallUnits, asset.decimals, asset.decimals)} ${code}`}
           </Button>
           <Button variant="danger" busy={busy === 'settle'} disabled={!deadlinePassed || otherBusy('settle')} onClick={props.onSettle}>
             {deadlinePassed ? 'Settle default' : 'Settle default · after deadline'}
