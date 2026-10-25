@@ -159,7 +159,7 @@ Only commands that have been run successfully are listed. Run them from the repo
 | `npm run init-env` | Creates `.env` from `.env.example` if needed and generates the Testnet keys still empty (issuer, bank, keeper). Never generates `FUND_SECRET`, never overwrites a value, prints public keys only | Verified (macOS) |
 | `npm run bootstrap` | Idempotent Testnet bootstrap: issuer, bank and keeper accounts (friendbot), bank trustlines, KMMF and KBOND Stellar Asset Contracts, and, when `FUND_SECRET` is set, fund trustlines and issuance up to 1 000 units of each asset (the fund address is derived from `FUND_SECRET`). Writes `deployments/testnet.json` | Verified (macOS) over seven runs (the first stopped on a bug, since fixed); once everything exists, a run sends no transaction |
 
-Still to come, once they work: build, start keeper, start dashboard, end-to-end script.
+Still to come, once they work: start keeper, end-to-end script. Dashboard commands are listed below.
 
 `packages/shared` (`@keystone/shared`) holds the shared types, an exact copy of [`docs/interfaces.md`](docs/interfaces.md) section 5, and mocks under `@keystone/shared/mocks`: a `KeystoneConfig`, one `SessionState` per vault status and the activity feed of scenario 1. Every address and transaction hash in the mocks is fake and starts with `MOCK`. The package ships TypeScript sources with explicit `.ts` import extensions: Vite, `tsx` and Node 24 load them directly, and a consuming TypeScript project needs `allowImportingTsExtensions` (with `noEmit`) or a bundler resolution.
 
