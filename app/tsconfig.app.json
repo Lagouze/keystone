@@ -15,11 +15,6 @@
     "noEmit": true,
     "jsx": "react-jsx",
 
-    /* Shared types from the keeper pole (packages/shared) */
-    "paths": {
-      "@keystone/shared": ["../packages/shared/src/types.ts"]
-    },
-
     /* Linting */
     "strict": true,
     "noUnusedLocals": true,
