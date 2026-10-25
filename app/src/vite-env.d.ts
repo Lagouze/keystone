@@ -3,4 +3,5 @@
 interface ImportMetaEnv {
   readonly VITE_KEEPER_URL?: string
   readonly VITE_USE_MOCKS?: string
+  readonly VITE_MOCK_SIGNER?: string
 }
