@@ -36,6 +36,18 @@ describe("static routes", () => {
   });
 });
 
+describe("CORS", () => {
+  const preflight = (origin: string) => keeper!.app.inject({
+    method: "OPTIONS", url: "/api/session/deposit",
+    headers: { origin, "access-control-request-method": "POST", "access-control-request-headers": "content-type" },
+  });
+  it("answers local pages and refuses other origins", async () => {
+    start();
+    expect((await preflight("http://localhost:5173")).headers["access-control-allow-origin"]).toBe("http://localhost:5173");
+    expect((await preflight("https://evil.example")).headers["access-control-allow-origin"]).toBeUndefined();
+  });
+});
+
 describe("validation", () => {
   it("rejects bad bodies with BadRequest (400)", async () => {
     const k = start();

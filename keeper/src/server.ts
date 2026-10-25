@@ -16,11 +16,22 @@ function parseUnits(body: unknown): bigint {
   return BigInt(units);
 }
 
-export function buildServer(config: KeystoneConfig, sessions: SessionManager): FastifyInstance {
+const LOCAL_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
+
+/** Default CORS policy: only pages served from the developer's own machine may call the keeper. */
+export const isLocalOrigin = (origin: string): boolean => LOCAL_ORIGIN.test(origin);
+
+export interface ServerOptions {
+  /** Which browser origins may call the API. Default: local pages only (`isLocalOrigin`). */
+  allowedOrigin?: (origin: string) => boolean;
+}
+
+export function buildServer(config: KeystoneConfig, sessions: SessionManager, options: ServerOptions = {}): FastifyInstance {
+  const allowed = options.allowedOrigin ?? isLocalOrigin;
   const app = Fastify({ logger: false, forceCloseConnections: true });
   const streams = new Set<FastifyReply>();
 
-  app.register(cors, { origin: true });
+  app.register(cors, { origin: (origin, cb) => cb(null, !origin || allowed(origin)) });
 
   app.setErrorHandler((err, _req, reply) => {
     if (err instanceof KeeperError) {
@@ -89,12 +100,13 @@ export function buildServer(config: KeystoneConfig, sessions: SessionManager): F
     api.get("/events", (req, reply) => {
       reply.hijack();
       const res = reply.raw;
+      const origin = req.headers.origin;
       res.writeHead(200, {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache, no-transform",
         Connection: "keep-alive",
         "X-Accel-Buffering": "no",
-        "Access-Control-Allow-Origin": (req.headers.origin as string | undefined) ?? "*",
+        ...(origin && allowed(origin) ? { "Access-Control-Allow-Origin": origin } : {}),
       });
       const write = (m: StreamMessage) => res.write(`event: ${m.event}\ndata: ${JSON.stringify(m.data)}\n\n`);
       res.write(": connected\n\n");
