@@ -11,11 +11,18 @@ export function SettlementCard({ session, asset }: { session: SessionState; asse
   const steps = [
     {
       label: 'Deadline (ledger time)',
-      value: vault.callDeadline ? formatUtcTime(vault.callDeadline) : vault.status === 'margin_call' ? '—' : 'grace period after a call',
+      value: vault.callDeadline
+        ? formatUtcTime(vault.callDeadline)
+        : settled
+          ? 'passed'
+          : vault.status === 'margin_call'
+            ? '—'
+            : 'grace period after a call',
     },
     { label: 'Anyone can settle', value: 'settle_default' },
     {
-      label: settled ? 'Transferred to the bank' : 'Would go to the bank',
+      // After a default, the bank's balance (it may include earlier sessions' defaults).
+      label: settled ? 'Bank balance' : 'Would go to the bank',
       value: `${settled ? fmt(balances.bankUnits) : fmt(vault.lockedUnits)} ${asset.code}`,
       danger: true,
     },
@@ -24,7 +31,7 @@ export function SettlementCard({ session, asset }: { session: SessionState; asse
     <Card title={settled ? 'Default settled' : 'If a margin call is not covered'}>
       <ol className="grid grid-cols-[1.75rem_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-3.5 text-sm">
         {steps.map((step, i) => (
-          <li key={step.label} className="contents">
+          <li key={step.label} role="listitem" className="contents">
             <span
               className={cx(
                 'flex size-7 items-center justify-center rounded-full text-xs font-medium',
