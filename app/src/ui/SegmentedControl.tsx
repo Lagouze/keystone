@@ -14,15 +14,14 @@ export function SegmentedControl<T extends string>({
   onChange,
 }: SegmentedControlProps<T>) {
   return (
-    <div role="radiogroup" aria-label={label} className="inline-flex rounded-control bg-surface-muted p-1">
+    <div role="group" aria-label={label} className="inline-flex rounded-control bg-surface-muted p-1">
       {options.map((option) => {
         const selected = option.value === value
         return (
           <button
             key={option.value}
             type="button"
-            role="radio"
-            aria-checked={selected}
+            aria-pressed={selected}
             onClick={() => onChange(option.value)}
             className={cx(
               'rounded-[0.5rem] px-3 py-1.5 text-sm font-medium transition-colors',
