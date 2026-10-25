@@ -39,6 +39,7 @@ Deadline de soumission : **lundi 26 octobre, 12:00 heure de Lisbonne**. Gel du c
 | A6 | Paramètres financiers de la section 6 validés. |
 | A7 | **Deux actifs fictifs émis par l'équipe : KMMF et KBOND. Etherfuse est abandonné.** Test du 25 octobre : un ordre CETES de la sandbox Etherfuse (API v2) a été financé mais n'a jamais été livré sur Stellar Testnet. L'équipe Etherfuse a confirmé que cette fonctionnalité de la v2 n'est pas terminée et devrait marcher fin de journée le 26 octobre, après la deadline. KBOND est émis par l'équipe en EUR (pas de décote de change). Etherfuse n'est plus une piste pour ce hackathon. |
 | A8 | Hébergement de l'URL publique (front statique + keeper Node en `SIGNER=keeper`) : **à trancher** au jalon J2 (01:30), confié au pôle keeper. |
+| A9 | **Claudex abandonné**, un seul agent par machine (Claude Code sur les Mac, Codex sur le Windows). Revue de chaque PR par un sous-agent Claude neuf sur la machine de l'auteur ; PR du contrat relues en plus par Claude Code sur le Mac de Grégoire (grille renforcée). Remplace A5 et toute mention de Claudex ou de seconde relecture Codex dans ce plan : voir `AGENTS.md` section 7. |
 
 ## 3. Architecture
 
@@ -132,7 +133,7 @@ deployments/testnet.json               IDs publics (écrit par le keeper ; le co
 
 ```markdown
 ## Ce qui change
-## Revue Claudex        (agents utilisés, points relevés, corrections)
+## Revue                (sous-agent, points relevés, corrections)
 ## Tests                (commandes lancées et résultat ; preuve Testnet si applicable)
 ## Interfaces           (aucun impact / mineur / cassant + lien vers l'Issue interface-change)
 ## Documentation        (fichiers mis à jour, ou pourquoi rien n'est à mettre à jour)
@@ -193,7 +194,7 @@ Ce qu'il faudrait décider : … (label needs-human ajouté)
 4. Mettre à jour la spécification et les types dans la même PR que le changement.
 5. Les autres pôles n'utilisent la nouvelle version qu'une fois cette PR fusionnée.
 
-**Revue Claudex**
+**Revue des PR** (A9 : sous-agent Claude neuf, détail dans `AGENTS.md` section 7)
 
 | Niveau | Concerne | Revue |
 | --- | --- | --- |
@@ -212,7 +213,7 @@ Grille de la revue renforcée :
 
 **Avant chaque fusion (humain)**
 
-- [ ] revue Claudex au niveau requis, résumée dans la PR ;
+- [ ] revue au niveau requis, résumée dans la PR ;
 - [ ] tests lancés et résultat collé ;
 - [ ] documentation vérifiée et mise à jour si besoin ;
 - [ ] impact sur les autres pôles approuvé ;
@@ -364,7 +365,7 @@ Correctifs demandés par le keeper ou le front via Issue, relecture des PR du ke
 - KMMF et KBOND sont émis par l'équipe sans flag `auth_required` : le vault peut les détenir sans autorisation de l'émetteur. Le bootstrap ne doit pas activer ce flag.
 - Les bindings générés ne se modifient jamais à la main : on les régénère.
 
-## 13. Pôle keeper (Grégoire, Mac, Claude Code + Codex)
+## 13. Pôle keeper (Grégoire, Mac, Claude Code)
 
 ### Mission
 
@@ -376,7 +377,7 @@ Le keeper est au milieu du système. Il consomme le contrat, sert le front, calc
 | Tu écris dans | `keeper/`, `scripts/`, `packages/shared/`, `deployments/testnet.json` (y compris le hash WASM et le vault de test fournis par le contrat), `.env.example`, et les documents partagés en tant que coordinateur |
 | Tu fournis | Types et mocks partagés (en premier : le front en dépend), bootstrap Testnet, API REST + SSE, modèle de marge, scénarios, script e2e |
 | Tu attends | Du pôle contrat : WASM uploadé, hash, bindings dans `packages/vault-client` (C1 vers 21:30). Du front : rien, sinon ses retours sur l'API. |
-| Relecture | Claudex sur ton Mac (Claude Code d'abord, Codex en seconde relecture). Tu relis aussi **les PR du contrat** avec Claude Code et postes la revue en commentaire. |
+| Relecture | Sous-agent Claude neuf sur ton Mac (A9). Tu relis aussi **les PR du contrat** avec Claude Code (grille renforcée) et postes la revue en commentaire. |
 
 ### Outillage
 
@@ -465,7 +466,7 @@ Le compte du fonds est un compte Freighter dédié à la démo, financé par fri
 - La source d'une transaction préparée pour Freighter doit être le compte du fonds, avec un numéro de séquence frais. Prépare-la au moment du clic, pas à l'avance.
 - `settle_default` échouera si la banque n'a pas de trustline sur l'actif : le bootstrap doit la créer.
 
-## 14. Pôle front (Nathan, Mac, Claude Code + Codex)
+## 14. Pôle front (Nathan, Mac, Claude Code)
 
 ### Mission
 
@@ -483,7 +484,7 @@ La qualité visuelle compte, mais les grandes décisions UI/UX se prennent avec 
 | Tu écris dans | `app/` uniquement |
 | Tu fournis | Le dashboard, le parcours filmé, `docs/demo-script.md` (avec le keeper) |
 | Tu attends | Les types et mocks de `packages/shared` (K1, environ 30 min après le GO), puis l'API réelle du keeper (K3, vers 23:00) |
-| Relecture | Claudex sur ton Mac (Claude Code d'abord, Codex en seconde relecture : le quota Codex est partagé avec le Windows) |
+| Relecture | Sous-agent Claude neuf sur ton Mac (A9) |
 
 ### Outillage
 
@@ -546,7 +547,7 @@ Chaque repli a une heure de décision. Une fois cette heure passée, on bascule 
 | La banque n'a pas de trustline sur l'actif, et `settle_default` échoue | Le bootstrap crée les trustlines de la banque pour KMMF et KBOND ; le script e2e teste le défaut | Dès J2 |
 | Freighter absent, sur le mauvais réseau ou sur le mauvais compte pendant le tournage | Message clair dans le front ; mode `SIGNER=keeper` activable par variable d'environnement, sans changer de code | J2 (01:30) |
 | Quotas des abonnements IA épuisés dans la nuit (compte ChatGPT Plus partagé) | Modèle le plus puissant réservé au contrat et aux revues renforcées ; routine sur un modèle plus léger ; petites corrections à la main | En continu |
-| Claudex ne marche pas sur une machine | Revue croisée entre machines dans la PR | Fin de phase zéro |
+| Quota d'un agent épuisé (cas de Codex sur les Mac, A9) | Un seul agent par machine ; revue par sous-agent Claude neuf ; Codex réservé au Windows | Fait (A9) |
 | Le front attend le keeper | Le front avance sur les mocks de `packages/shared`, qui respectent la même interface | — |
 | Parcours complet pas prêt | Réduction au noyau : dépôt, immobilisation, défaut. Retrait et libération passent en « prochaine étape » | 01:30 |
 | RPC Testnet lent pendant le tournage | Nouvelles tentatives avec délai croissant ; prise de sécurité de la vidéo dès que le scénario 1 marche | Vers 02:00 |

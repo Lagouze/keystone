@@ -173,7 +173,7 @@ Still to come, once they work: build, start keeper, start dashboard, end-to-end 
 ## 11. Workflow
 
 - Each pole works on its branch and opens pull requests into `staging`. No direct commit on `main` or `staging`. Humans merge.
-- Every code change is reviewed with Claudex (Claude Code ↔ Codex) and tested before merge, and updates this README when relevant.
+- Every change is reviewed before its pull request by a fresh Claude sub-agent that only sees the diff (Codex on the Windows contract machine), contract pull requests get an extra security review by Claude Code, and every change is tested before merge and updates this README when relevant. See [`AGENTS.md`](AGENTS.md) section 7.
 - Rules for agents: [`AGENTS.md`](AGENTS.md). Interfaces: [`docs/interfaces.md`](docs/interfaces.md). Decisions: [`docs/decisions.md`](docs/decisions.md). Plan: [`docs/plan.md`](docs/plan.md).
 
 ## 12. Progress
@@ -193,7 +193,7 @@ Only the status "verified" counts as done, and only with a proof link.
 | 9 | Dashboard showing asset choice, steps and on-chain proof | Not started | |
 | 10 | End-to-end integration of the three poles | Not started | |
 | 11 | Submission: public repo, README, public URL, video, pitch deck | Not started | |
-| 12 | Continuous quality: Claudex review, tests, README updates | In place from phase zero | This repository's PR history |
+| 12 | Continuous quality: review of every PR, tests, README updates | In place from phase zero | This repository's PR history |
 
 ## 13. Prior work and work done during the event
 

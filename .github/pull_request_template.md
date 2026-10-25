@@ -4,9 +4,9 @@
 
 <!-- Tâche du plan concernée (C1, K2, F1…) et résumé en quelques lignes. -->
 
-## Revue Claudex
+## Revue
 
-<!-- Niveau (léger / standard / renforcé), agents utilisés, points relevés et corrections apportées. -->
+<!-- Niveau (léger / standard / renforcé), sous-agent utilisé (AGENTS.md section 7), points relevés et corrections apportées. -->
 
 ## Tests
 
@@ -22,7 +22,7 @@
 
 ## Checklist
 
-- [ ] Revue Claudex au niveau requis
+- [ ] Revue au niveau requis (sous-agent neuf ; grille renforcée pour le contrat)
 - [ ] Tests lancés et résultat collé ci-dessus
 - [ ] README et documents liés vérifiés et mis à jour si nécessaire
 - [ ] Aucun impact non approuvé sur un autre pôle
