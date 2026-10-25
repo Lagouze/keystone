@@ -52,7 +52,9 @@ export function mergeDeployments(
   const assets = { ...existing.assets };
   for (const [id, asset] of Object.entries(update.assets ?? {}) as [AssetId, DeployedAsset][]) {
     const previous = assets[id];
-    assets[id] = { ...asset, sacDeployTx: asset.sacDeployTx ?? previous?.sacDeployTx ?? null };
+    // An earlier proof is kept only if it belongs to the same contract.
+    const earlierProof = previous?.sac === asset.sac ? previous.sacDeployTx : null;
+    assets[id] = { ...asset, sacDeployTx: asset.sacDeployTx ?? earlierProof };
   }
   return { ...existing, accounts, assets, updatedAt: now.toISOString() };
 }

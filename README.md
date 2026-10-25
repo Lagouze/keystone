@@ -154,10 +154,10 @@ Only commands that have been run successfully are listed. Run them from the repo
 
 | Command | What it does | Status |
 | --- | --- | --- |
-| `npm run typecheck` | Type-checks every workspace that defines a `typecheck` script (today: `packages/shared`) | Verified (macOS) |
+| `npm run typecheck` | Type-checks every workspace that defines a `typecheck` script (today: `packages/shared` and `scripts`) | Verified (macOS) |
 | `npm test` | Runs the tests of every workspace that defines a `test` script (today: Vitest checks of the shared mocks and of the script helpers) | Verified (macOS) |
 | `npm run init-env` | Creates `.env` from `.env.example` if needed and generates the Testnet keys still empty (issuer, bank, keeper). Never generates `FUND_SECRET`, never overwrites a value, prints public keys only | Verified (macOS) |
-| `npm run bootstrap` | Idempotent Testnet bootstrap: issuer, bank and keeper accounts (friendbot), bank trustlines, KMMF and KBOND Stellar Asset Contracts, and, when `FUND_SECRET` is set, fund trustlines and issuance up to 1 000 units of each asset (the fund address is derived from `FUND_SECRET`). Writes `deployments/testnet.json` | Verified (macOS) over six runs (the first stopped on a bug, since fixed); once everything exists, a run sends no transaction |
+| `npm run bootstrap` | Idempotent Testnet bootstrap: issuer, bank and keeper accounts (friendbot), bank trustlines, KMMF and KBOND Stellar Asset Contracts, and, when `FUND_SECRET` is set, fund trustlines and issuance up to 1 000 units of each asset (the fund address is derived from `FUND_SECRET`). Writes `deployments/testnet.json` | Verified (macOS) over seven runs (the first stopped on a bug, since fixed); once everything exists, a run sends no transaction |
 
 Still to come, once they work: build, start keeper, start dashboard, end-to-end script.
 

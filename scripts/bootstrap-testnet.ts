@@ -6,9 +6,11 @@
 // 3. Bank trustlines for KMMF and KBOND (settle_default pays the bank).
 // 4. Stellar Asset Contracts of KMMF and KBOND.
 // 5. With FUND_SECRET only: fund trustlines, then issuance up to 1 000 units of each asset.
-// 6. deployments/testnet.json (public IDs and proof hashes, never a secret).
-import { existsSync } from "node:fs";
+// deployments/testnet.json (public IDs and proof hashes, never a secret) is written after
+// each SAC deployment and again at the end, so a later failure never loses a proof.
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { parseEnv } from "node:util";
 import { Asset, Operation } from "@stellar/stellar-sdk";
 import type { AssetId } from "@keystone/shared";
 import { fromSmallest, toSmallest } from "./lib/amounts.ts";
@@ -30,18 +32,29 @@ const DEPLOYMENTS = fileURLToPath(new URL("../deployments/testnet.json", import.
 const FUND_TARGET = toSmallest("1000"); // units of each asset held by the demo fund
 
 if (!existsSync(ENV)) throw new Error("No .env file: run `npm run init-env` first");
-process.loadEnvFile(ENV);
+// Keys come from .env only: a variable exported in the shell must not silently win.
+const env = parseEnv(readFileSync(ENV, "utf8"));
 
-const issuer = keypairFromEnv("ISSUER_SECRET", process.env.ISSUER_SECRET);
-const bank = keypairFromEnv("BANK_SECRET", process.env.BANK_SECRET);
-const keeper = keypairFromEnv("KEEPER_SECRET", process.env.KEEPER_SECRET);
-const fund = keypairFromEnv("FUND_SECRET", process.env.FUND_SECRET);
+const issuer = keypairFromEnv("ISSUER_SECRET", env.ISSUER_SECRET);
+const bank = keypairFromEnv("BANK_SECRET", env.BANK_SECRET);
+const keeper = keypairFromEnv("KEEPER_SECRET", env.KEEPER_SECRET);
+const fund = keypairFromEnv("FUND_SECRET", env.FUND_SECRET);
 if (!issuer || !bank || !keeper) {
   throw new Error("ISSUER_SECRET, BANK_SECRET and KEEPER_SECRET are required: run `npm run init-env`");
 }
 
 const tx = (hash: string) => `${TESTNET.explorerTxBase}${hash}`;
 const log = (msg: string) => console.log(msg);
+
+const deployed: Partial<Record<AssetId, DeployedAsset>> = {};
+function saveDeployments(withFund: boolean): void {
+  const current = readDeployments(DEPLOYMENTS, emptyDeployments(TESTNET));
+  const next = mergeDeployments(current, {
+    accounts: { issuer: issuer!.publicKey(), bank: bank!.publicKey(), keeper: keeper!.publicKey(), fund: withFund ? fund?.publicKey() ?? null : null },
+    assets: deployed,
+  }, new Date());
+  writeDeployments(DEPLOYMENTS, next);
+}
 
 log("Keystone bootstrap — Stellar Testnet");
 
@@ -69,10 +82,10 @@ for (const [id, asset] of Object.entries(assets)) {
 }
 
 // 4. Stellar Asset Contracts
-const deployed: Partial<Record<AssetId, DeployedAsset>> = {};
 for (const [id, asset] of Object.entries(assets) as [AssetId, Asset][]) {
   const { contractId, txHash } = await ensureSac(keeper, asset);
   deployed[id] = { code: asset.getCode(), issuer: issuer.publicKey(), sac: contractId, sacDeployTx: txHash };
+  saveDeployments(false); // record the proof right away
   log(`SAC ${id.padEnd(5)}      ${contractId} ${txHash ? `deployed ${tx(txHash)}` : "exists"}`);
 }
 
@@ -97,11 +110,6 @@ if (fund) {
   log("fund           FUND_SECRET empty: fund trustlines and issuance skipped");
 }
 
-// 6. deployments/testnet.json
-const current = readDeployments(DEPLOYMENTS, emptyDeployments(TESTNET));
-const next = mergeDeployments(current, {
-  accounts: { issuer: issuer.publicKey(), bank: bank.publicKey(), keeper: keeper.publicKey(), fund: fund?.publicKey() ?? null },
-  assets: deployed,
-}, new Date());
-writeDeployments(DEPLOYMENTS, next);
+// 6. Final write (adds the fund account once its steps succeeded)
+saveDeployments(true);
 log(`wrote deployments/testnet.json`);

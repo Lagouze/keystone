@@ -22,7 +22,7 @@
 
 ## Checklist
 
-- [ ] Revue au niveau requis (sous-agent neuf ; grille renforcée pour le contrat)
+- [ ] Revue au niveau requis (sous-agent neuf ; grille renforcée selon AGENTS.md §7)
 - [ ] Tests lancés et résultat collé ci-dessus
 - [ ] README et documents liés vérifiés et mis à jour si nécessaire
 - [ ] Aucun impact non approuvé sur un autre pôle

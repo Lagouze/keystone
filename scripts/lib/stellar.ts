@@ -26,8 +26,6 @@ export const ASSET_CODES: Record<AssetId, string> = { KMMF: "KMMF", KBOND: "KBON
 export const horizon = new Horizon.Server(TESTNET.horizonUrl);
 export const soroban = new rpc.Server(TESTNET.rpcUrl);
 
-export type Step = { done: string } | { skipped: string };
-
 /** Loads an account from Horizon, or returns null when it does not exist yet. */
 export async function loadAccountOrNull(publicKey: string): Promise<Horizon.AccountResponse | null> {
   try {
@@ -64,8 +62,15 @@ export async function submitClassic(signer: Keypair, op: xdr.Operation): Promise
     .setTimeout(60)
     .build();
   tx.sign(signer);
-  const res = await horizon.submitTransaction(tx);
-  return res.hash;
+  try {
+    const res = await horizon.submitTransaction(tx);
+    return res.hash;
+  } catch (e) {
+    // Horizon result codes are public and say why the ledger rejected the transaction.
+    const codes = (e as { response?: { data?: { extras?: { result_codes?: unknown } } } }).response?.data?.extras?.result_codes;
+    if (codes) throw new Error(`Transaction ${Buffer.from(tx.hash()).toString("hex")} rejected by Horizon: ${JSON.stringify(codes)}`);
+    throw e;
+  }
 }
 
 /** Adds a trustline on `asset` for `holder` if it is missing. */

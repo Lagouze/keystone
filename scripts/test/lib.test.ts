@@ -33,6 +33,28 @@ describe("env helpers", () => {
     expect(content.endsWith("\n")).toBe(true);
   });
 
+  it("reads spaced, exported and CRLF lines", () => {
+    const content = "A = one   # c\r\nexport B=two\r\nC=\r\nD=   # empty\r\n";
+    expect(readEnvValue(content, "A")).toBe("one");
+    expect(readEnvValue(content, "B")).toBe("two");
+    expect(readEnvValue(content, "C")).toBe("");
+    expect(readEnvValue(content, "D")).toBe("");
+  });
+
+  it("does not add a second definition of a key already set with spaces", () => {
+    const { written } = fillEmptyEnv("ISSUER_SECRET = SSET   # issuer\n", { ISSUER_SECRET: "SNEW" });
+    expect(written).toEqual([]);
+  });
+
+  it("keeps CRLF line endings when filling a key", () => {
+    const { content } = fillEmptyEnv("ISSUER_SECRET=   # issuer\r\nSIGNER=keeper\r\n", { ISSUER_SECRET: "SNEW" });
+    expect(content).toBe("ISSUER_SECRET=SNEW   # issuer\r\nSIGNER=keeper\r\n");
+  });
+
+  it("refuses to guess when a line defining a key cannot be parsed", () => {
+    expect(() => fillEmptyEnv("issuer ISSUER_SECRET: SX\n", { ISSUER_SECRET: "SNEW" })).toThrow(/ISSUER_SECRET/);
+  });
+
   it("is idempotent", () => {
     const once = fillEmptyEnv(example, { ISSUER_SECRET: "SNEW1" }).content;
     const twice = fillEmptyEnv(once, { ISSUER_SECRET: "SOTHER" });
@@ -72,6 +94,12 @@ describe("deployments", () => {
     expect(second.accounts.fund).toBe("GFUND");
     expect(second.vault).toEqual({ wasmHash: "WASM", testVaultId: "CVAULT" });
     expect(second.updatedAt).toBe(new Date(2).toISOString());
+  });
+
+  it("does not attach an earlier proof to a different contract", () => {
+    const first = mergeDeployments(base, { assets: { KMMF: asset } }, new Date(1));
+    const moved = mergeDeployments(first, { assets: { KMMF: { ...asset, sac: "COTHER", sacDeployTx: null } } }, new Date(2));
+    expect(moved.assets.KMMF?.sacDeployTx).toBeNull();
   });
 
   it("never stores a secret-looking value in the public file", () => {

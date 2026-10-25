@@ -146,7 +146,7 @@ deployments/testnet.json               IDs publics (écrit par le keeper ; le co
 Avant tout code applicatif, la branche `docs/phase-zero` reçoit :
 
 - `README.md` restructuré selon le plan de la section 11 ;
-- `AGENTS.md` : règles communes, périmètres, protocole READY / BLOCKED / GO, revue Claudex avec les commandes réellement testées, tests, documentation, escalade ;
+- `AGENTS.md` : règles communes, périmètres, protocole READY / BLOCKED / GO, revue des PR (A9 : sous-agent Claude neuf), tests, documentation, escalade ;
 - `docs/interfaces.md` v1.0-rc : la section 4 de ce document ;
 - `docs/decisions.md` : décisions A1 à A8 ;
 - `docs/plan.md` : tâches et critères de réussite des sections 12 à 14 ;
@@ -200,7 +200,7 @@ Ce qu'il faudrait décider : … (label needs-human ajouté)
 | --- | --- | --- |
 | Léger | Style, textes, documentation | Un passage sur le diff |
 | Standard | Keeper, API, état du front, scripts | Passage complet + tests verts |
-| Renforcé | Contrat, calcul de marge, autorisations, interfaces | Relecture par l'agent qui n'a pas écrit le code, correction, second passage, tests négatifs, diff du contrat lu par un humain |
+| Renforcé | Contrat, calcul de marge, autorisations, interfaces | Passage d'un sous-agent neuf avec la grille, correction, second passage par un nouveau sous-agent, tests négatifs, diff du contrat lu par un humain |
 
 Grille de la revue renforcée :
 
@@ -299,7 +299,7 @@ Conséquence pour chaque pôle : chaque PR met à jour la section du README qui 
 | Tu écris dans | `contracts/`, `packages/vault-client/` (bindings générés). Le hash WASM et l'ID du vault de test sont transmis au keeper, qui les consigne dans `deployments/testnet.json` |
 | Tu fournis | WASM uploadé, hash WASM, un vault de test déployé, bindings TypeScript, événements et erreurs conformes à la spécification |
 | Tu attends | Rien de l'extérieur pour démarrer. Pour tes tests on-chain : deux comptes Testnet (fonds et banque) et un actif de test. Si le bootstrap du keeper n'est pas encore prêt, crée les tiens avec friendbot et un actif jetable. |
-| Ton relecteur | Claude Code, sur le Mac de Grégoire (pôle keeper), via commentaire de PR |
+| Ton relecteur | Une session Codex neuve sur ton Windows (première relecture, diff seul), puis Claude Code sur le Mac de Grégoire (pôle keeper), grille renforcée, via commentaire de PR (A9) |
 
 ### Outillage
 

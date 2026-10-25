@@ -6,6 +6,7 @@ import { chmodSync, copyFileSync, existsSync, readFileSync, writeFileSync } from
 import { fileURLToPath } from "node:url";
 import { Keypair } from "@stellar/stellar-sdk";
 import { fillEmptyEnv, readEnvValue } from "./lib/env.ts";
+import { keypairFromEnv } from "./lib/stellar.ts";
 
 const ENV = fileURLToPath(new URL("../.env", import.meta.url));
 const EXAMPLE = fileURLToPath(new URL("../.env.example", import.meta.url));
@@ -26,10 +27,11 @@ const { content, written } = fillEmptyEnv(before, values);
 writeFileSync(ENV, content);
 
 for (const key of GENERATED) {
-  const secret = readEnvValue(content, key)!;
+  const kp = keypairFromEnv(key, readEnvValue(content, key))!;
   const state = written.includes(key) ? "generated" : "kept";
-  console.log(`${key.padEnd(14)} ${state.padEnd(9)} public key ${Keypair.fromSecret(secret).publicKey()}`);
+  console.log(`${key.padEnd(14)} ${state.padEnd(9)} public key ${kp.publicKey()}`);
 }
-console.log(readEnvValue(content, "FUND_SECRET")
-  ? "FUND_SECRET    set by the operator"
+const fund = keypairFromEnv("FUND_SECRET", readEnvValue(content, "FUND_SECRET"));
+console.log(fund
+  ? `FUND_SECRET    set by the operator, public key ${fund.publicKey()}`
   : "FUND_SECRET    empty: the operator fills it with the demo fund account (never generated here)");
