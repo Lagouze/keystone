@@ -1,6 +1,6 @@
 # Keystone — Shared interfaces
 
-**Version: v1.0** (frozen at the end of the kickoff; any later change follows section 6).
+**Version: v1.1** (v1.0 frozen at the end of the kickoff; later changes follow section 6).
 
 This file is the single source of truth for everything exchanged between the three poles: the Soroban contract, the keeper API and the shared TypeScript types. `README.md` and `AGENTS.md` refer to it. When they disagree, this file wins.
 
@@ -118,7 +118,7 @@ Each event has a single topic: a symbol carrying the exact event name below. Dat
 
 Base URL: `http://localhost:8787/api` in local development; the public URL is set at deployment (decision A8). CORS is open to the local and public front. JSON everywhere.
 
-**Formats.** Values travel as strings, never as JSON numbers, except `bp`, `epoch` and `tenorYears`:
+**Formats.** Amounts, rates and timestamps travel as strings, never as JSON numbers. The only other JSON types are numbers for `bp`, `epoch`, `tenorYears` and `decimals`, the boolean `ok` of `GET /health`, and `null` for `callDeadline` outside a margin call:
 
 - `*Units`: integer in the token's smallest unit (7 decimals: 300 shares = `"3000000000"`). The keeper converts the contract's `i128` straight to a decimal string, without going through a JS `number`.
 - `*Eur`: decimal with 2 digits (`"1234.56"`). `mtmFundEur` is negative when the fund loses.
@@ -283,3 +283,4 @@ Mapping to `ActivityType`:
 | --- | --- | --- |
 | v1.0-rc | 2026-10-25 | Initial proposal for the kickoff. |
 | v1.0 | 2026-10-25 | Kickoff amendments (Issue #5): `AssetId` `BOND` → `KBOND`; full constructor signature; state after `settle_default` and no rebalancing after `Defaulted`; deadline rules; SAC balance invariant `>=`; named event data; error precisions; keeper formats, error codes, write-route timing, rate-shock rule (refused after `defaulted`, `margin` frozen), single session; SSE `activity` and `state` events; `ActivityEvent.sessionId`; `ActivityType` mapping; `deployments/testnet.json` written by the keeper. |
+| v1.1 | 2026-10-25 | Wording only (compatible): section 4 now lists every non-string value (`decimals`, `ok`, `callDeadline` when `null`). No type change. |
