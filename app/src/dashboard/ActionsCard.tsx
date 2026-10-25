@@ -1,6 +1,5 @@
 import { useState, type FormEvent } from 'react'
 import type { AssetInfo, KeystoneConfig, SessionState } from '@keystone/shared'
-import { formatCountdown } from '../lib/format.ts'
 import type { Action } from '../state/useKeystone.ts'
 import { Button, Card } from '../ui/index.ts'
 
@@ -13,19 +12,17 @@ interface ActionsCardProps {
   mocks: boolean
   busy: Action | null
   step: string | null
-  now: number
   onDeposit(input: string): void
   onWithdraw(input: string): void
   onShock(bp: number): void
-  onSettle(): void
 }
 
 const inputClass =
   'h-10 w-28 rounded-control border border-line-strong bg-surface px-3 text-sm tabular-nums ' +
-  'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent'
+  'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-chain disabled:bg-surface-subtle'
 
 export function ActionsCard(props: ActionsCardProps) {
-  const { session, asset, busy, now } = props
+  const { session, asset, busy } = props
   const { vault } = session
   const [depositInput, setDepositInput] = useState('300')
   const [withdrawInput, setWithdrawInput] = useState('')
@@ -33,8 +30,6 @@ export function ActionsCard(props: ActionsCardProps) {
 
   const defaulted = vault.status === 'defaulted'
   const hasAvailable = BigInt(vault.availableUnits) > 0n
-  const deadlinePassed =
-    vault.status === 'margin_call' && vault.callDeadline !== null && formatCountdown(vault.callDeadline, now) === null
   const otherBusy = (action: Action) => busy !== null && busy !== action
 
   const signing =
@@ -50,18 +45,20 @@ export function ActionsCard(props: ActionsCardProps) {
   }
 
   return (
-    <Card
-      title="Scenario"
-      description="Move rates to change the fund's exposure, then watch the vault lock, call, release or settle collateral."
-    >
-      <div className="grid gap-5">
-        <section aria-label="Rate shocks">
-          <h3 className="mb-2 text-sm text-ink-muted">Rate shock (Euribor 3M, simulated)</h3>
+    <Card>
+      <div className="grid gap-6">
+        <section aria-label="Rate shocks" className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h3 className="label-caps text-sim">Rate shock · simulated</h3>
+            <p className="mt-1 text-sm text-ink-muted">
+              Moves Euribor; the keeper reprices the swap and posts the new requirement on-chain.
+            </p>
+          </div>
           <div className="flex flex-wrap gap-2">
             {SHOCKS.map((bp) => (
               <Button
                 key={bp}
-                variant="secondary"
+                variant="sim"
                 busy={busy === 'shock' && lastShock === bp}
                 disabled={defaulted || (busy !== null && !(busy === 'shock' && lastShock === bp))}
                 onClick={() => {
@@ -76,9 +73,9 @@ export function ActionsCard(props: ActionsCardProps) {
           </div>
         </section>
 
-        <div className="grid gap-5 sm:grid-cols-2">
+        <div className="grid gap-5 border-t border-line pt-5 sm:grid-cols-2">
           <form onSubmit={submit(props.onDeposit, depositInput)} aria-label="Deposit">
-            <label htmlFor="deposit" className="mb-2 block text-sm text-ink-muted">
+            <label htmlFor="deposit" className="label-caps mb-2 block">
               Deposit {asset.code}
             </label>
             <div className="flex gap-2">
@@ -97,7 +94,7 @@ export function ActionsCard(props: ActionsCardProps) {
           </form>
 
           <form onSubmit={submit(props.onWithdraw, withdrawInput)} aria-label="Withdraw">
-            <label htmlFor="withdraw" className="mb-2 block text-sm text-ink-muted">
+            <label htmlFor="withdraw" className="label-caps mb-2 block">
               Withdraw {asset.code}
             </label>
             <div className="flex gap-2">
@@ -117,26 +114,6 @@ export function ActionsCard(props: ActionsCardProps) {
           </form>
         </div>
         <p className="-mt-2 text-xs text-ink-subtle">{signing}</p>
-
-        <section aria-label="Default settlement" className="flex flex-wrap items-center gap-3 border-t border-line pt-5">
-          <Button
-            variant="danger"
-            busy={busy === 'settle'}
-            disabled={!deadlinePassed || otherBusy('settle')}
-            onClick={props.onSettle}
-          >
-            Settle default
-          </Button>
-          <p className="text-xs text-ink-subtle">
-            {defaulted
-              ? 'Settled: the locked collateral went to the bank.'
-              : vault.status === 'margin_call'
-                ? deadlinePassed
-                  ? 'The grace period is over: anyone can settle on-chain.'
-                  : 'Available once the grace period of the margin call ends.'
-                : 'Only possible after an unmet margin call.'}
-          </p>
-        </section>
       </div>
     </Card>
   )

@@ -4,9 +4,9 @@ import { cx } from './cx.ts'
 type Tone = 'info' | 'warning' | 'danger'
 
 const TONES: Record<Tone, string> = {
-  info: 'border-accent-light bg-accent-soft text-accent',
+  info: 'border-chain-light bg-chain-soft text-chain',
   warning: 'border-warning bg-warning-soft text-warning-ink',
-  danger: 'border-danger bg-danger-soft text-danger-ink',
+  danger: 'border-danger bg-danger-soft text-danger',
 }
 
 interface BannerProps {

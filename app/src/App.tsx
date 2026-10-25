@@ -1,43 +1,122 @@
 import { useState } from 'react'
-import type { AssetId, KeystoneConfig } from '@keystone/shared'
+import type { AssetId, KeystoneConfig, SessionState } from '@keystone/shared'
 import { KEEPER_URL } from './config.ts'
 import { ActionsCard } from './dashboard/ActionsCard.tsx'
 import { ActivityFeed } from './dashboard/ActivityFeed.tsx'
 import { assetOf } from './dashboard/assets.ts'
 import { BalancesCard } from './dashboard/BalancesCard.tsx'
-import { MarginCard } from './dashboard/MarginCard.tsx'
-import { SwapCard } from './dashboard/SwapCard.tsx'
+import { KpiStrip } from './dashboard/KpiStrip.tsx'
+import { SettlementCard } from './dashboard/SettlementCard.tsx'
+import { StatusCard } from './dashboard/StatusCard.tsx'
 import { VaultCard } from './dashboard/VaultCard.tsx'
-import { formatEur } from './lib/format.ts'
+import { formatEur, shortAddress } from './lib/format.ts'
 import { useKeystone, useNow } from './state/useKeystone.ts'
 import { Banner, Button, Card, SegmentedControl, SimulatedTag } from './ui/index.ts'
+import { cx } from './ui/cx.ts'
+
+type KeystoneHook = ReturnType<typeof useKeystone>
 
 export default function App() {
   const k = useKeystone()
   const now = useNow()
   const mocks = k.source === 'mocks'
+  const asset = k.config && k.session ? assetOf(k.config, k.session) : null
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-8 sm:px-8 sm:py-10">
-      <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-sm text-ink-muted">Programmable collateral · Stellar Testnet</p>
-          <h1 className="mt-1 text-3xl font-medium tracking-tight">Keystone</h1>
+    <>
+      <TopBar k={k} mocks={mocks} />
+      {k.session && asset && <KpiStrip session={k.session} asset={asset} />}
+
+      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+        <div className="grid gap-3 empty:hidden">
+          {mocks && (
+            <Banner tone="warning">
+              Mock data: nothing is sent to Stellar. Hashes and addresses starting with MOCK are fake.
+            </Banner>
+          )}
+          {k.config?.signerMode === 'keeper' && (
+            <Banner tone="info">
+              Public demo mode: the keeper signs deposits and withdrawals with the demo fund key. The video shows the
+              same flow signed by the fund in Freighter.
+            </Banner>
+          )}
+          {k.loadError && (
+            <Banner tone="danger" live>
+              <div className="flex items-start justify-between gap-4">
+                <span>
+                  Could not load the dashboard ({k.loadError.code}). {k.loadError.message}
+                  {!mocks && <> Keeper URL: {KEEPER_URL}</>}
+                </span>
+                <button
+                  type="button"
+                  className="shrink-0 text-xs font-medium underline-offset-2 hover:underline"
+                  onClick={() => window.location.reload()}
+                >
+                  Retry
+                </button>
+              </div>
+            </Banner>
+          )}
+          {k.error && (
+            <Banner tone="danger" live>
+              <div className="flex items-start justify-between gap-4">
+                <span>
+                  {k.error.message} <span className="text-xs opacity-80">({k.error.code})</span>
+                </span>
+                <button
+                  type="button"
+                  className="shrink-0 text-xs font-medium underline-offset-2 hover:underline"
+                  onClick={k.dismissError}
+                >
+                  Dismiss
+                </button>
+              </div>
+            </Banner>
+          )}
         </div>
-        <div className="flex flex-wrap items-center gap-3 text-xs text-ink-muted">
-          <span className="flex items-center gap-1.5">
+
+        <div className="mt-6">
+          {!k.config ? (
+            !k.loadError && <p className="text-sm text-ink-muted">Loading…</p>
+          ) : !k.session || !asset ? (
+            <StartSession config={k.config} busy={k.busy === 'start'} onStart={k.startSession} />
+          ) : (
+            <Dashboard k={k} session={k.session} config={k.config} now={now} mocks={mocks} />
+          )}
+        </div>
+      </main>
+    </>
+  )
+}
+
+function TopBar({ k, mocks }: { k: KeystoneHook; mocks: boolean }) {
+  const swap = k.session?.swap
+  return (
+    <header className="border-b border-line bg-surface">
+      <div className="mx-auto flex min-h-16 max-w-7xl flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-3 sm:px-6">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
+          <span className="text-lg font-medium tracking-tight">Keystone</span>
+          <span className="rounded-full border border-line-strong px-2.5 py-1 text-[0.6875rem] font-medium tracking-wider text-ink-muted">
+            STELLAR TESTNET
+          </span>
+          {swap && (
+            <span className="text-sm text-ink-muted">
+              Fund ↔ Bank · EUR {formatEur(swap.notionalEur).replace(/\.00$/, '')} swap, fund pays fixed · {swap.tenorYears}Y
+            </span>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-4 text-sm text-ink-muted">
+          <span className="flex items-center gap-2">
             <span
               aria-hidden="true"
-              className={`size-2 rounded-full ${
-                k.loadError ? 'bg-danger' : k.connection === 'open' ? 'bg-success' : 'bg-warning'
-              }`}
+              className={cx(
+                'size-2 rounded-full',
+                k.loadError ? 'bg-danger' : k.connection === 'open' ? 'bg-success' : 'bg-warning',
+              )}
             />
-            {mocks
-              ? 'Mock keeper'
-              : k.loadError
-                ? 'Keeper unreachable'
-                : `Keeper ${k.connection === 'open' ? 'live' : k.connection}`}
+            {mocks ? 'Mock keeper' : k.loadError ? 'Keeper unreachable' : `Keeper ${k.connection === 'open' ? 'live' : k.connection}`}
           </span>
+          {k.config && <span title={k.config.accounts.fund}>Fund {shortAddress(k.config.accounts.fund)}</span>}
           {k.session && k.config && (
             <NewSession
               config={k.config}
@@ -47,78 +126,35 @@ export default function App() {
             />
           )}
         </div>
-      </header>
-
-      <div className="grid gap-4">
-        {mocks && (
-          <Banner tone="warning">
-            Mock data: nothing is sent to Stellar. Hashes and addresses starting with MOCK are fake.
-          </Banner>
-        )}
-        {k.config?.signerMode === 'keeper' && (
-          <Banner tone="info">
-            Public demo mode: the keeper signs deposits and withdrawals with the demo fund key. The
-            video shows the same flow signed by the fund in Freighter.
-          </Banner>
-        )}
-        {k.loadError && (
-          <Banner tone="danger" live>
-            <div className="flex items-start justify-between gap-4">
-              <span>
-                Could not load the dashboard ({k.loadError.code}). {k.loadError.message}
-                {!mocks && <> Keeper URL: {KEEPER_URL}</>}
-              </span>
-              <button
-                type="button"
-                className="shrink-0 text-xs font-medium underline-offset-2 hover:underline"
-                onClick={() => window.location.reload()}
-              >
-                Retry
-              </button>
-            </div>
-          </Banner>
-        )}
-        {k.error && (
-          <Banner tone="danger" live>
-            <div className="flex items-start justify-between gap-4">
-              <span>
-                {k.error.message} <span className="font-mono text-xs">({k.error.code})</span>
-              </span>
-              <button
-                type="button"
-                className="shrink-0 text-xs font-medium underline-offset-2 hover:underline"
-                onClick={k.dismissError}
-              >
-                Dismiss
-              </button>
-            </div>
-          </Banner>
-        )}
       </div>
-
-      <div className="mt-6">
-        {!k.config ? (
-          !k.loadError && <p className="text-sm text-ink-muted">Loading…</p>
-        ) : !k.session ? (
-          <StartSession config={k.config} busy={k.busy === 'start'} onStart={k.startSession} />
-        ) : (
-          <Dashboard k={k} now={now} mocks={mocks} />
-        )}
-      </div>
-    </main>
+    </header>
   )
 }
 
-type KeystoneHook = ReturnType<typeof useKeystone>
+interface DashboardProps {
+  k: KeystoneHook
+  session: SessionState
+  config: KeystoneConfig
+  now: number
+  mocks: boolean
+}
 
-function Dashboard({ k, now, mocks }: { k: KeystoneHook; now: number; mocks: boolean }) {
-  const config = k.config!
-  const session = k.session!
+function Dashboard({ k, session, config, now, mocks }: DashboardProps) {
   const asset = assetOf(config, session)
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-      <div className="grid content-start gap-6">
-        <VaultCard session={session} asset={asset} now={now} />
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_400px]">
+      <div className="grid min-w-0 content-start gap-6">
+        <StatusCard
+          session={session}
+          asset={asset}
+          signerMode={config.signerMode}
+          busy={k.busy}
+          step={k.step}
+          now={now}
+          onDeposit={k.deposit}
+          onSettle={k.settleDefault}
+        />
+        <VaultCard session={session} asset={asset} />
         <ActionsCard
           session={session}
           asset={asset}
@@ -126,21 +162,16 @@ function Dashboard({ k, now, mocks }: { k: KeystoneHook; now: number; mocks: boo
           mocks={mocks}
           busy={k.busy}
           step={k.step}
-          now={now}
           onDeposit={k.deposit}
           onWithdraw={k.withdraw}
           onShock={k.rateShock}
-          onSettle={k.settleDefault}
         />
-        <div className="grid gap-6 md:grid-cols-2">
-          <SwapCard swap={session.swap} margin={session.margin} />
-          <MarginCard session={session} asset={asset} />
-        </div>
       </div>
-      <div className="grid content-start gap-6">
-        <BalancesCard session={session} asset={asset} />
+      <aside className="grid min-w-0 content-start gap-6">
+        <SettlementCard session={session} asset={asset} />
         <ActivityFeed activity={k.activity} />
-      </div>
+        <BalancesCard session={session} asset={asset} />
+      </aside>
     </div>
   )
 }
@@ -156,27 +187,31 @@ function StartSession({ config, busy, onStart }: StartProps) {
   const [asset, setAsset] = useState<AssetId>(config.assets[0]?.id ?? 'KMMF')
   const info = config.assets.find((a) => a.id === asset)
   return (
-    <Card
-      title="Choose the collateral"
-      description="The fund posts tokenized assets it already holds instead of keeping cash aside for margin calls. Both assets are fictitious tokens issued by the team on Stellar Testnet."
-      className="max-w-2xl"
-    >
-      <SegmentedControl
-        label="Collateral asset"
-        value={asset}
-        onChange={setAsset}
-        options={config.assets.map((a) => ({ value: a.id, label: a.code }))}
-      />
-      {info && (
-        <p className="mt-4 text-sm text-ink-muted">
-          {info.label} · unit price {formatEur(info.unitPriceEur)} EUR
-          <SimulatedTag /> · haircut {info.haircutPct}%
-        </p>
-      )}
-      <Button className="mt-6" variant="primary" busy={busy} onClick={() => onStart(asset)}>
-        {busy ? 'Deploying the vault…' : 'Start session'}
-      </Button>
-    </Card>
+    <div className="mx-auto max-w-2xl py-10">
+      <p className="label-caps">Programmable collateral · Stellar Testnet</p>
+      <h1 className="mt-3 text-5xl font-light tracking-tight">Post tokens, not cash.</h1>
+      <p className="mt-4 text-lg leading-relaxed text-ink-muted">
+        A fund and its bank have signed an interest rate swap. Instead of keeping cash aside for margin calls, the fund
+        posts tokenized assets it already holds; a Soroban vault locks, releases or settles them by the rules.
+      </p>
+      <Card className="mt-8" title="Choose the collateral" description="Both assets are fictitious tokens issued by the team on Stellar Testnet.">
+        <SegmentedControl
+          label="Collateral asset"
+          value={asset}
+          onChange={setAsset}
+          options={config.assets.map((a) => ({ value: a.id, label: a.code }))}
+        />
+        {info && (
+          <p className="mt-4 text-sm text-ink-muted">
+            {info.label} · unit price {formatEur(info.unitPriceEur)} EUR
+            <SimulatedTag /> · haircut {info.haircutPct}%
+          </p>
+        )}
+        <Button className="mt-6" variant="primary" busy={busy} onClick={() => onStart(asset)}>
+          {busy ? 'Deploying the vault…' : 'Start session'}
+        </Button>
+      </Card>
+    </div>
   )
 }
 

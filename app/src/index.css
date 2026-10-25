@@ -1,43 +1,73 @@
 @import "tailwindcss";
 
-/* Direction A "Ledger clair" (chosen by the team): light surfaces, one accent, large numbers. */
+/* "Salle de compensation", light version (chosen by the team): bank colours, one family
+   (Helvetica Neue), tabular figures. One colour = one meaning: chain = on-chain proof,
+   sim = simulated values, success / warning / danger = vault status. */
 @theme {
-  --font-sans: "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-sans: "Helvetica Neue", Helvetica, Arial, sans-serif;
 
-  --color-canvas: #fafaf8;
+  --color-canvas: #f5f6f8;
   --color-surface: #ffffff;
-  --color-surface-muted: #f3f3f0;
-  --color-line: #e5e5e2;
-  --color-line-strong: #d4d4cf;
+  --color-surface-muted: #eef1f5;
+  --color-surface-subtle: #f9fafb;
+  --color-line: #e3e7ed;
+  --color-line-soft: #eceff3;
+  --color-line-strong: #c7ced8;
 
-  --color-ink: #111111;
-  --color-ink-muted: #5c5c58;
-  --color-ink-subtle: #73736e;
+  --color-ink: #0b1f33;
+  --color-ink-hover: #1d3550;
+  --color-ink-muted: #4a5568;
+  --color-ink-subtle: #5f6b7a;
 
-  --color-accent: #1f3a8a;
-  --color-accent-hover: #182e6e;
-  --color-accent-soft: #e8edfa;
-  --color-accent-light: #afc0ee;
+  --color-chain: #1f5fbf;
+  --color-chain-hover: #174a96;
+  --color-chain-soft: #e8f0fc;
+  --color-chain-light: #9db5de;
 
-  --color-success: #2f9461;
-  --color-success-soft: #e4f3ea;
-  --color-success-ink: #1e6b43;
+  --color-sim: #5b4ba6;
+  --color-sim-soft: #efebfa;
 
-  --color-warning: #f5b544;
-  --color-warning-soft: #fff1d6;
-  --color-warning-ink: #7a4b00;
+  --color-success: #0f7b3f;
+  --color-success-soft: #e5f4ea;
 
-  --color-danger: #c2410c;
-  --color-danger-soft: #fdece4;
-  --color-danger-ink: #9a3412;
+  --color-warning: #b86e00;
+  --color-warning-ink: #9a5b00;
+  --color-warning-soft: #fff3dc;
+  --color-warning-tint: #fffcf5;
+
+  --color-danger: #b42318;
+  --color-danger-hover: #8f1c13;
+  --color-danger-soft: #fdecea;
+
+  --color-released: #0b6b6a;
+  --color-released-soft: #e3f4f3;
 
   --radius-card: 1rem;
   --radius-control: 0.625rem;
+  --radius-tag: 0.375rem;
+
+  --shadow-card: 0 1px 2px rgba(11, 31, 51, 0.04);
+  --shadow-call: 0 0 0 4px rgba(184, 110, 0, 0.08), 0 8px 24px rgba(11, 31, 51, 0.06);
+
+  --ease-std: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-state: cubic-bezier(0.8, 0.05, 0.2, 0.95);
 }
 
 @layer base {
   body {
     @apply bg-canvas font-sans text-ink antialiased;
+    font-variant-numeric: tabular-nums;
+    background-image:
+      linear-gradient(rgba(11, 31, 51, 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(11, 31, 51, 0.04) 1px, transparent 1px);
+    background-size: 48px 48px;
   }
+}
+
+@utility label-caps {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.0875rem;
+  text-transform: uppercase;
+  color: var(--color-ink-subtle);
 }

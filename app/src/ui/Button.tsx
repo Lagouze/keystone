@@ -1,7 +1,7 @@
 import type { ButtonHTMLAttributes, MouseEvent } from 'react'
 import { cx } from './cx.ts'
 
-type Variant = 'primary' | 'secondary' | 'ghost' | 'danger'
+type Variant = 'primary' | 'secondary' | 'sim' | 'danger'
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant
@@ -10,10 +10,11 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const VARIANTS: Record<Variant, string> = {
-  primary: 'bg-accent text-white enabled:hover:bg-accent-hover',
-  secondary: 'border border-line-strong bg-surface text-ink enabled:hover:bg-surface-muted',
-  ghost: 'text-accent enabled:hover:bg-accent-soft',
-  danger: 'bg-danger text-white enabled:hover:bg-danger-ink',
+  // Navy primary like a bank; blue stays reserved for on-chain proof, violet for simulation.
+  primary: 'bg-ink text-white enabled:hover:bg-ink-hover',
+  secondary: 'border border-line-strong bg-surface text-ink enabled:hover:bg-surface-subtle',
+  sim: 'border border-sim/35 bg-surface text-ink enabled:hover:bg-sim-soft',
+  danger: 'bg-danger text-white enabled:hover:bg-danger-hover',
 }
 
 export function Button({
@@ -36,8 +37,8 @@ export function Button({
         else onClick?.(event)
       }}
       className={cx(
-        'inline-flex h-10 items-center justify-center gap-2 rounded-control px-4 text-sm font-medium transition-colors',
-        'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
+        'inline-flex h-10 items-center justify-center gap-2 rounded-full px-5 text-sm font-medium transition-colors duration-120 ease-std',
+        'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-chain',
         'disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:cursor-progress',
         VARIANTS[variant],
         className,
