@@ -36,3 +36,17 @@ coverage/
 
 # macOS
 .DS_Store
+
+# Keystone (phase zéro)
+# Node
+.vite/
+*.log
+
+# Rust / Soroban
+.stellar/
+*.wasm
+
+# OS / éditeurs
+Thumbs.db
+.vscode/
+.idea/
