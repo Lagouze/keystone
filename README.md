@@ -70,7 +70,7 @@ Bootstrap script --issues KMMF and KBOND--> fund account                 Fund an
 | Example vault contract ID | [`CCLE3RBDYNMRMBVTAPXLQ5JRWQOGR3RHOQYCMH43N6VYY6T2OGSZCB2N`](https://stellar.expert/explorer/testnet/contract/CCLE3RBDYNMRMBVTAPXLQ5JRWQOGR3RHOQYCMH43N6VYY6T2OGSZCB2N) (C1: deposit, withdraw, post_margin; cap 1 000 KMMF, grace period 90 s; no `settle_default` yet) |
 | Demo bank account | [`GAUHK4ZBP2W5VSKLJOTTKKHWUB2MGFXBMHYLSH3EERTVYYMVPWSR7W6C`](https://stellar.expert/explorer/testnet/account/GAUHK4ZBP2W5VSKLJOTTKKHWUB2MGFXBMHYLSH3EERTVYYMVPWSR7W6C) (trustlines on KMMF and KBOND) |
 | Keeper account | [`GDGUJHZGU57RU4RHARM37GU2IDX4KV7V23XVFORDWRYIBWIIQ6U7G4TO`](https://stellar.expert/explorer/testnet/account/GDGUJHZGU57RU4RHARM37GU2IDX4KV7V23XVFORDWRYIBWIIQ6U7G4TO) |
-| Demo fund account (Freighter) | [`GDQ6AWAXZWIOCBHDSFIIKCWV3PQ6ZJE6BBC4VJCWA3SCFB4G7A2TMQOY`](https://stellar.expert/explorer/testnet/account/GDQ6AWAXZWIOCBHDSFIIKCWV3PQ6ZJE6BBC4VJCWA3SCFB4G7A2TMQOY) (trustlines on KMMF and KBOND, holds 1 000 of each) |
+| Demo fund account (Freighter) | [`GDQ6AWAXZWIOCBHDSFIIKCWV3PQ6ZJE6BBC4VJCWA3SCFB4G7A2TMQOY`](https://stellar.expert/explorer/testnet/account/GDQ6AWAXZWIOCBHDSFIIKCWV3PQ6ZJE6BBC4VJCWA3SCFB4G7A2TMQOY) (trustlines on KMMF and KBOND, issued 1 000 of each; holds 999 KMMF after the C1 test deposit) |
 
 **APIs used:** Soroban RPC (`https://soroban-testnet.stellar.org`), Horizon Testnet, ECB Data Portal API (Euribor 3M, no key).
 
@@ -99,7 +99,7 @@ Contract C1 (deployed by the contract pole, recorded in `deployments/testnet.jso
 | Vault deployment (ledger 5388742) | [`66af4894…bdec`](https://stellar.expert/explorer/testnet/tx/66af48946f18f1a16673c78eb37a76ace759c1ba0b9ab35ec825df65c9ecbdec) |
 | Deposit of 1 KMMF signed by the demo fund account (ledger 5388931) | [`17868920…7202`](https://stellar.expert/explorer/testnet/tx/178689208be148899ac567ac6c68da6526e040b39962d313d9594a4eeca07202) |
 
-All three were read back from the Soroban RPC with status `SUCCESS`. After the deposit, the vault reports `available = 10000000` (1 KMMF), `locked = 0`, status `Active`; the vault's KMMF balance went from 0 to `10000000`, the fund's from `10000000000` to `9990000000`, and the transaction emitted one `deposited` event with `{amount: 10000000}`. The deposit was signed with the fund key from a throwaway script (not Freighter, which is untested).
+All three were read back from the Soroban RPC with status `SUCCESS`. After the deposit, the vault reports `available = 10000000` (1 KMMF), `locked = 0`, status `Active`; the vault's KMMF balance went from 0 to `10000000` and the fund's from `10000000000` to `9990000000` (balances read from the SAC by the throwaway script; the transaction itself carries one SAC `transfer` of `10000000` from the fund to the vault), and the transaction emitted one `deposited` event with `{amount: 10000000}`. The deposit was signed with the fund key from a throwaway script (not Freighter, which is untested).
 
 Collateral flow beyond the deposit: *none yet.* Links will be listed here for a margin posting that locks collateral, a release and withdrawal, and a default settlement.
 
