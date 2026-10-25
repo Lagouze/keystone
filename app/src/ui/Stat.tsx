@@ -31,7 +31,7 @@ export function Stat({ label, value, unit, tone = 'default', size = 'lg', hint }
       <dt className="text-sm text-ink-muted">{label}</dt>
       <dd
         className={cx(
-          'mt-1 font-medium tracking-tight tabular-nums [overflow-wrap:anywhere]',
+          'mt-1 font-medium tracking-tight tabular-nums wrap-anywhere',
           SIZES[size],
           TONES[tone],
         )}

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ActivityEvent, AssetId, VaultStatus } from '@keystone/shared'
 import { KEEPER_URL, USE_MOCKS } from './config.ts'
 import {
@@ -11,18 +11,24 @@ import {
   SimulatedTag,
   Stat,
   StatusPill,
-  TxHash,
-  proofOf,
+  ActivityProof,
 } from './ui/index.ts'
 
 // Direction A preview: shows the base components on static sample values.
 // F2 replaces this screen with the real dashboard wired to the keeper API (or the shared mocks).
 
-const SAMPLE_VAULT: Record<VaultStatus, { available: number; locked: number; shortfall: number }> = {
-  active: { available: 54, locked: 246, shortfall: 0 },
-  margin_call: { available: 0, locked: 300, shortfall: 96 },
-  defaulted: { available: 0, locked: 0, shortfall: 0 },
+// Whole units for readability; the bar takes smallest units like the keeper sends them.
+// Values follow the shared mocks (scenario 1 for active / margin_call, scenario 2 for defaulted).
+const SAMPLE: Record<
+  VaultStatus,
+  { available: number; locked: number; shortfall: number; requiredEur: string; required: number }
+> = {
+  active: { available: 54, locked: 246, shortfall: 0, requiredEur: '240,210.11', required: 246 },
+  margin_call: { available: 0, locked: 300, shortfall: 96, requiredEur: '387,331.01', required: 396 },
+  defaulted: { available: 0, locked: 0, shortfall: 0, requiredEur: '486,682.24', required: 497 },
 }
+
+const toUnits = (whole: number) => (BigInt(whole) * 10n ** 7n).toString()
 
 const MOCK_HASH = 'MOCK3f9a0000000000000000000000000000000000000000000000000000c21e'
 
@@ -62,7 +68,13 @@ export default function App() {
   const [asset, setAsset] = useState<AssetId>('KMMF')
   const [status, setStatus] = useState<VaultStatus>('margin_call')
   const [busy, setBusy] = useState(false)
-  const vault = SAMPLE_VAULT[status]
+
+  useEffect(() => {
+    if (!busy) return
+    const timer = window.setTimeout(() => setBusy(false), 1500)
+    return () => window.clearTimeout(timer)
+  }, [busy])
+  const vault = SAMPLE[status]
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-10 sm:px-8">
@@ -104,14 +116,25 @@ export default function App() {
               tone={vault.shortfall > 0 ? 'warning' : 'default'}
             />
           </dl>
-          <AllocationBar {...vault} />
+          <AllocationBar
+            available={toUnits(vault.available)}
+            locked={toUnits(vault.locked)}
+            shortfall={toUnits(vault.shortfall)}
+            label={`Locked ${vault.locked}, available ${vault.available}, shortfall ${vault.shortfall} ${asset}`}
+          />
         </Card>
 
         <div className="grid gap-6 md:grid-cols-2">
           <Card title="Margin" description="What the swap exposure requires, converted into tokens.">
             <dl className="grid grid-cols-2 gap-6">
-              <Stat label="Required value" value="236,580.12" unit="EUR" size="md" />
-              <Stat label="Required" value="246" unit={asset} size="md" hint="MTA 50,000 EUR" />
+              <Stat label="Required value" value={vault.requiredEur} unit="EUR" size="md" />
+              <Stat
+                label="Required"
+                value={String(vault.required)}
+                unit={asset}
+                size="md"
+                hint={status === 'defaulted' ? 'Last computed (historical)' : 'MTA 50,000 EUR'}
+              />
             </dl>
             <p className="mt-4 text-sm text-ink-muted">
               Unit price 1,000 EUR
@@ -121,23 +144,14 @@ export default function App() {
 
           <Card title="Activity" description="Every token movement links to its Stellar transaction.">
             <ul className="divide-y divide-line">
-              {SAMPLE_ACTIVITY.map((event) => {
-                const proof = proofOf(event)
-                return (
-                  <li key={event.id} className="flex items-center justify-between gap-3 py-2.5">
-                    <span className="flex items-center gap-2 text-sm">
-                      <KindBadge kind={event.kind} /> {event.title}
-                    </span>
-                    {proof ? (
-                      <TxHash {...proof} />
-                    ) : (
-                      <span className="text-xs text-ink-subtle">
-                        {event.status === 'pending' ? 'pending…' : 'no hash'}
-                      </span>
-                    )}
-                  </li>
-                )
-              })}
+              {SAMPLE_ACTIVITY.map((event) => (
+                <li key={event.id} className="flex items-center justify-between gap-3 py-2.5">
+                  <span className="flex items-center gap-2 text-sm">
+                    <KindBadge kind={event.kind} /> {event.title}
+                  </span>
+                  <ActivityProof event={event} />
+                </li>
+              ))}
             </ul>
           </Card>
         </div>
@@ -147,10 +161,7 @@ export default function App() {
             <Button
               variant="primary"
               busy={busy}
-              onClick={() => {
-                setBusy(true)
-                window.setTimeout(() => setBusy(false), 1500)
-              }}
+              onClick={() => setBusy(true)}
             >
               {busy ? 'Signing…' : 'Deposit'}
             </Button>

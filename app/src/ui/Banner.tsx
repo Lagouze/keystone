@@ -9,10 +9,17 @@ const TONES: Record<Tone, string> = {
   danger: 'border-danger bg-danger-soft text-danger-ink',
 }
 
-export function Banner({ tone = 'info', children }: { tone?: Tone; children: ReactNode }) {
+interface BannerProps {
+  tone?: Tone
+  /** Announce it to screen readers: only for messages that appear after an action. */
+  live?: boolean
+  children: ReactNode
+}
+
+export function Banner({ tone = 'info', live = false, children }: BannerProps) {
   return (
     <div
-      role={tone === 'info' ? 'status' : 'alert'}
+      role={live ? (tone === 'info' ? 'status' : 'alert') : undefined}
       className={cx('rounded-control border px-4 py-3 text-sm', TONES[tone])}
     >
       {children}
