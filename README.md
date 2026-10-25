@@ -173,12 +173,23 @@ The dashboard is the `@keystone/app` workspace; it imports the shared types from
 
 | Command | What it does |
 | --- | --- |
-| `npm run dev -w @keystone/app` | Starts the Vite dev server on `http://localhost:5173` |
+| `npm run dev -w @keystone/app` | Starts the Vite dev server on `http://localhost:5173`, talking to the keeper at `VITE_KEEPER_URL` |
+| `VITE_USE_MOCKS=true npm run dev -w @keystone/app` | Same, on an in-browser mock keeper: both scenarios play without keeper, wallet or network |
 | `npm run build -w @keystone/app` | Type-checks, then builds the static site into `app/dist/` |
 
 The root `npm run typecheck` also covers the dashboard.
 
-The dashboard reads `VITE_KEEPER_URL` (default `http://localhost:8787/api`) and `VITE_USE_MOCKS` from the root `.env`; only `VITE_*` variables reach the browser bundle, and they are fixed at build time. At this stage it shows a design preview on static sample values: no keeper call, no wallet.
+**Configuration.** The dashboard reads these variables from the root `.env` (or the shell); only `VITE_*` variables reach the browser bundle, and they are fixed at build time.
+
+| Variable | Purpose |
+| --- | --- |
+| `VITE_KEEPER_URL` | Keeper API base URL, default `http://localhost:8787/api` |
+| `VITE_USE_MOCKS` | Exactly `true` to use the in-browser mock keeper (mock data, nothing sent to Stellar, every hash starts with `MOCK`) |
+| `VITE_MOCK_SIGNER` | Mocks only: `keeper` plays the `SIGNER=keeper` fallback; otherwise the Freighter flow, with the signature simulated |
+
+**What the dashboard does.** The user picks KMMF or KBOND and starts a session (a new vault). The screen shows the swap (rates labelled as simulated), the margin requirement in EUR and in tokens, the vault (available, locked, shortfall, status and margin-call countdown), the fund and bank balances, and a live activity feed (`GET /events`). Computations are marked *Simulation* and never carry a hash; a *Testnet tx* entry shows its hash and stellar.expert link only once confirmed. Deposits and withdrawals are prepared by the keeper and signed by the fund in Freighter (Testnet, demo fund account checked before signing); when the keeper runs with `SIGNER=keeper` (public demo URL), the dashboard calls the direct routes and says so in a banner.
+
+Verified so far: both scenarios on the mock keeper; the HTTP and SSE client against a stand-in server serving the shared mocks. **Not tested yet:** the real keeper (API not merged yet) and a real Freighter signature.
 
 **Visual direction.** Light surfaces, one navy accent and large tabular numbers ("Ledger clair", chosen by the team). Design tokens live in `app/src/index.css` (Tailwind CSS v4 `@theme`), base components in `app/src/ui/`. Inter and JetBrains Mono are bundled with the app (no external font request).
 
@@ -209,7 +220,7 @@ Only the status "verified" counts as done, and only with a proof link.
 | 6 | Deposit, lock and release with verifiable results | Not started | |
 | 7 | Separate default scenario with on-chain transfer to the bank | Not started | |
 | 8 | Real Stellar Testnet transactions shown with proof | Not started | |
-| 9 | Dashboard showing asset choice, steps and on-chain proof | In progress (app scaffold, design base) | |
+| 9 | Dashboard showing asset choice, steps and on-chain proof | In progress (dashboard on mocks; real keeper and Freighter not tested yet) | |
 | 10 | End-to-end integration of the three poles | Not started | |
 | 11 | Submission: public repo, README, public URL, video, pitch deck | Not started | |
 | 12 | Continuous quality: review of every PR, tests, README updates | In place from phase zero | This repository's PR history |
