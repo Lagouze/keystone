@@ -1,10 +1,21 @@
+import { motion } from 'motion/react'
 import type { AssetInfo, SessionState } from '@keystone/shared'
 import { formatUnits, formatUtcTime } from '../lib/format.ts'
+import { CHOREO } from '../state/useChoreography.ts'
 import { Card } from '../ui/index.ts'
 import { cx } from '../ui/cx.ts'
 
 /** Wise-style breakdown of what happens if a margin call is not covered. */
-export function SettlementCard({ session, asset }: { session: SessionState; asset: AssetInfo }) {
+interface SettlementCardProps {
+  session: SessionState
+  asset: AssetInfo
+  /** Default settled just now: the locked collateral travels from the vault to the bank. */
+  transfer: boolean
+  /** Amount on the travelling token (the locked amount before settlement). */
+  transferUnits: string | null
+}
+
+export function SettlementCard({ session, asset, transfer, transferUnits }: SettlementCardProps) {
   const { vault, balances } = session
   const fmt = (units: string) => formatUnits(units, asset.decimals)
   const settled = vault.status === 'defaulted'
@@ -45,6 +56,23 @@ export function SettlementCard({ session, asset }: { session: SessionState; asse
           </li>
         ))}
       </ol>
+      {(transfer || settled) && (
+        <div className="relative mt-5 flex h-12 items-center justify-between text-sm" aria-hidden={!transfer}>
+          <span className="rounded-control border border-line bg-surface-subtle px-3 py-1.5">Vault</span>
+          <span className="absolute inset-x-20 top-1/2 border-t border-dashed border-line-strong" />
+          <span className="rounded-control border border-line bg-surface-subtle px-3 py-1.5">Bank</span>
+          {transfer && transferUnits && (
+            <motion.span
+              className="absolute top-2.5 whitespace-nowrap rounded-full bg-danger px-3 py-1 text-xs font-medium text-white"
+              initial={{ left: '4rem', opacity: 0 }}
+              animate={{ left: 'calc(100% - 9.5rem)', opacity: 1 }}
+              transition={{ duration: CHOREO.transferMs / 1000, ease: [0.8, 0.05, 0.2, 0.95] }}
+            >
+              {formatUnits(transferUnits, asset.decimals)} {asset.code}
+            </motion.span>
+          )}
+        </div>
+      )}
       <p className="mt-4 border-t border-line pt-3 text-xs leading-relaxed text-ink-subtle">
         Exactly the locked amount, enforced by the Soroban vault. No party can move more.
       </p>

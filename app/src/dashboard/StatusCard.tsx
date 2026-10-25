@@ -1,10 +1,13 @@
-import type { AssetInfo, KeystoneConfig, SessionState } from '@keystone/shared'
-import { formatCountdown, formatEur, formatUnits, formatUtcTime } from '../lib/format.ts'
+import type { AssetInfo, KeystoneConfig, VaultStatus } from '@keystone/shared'
+import { formatEur, formatUnits, formatUtcTime } from '../lib/format.ts'
+import type { Stage } from '../state/useChoreography.ts'
 import type { Action } from '../state/useKeystone.ts'
 import { Button, Card, StatusPill } from '../ui/index.ts'
+import { Countdown, FlapLabel, HoldToSettle } from '../ui/motion.tsx'
+import { SigningProgress } from './SigningProgress.tsx'
 
 interface StatusCardProps {
-  session: SessionState
+  stage: Stage
   asset: AssetInfo
   signerMode: KeystoneConfig['signerMode']
   busy: Action | null
@@ -14,17 +17,26 @@ interface StatusCardProps {
   onSettle(): void
 }
 
+const STATUS_WORD: Record<VaultStatus, string> = {
+  active: 'ACTIVE',
+  margin_call: 'MARGIN CALL',
+  defaulted: 'DEFAULTED',
+}
+
 /**
- * Flighty-style status: what is happening, by how much, and until when. The margin-call card is
- * the only tinted one on the screen.
+ * Flighty-style status: what is happening, by how much, and until when. Driven by the
+ * choreography stage: the pill flips first, the text and figures follow, then the card lights
+ * up and the countdown starts.
  */
 export function StatusCard(props: StatusCardProps) {
-  const { session, asset, busy, now } = props
+  const { stage, asset, busy, now } = props
+  const session = stage.shown
   const { vault, margin } = session
   const fmt = (units: string) => formatUnits(units, asset.decimals)
   const code = asset.code
-  const countdown = vault.callDeadline ? formatCountdown(vault.callDeadline, now) : null
-  const deadlinePassed = vault.status === 'margin_call' && vault.callDeadline !== null && countdown === null
+  const remainingMs = vault.callDeadline ? Date.parse(vault.callDeadline) - now : null
+  const secondsLeft = remainingMs === null ? 0 : Math.max(0, Math.ceil(remainingMs / 1000))
+  const deadlinePassed = vault.status === 'margin_call' && remainingMs !== null && remainingMs <= 0
   const otherBusy = (action: Action) => busy !== null && busy !== action
 
   let headline: string
@@ -49,23 +61,28 @@ export function StatusCard(props: StatusCardProps) {
     detail = `The vault locks ${fmt(vault.lockedUnits)} ${code}, the requirement posted on-chain. No cash set aside: the fund pays the fixed rate and receives Euribor, so it owes the bank collateral when rates fall.`
   }
 
+  const tone = stage.halo ? 'call' : stage.settled ? 'default-settled' : 'default'
+  const callOpen = vault.status === 'margin_call'
+
   return (
-    <Card tone={vault.status === 'margin_call' ? 'call' : vault.status === 'defaulted' ? 'default-settled' : 'default'}>
+    <Card tone={tone} star={stage.halo}>
       <div className="grid items-start gap-6 sm:grid-cols-[minmax(0,1fr)_auto]">
         <div className="flex max-w-2xl flex-col items-start gap-3">
-          <StatusPill status={vault.status} />
+          <StatusPill status={stage.status} label={<FlapLabel text={STATUS_WORD[stage.status]} />} />
           <h2 className="text-2xl leading-snug tracking-tight sm:text-[1.75rem]">{headline}</h2>
           <p className="text-[0.9375rem] leading-relaxed text-ink-muted">{detail}</p>
         </div>
-        {vault.status === 'margin_call' && (
+        {callOpen && stage.countdown && (
           <div className="flex flex-col items-end gap-1">
             <span className="label-caps">Grace period</span>
-            <span className="text-5xl font-light leading-none tabular-nums text-warning-ink">{countdown ?? '00:00'}</span>
+            <span className="text-5xl font-light leading-none text-warning-ink">
+              <Countdown seconds={secondsLeft} />
+            </span>
           </div>
         )}
       </div>
 
-      {vault.status === 'margin_call' && (
+      {callOpen && (
         <div className="mt-6 flex flex-wrap items-center gap-3">
           <Button
             variant="primary"
@@ -73,18 +90,21 @@ export function StatusCard(props: StatusCardProps) {
             disabled={otherBusy('deposit')}
             onClick={() => props.onDeposit(formatUnits(vault.shortfallUnits, asset.decimals, asset.decimals).replace(/,/g, ''))}
           >
-            {busy === 'deposit'
-              ? (props.step ?? 'Depositing…')
-              : `Deposit ${formatUnits(vault.shortfallUnits, asset.decimals, asset.decimals)} ${code}`}
+            {busy === 'deposit' ? 'Depositing…' : `Deposit ${formatUnits(vault.shortfallUnits, asset.decimals, asset.decimals)} ${code}`}
           </Button>
-          <Button variant="danger" busy={busy === 'settle'} disabled={!deadlinePassed || otherBusy('settle')} onClick={props.onSettle}>
-            {deadlinePassed ? 'Settle default' : 'Settle default · after deadline'}
-          </Button>
+          {deadlinePassed ? (
+            <HoldToSettle disabled={otherBusy('settle') || busy === 'settle'} onHold={props.onSettle} />
+          ) : (
+            <Button variant="danger" disabled>
+              Settle default · after deadline
+            </Button>
+          )}
           <span className="text-sm text-ink-subtle">
             {props.signerMode === 'keeper' ? 'Signed by the keeper (public demo)' : 'Signed by the fund in Freighter'}
           </span>
         </div>
       )}
+      <SigningProgress busy={busy} step={props.step} />
     </Card>
   )
 }

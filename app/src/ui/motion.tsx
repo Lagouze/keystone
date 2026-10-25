@@ -1,6 +1,6 @@
 // Keystone presets for the React Bits components: tokens, durations and the single typeface are
 // set here once, so the dashboard never configures the raw components itself.
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import Counter from './bits/Counter.tsx'
 import CountUp from './bits/CountUp.tsx'
 import DecryptedText from './bits/DecryptedText.tsx'
@@ -58,17 +58,29 @@ export function KeyFigure({ value, intro }: { value: number; intro: boolean }) {
   return <CountUp to={value} from={0} duration={0.8} decimals={2} separator="," trigger="load" />
 }
 
-/** Status word flipping like a departure board (SplitFlapText), in Helvetica Neue. */
+/**
+ * Status word flipping like a departure board (SplitFlapText), in Helvetica Neue. The board only
+ * shows while it flips; at rest the word is plain text, without the board's fixed-width tiles.
+ */
 export function FlapLabel({ text }: { text: string }) {
-  const first = useRef(true)
+  // Start flipping in the same render as the new word, so it never shows plainly for a frame.
+  const [last, setLast] = useState(text)
+  const [flipping, setFlipping] = useState(false)
+  if (text !== last) {
+    setLast(text)
+    setFlipping(true)
+  }
   useEffect(() => {
-    first.current = false
-  }, [])
+    if (!flipping) return
+    const id = window.setTimeout(() => setFlipping(false), CHOREO.flipMs + 200)
+    return () => window.clearTimeout(id)
+  }, [flipping, text])
+  if (!flipping && text === last) return <>{text}</>
   return (
     <SplitFlapText
       text={text}
       loop={false}
-      intro={!first.current}
+      intro
       padTo={0}
       charset="alpha"
       flipsPerChar={3}

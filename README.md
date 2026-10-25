@@ -193,6 +193,8 @@ Verified so far: both scenarios on the mock keeper; the HTTP and SSE client agai
 
 **Visual direction.** "Salle de compensation", light version, chosen by the team: white and cool greys, navy for text and primary actions, blue reserved for on-chain proof, violet for simulated values, green / amber / red for the vault status. One typeface, Helvetica Neue, with tabular figures; it ships with macOS and iOS, and other systems fall back to Helvetica then Arial (no font is bundled or downloaded). Design tokens live in `app/src/index.css` (Tailwind CSS v4 `@theme`), base components in `app/src/ui/`.
 
+**Motion.** Each confirmed change plays one short sequence instead of everything at once (`app/src/state/useChoreography.ts`): the status flips first (400 ms after the confirmation arrives), then the figures roll (1 s), then a margin-call card lights up (1.35 s) and its countdown starts (1.55 s); on a default, the locked collateral travels from the vault to the bank in 700 ms. Market figures (MTM, Euribor) move as soon as they arrive; a hash decrypts when its transaction confirms. The animations come from [React Bits](https://reactbits.dev) (Counter, SplitFlapText, StatusMark, DecryptedText, LatticeLoader, StarBorder, HoldButton, ShinyText, Stepper, GradualBlur, CountUp, SwipeToast, RippleGrid), copied under `app/src/ui/bits/` with their licence notice, and configured once in `app/src/ui/motion.tsx`. With reduced motion, new values show at once.
+
 ## 10. Demo instructions
 
 *To be written once the end-to-end flow works.* Two scenarios are planned:
@@ -220,7 +222,7 @@ Only the status "verified" counts as done, and only with a proof link.
 | 6 | Deposit, lock and release with verifiable results | Not started | |
 | 7 | Separate default scenario with on-chain transfer to the bank | Not started | |
 | 8 | Real Stellar Testnet transactions shown with proof | Not started | |
-| 9 | Dashboard showing asset choice, steps and on-chain proof | In progress (dashboard on mocks; real keeper and Freighter not tested yet) | |
+| 9 | Dashboard showing asset choice, steps and on-chain proof | In progress (dashboard on mocks, light direction and motion; real keeper and Freighter not tested yet) | |
 | 10 | End-to-end integration of the three poles | Not started | |
 | 11 | Submission: public repo, README, public URL, video, pitch deck | Not started | |
 | 12 | Continuous quality: review of every PR, tests, README updates | In place from phase zero | This repository's PR history |

@@ -34,6 +34,8 @@ export interface Stage {
   countdown: boolean
   /** Collateral token travelling from the vault to the bank. */
   transfer: boolean
+  /** Locked amount just before the default was settled (what the token carries). */
+  transferUnits: string | null
   /** Default settled: card turns red, actions are disabled. */
   settled: boolean
   /** A session just opened: cards fade in, the key figure counts up once. */
@@ -50,6 +52,7 @@ function restingStage(session: SessionState): Stage {
     halo: status === 'margin_call',
     countdown: status === 'margin_call',
     transfer: false,
+    transferUnits: null,
     settled: status === 'defaulted',
     opening: false,
     figuresDuration: CHOREO.figuresMs / 1000,
@@ -124,6 +127,7 @@ export function useChoreography(session: SessionState | null): Stage | null {
         shown: session,
         halo: false,
         transfer: true,
+        transferUnits: prev.vault.lockedUnits,
         figuresDuration: CHOREO.transferMs / 1000,
       }))
       at(CHOREO.figuresAt + CHOREO.transferMs, (s) => ({ ...s, transfer: false }))

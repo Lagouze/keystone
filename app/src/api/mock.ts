@@ -321,8 +321,10 @@ export function createMockClient(signerMode: KeystoneConfig['signerMode']): Keep
         entry(s, 'sim', 'rate_shock', `Rate shock ${sign}${Math.abs(bp)} bp`,
           `Euribor 3M ${from.toFixed(3)} % → ${to.toFixed(3)} %; requirement ${formatEur(req.value.toFixed(2))} EUR = ${amount(req.units)} ${info.code}`),
       )
+      // The repriced swap streams at once (state after every change), before any transaction.
+      const repriced = publishState(s)
       // Section 4: below the MTA, no transaction, only the sim entry.
-      if (Math.abs(req.value - s.lastPostedValueEur) < MTA_EUR) return publishState(s)
+      if (Math.abs(req.value - s.lastPostedValueEur) < MTA_EUR) return repriced
 
       const epoch = s.vault.epoch + 1
       const main = entry(s, 'chain', 'margin_set', `Requirement posted: ${amount(req.units)} ${info.code}`, `Epoch ${epoch}`)
