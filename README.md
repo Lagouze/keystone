@@ -107,11 +107,17 @@ deployments/testnet.json   public on-chain identifiers
 
 **Prerequisites** (versions to be confirmed on each machine during phase zero)
 
-- Node.js 22 LTS and npm
+- Node.js ≥ 22 and npm (verified on the keeper machine with Node 24.22.1 and npm 11.19.1)
 - Rust ≥ 1.84 with the `wasm32v1-none` target, and stellar-cli ≥ 25.2.0 (contract pole only)
 - A browser with the Freighter extension set to Testnet (to sign as the fund)
 
-**Installation:** *not tested yet.* The commands will be added here once they have been run successfully.
+**Installation.** The repository is an npm workspace (`app`, `keeper`, `packages/*`). From the root:
+
+```bash
+npm install
+```
+
+Verified on the keeper machine (macOS). Not yet verified on Windows.
 
 **Environment variables** (see `.env.example`; secrets stay in a local `.env`, never committed)
 
@@ -128,7 +134,16 @@ deployments/testnet.json   public on-chain identifiers
 
 ## 9. Commands
 
-*Not tested yet.* Each command will be listed with what it does once it has been run successfully (build, test, bootstrap Testnet, start keeper, start dashboard, end-to-end script).
+Only commands that have been run successfully are listed. Run them from the repository root.
+
+| Command | What it does | Status |
+| --- | --- | --- |
+| `npm run typecheck` | Type-checks every workspace that defines a `typecheck` script (today: `packages/shared`) | Verified (macOS) |
+| `npm test` | Runs the tests of every workspace that defines a `test` script (today: Vitest checks of the shared mocks) | Verified (macOS) |
+
+Still to come, once they work: build, Testnet bootstrap, start keeper, start dashboard, end-to-end script.
+
+`packages/shared` (`@keystone/shared`) holds the shared types, an exact copy of [`docs/interfaces.md`](docs/interfaces.md) section 5, and mocks under `@keystone/shared/mocks`: a `KeystoneConfig`, one `SessionState` per vault status and the activity feed of scenario 1. Every address and transaction hash in the mocks is fake and starts with `MOCK`. The package ships TypeScript sources with explicit `.ts` import extensions: Vite, `tsx` and Node 24 load them directly, and a consuming TypeScript project needs `allowImportingTsExtensions` (with `noEmit`) or a bundler resolution.
 
 ## 10. Demo instructions
 
