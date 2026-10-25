@@ -34,9 +34,26 @@
     "sacBalance": "0"
   },
   "deposit": {
-    "status": "not_tested",
-    "transactionHash": null,
+    "status": "SUCCESS",
+    "transactionHash": "178689208be148899ac567ac6c68da6526e040b39962d313d9594a4eeca07202",
+    "ledger": 5388931,
+    "amount": "10000000",
+    "source": "GDQ6AWAXZWIOCBHDSFIIKCWV3PQ6ZJE6BBC4VJCWA3SCFB4G7A2TMQOY",
+    "fundSignatureVerified": true,
+    "signingMode": "Keeper used the locally held demonstration fund key, not Freighter (operator-confirmed).",
+    "eventVerified": { "topic": "deposited", "data": { "amount": "10000000" } },
+    "sacTransferVerified": true,
     "unsignedSimulation": "success",
-    "reason": "No configured local identity matches the project fund or its authorized signer. Grégoire/Freighter must sign."
+    "postDepositStateVerified": {
+      "status": "Active",
+      "available": "10000000",
+      "locked": "0",
+      "required": "0",
+      "shortfall": "0",
+      "epoch": 0,
+      "call_deadline": 0,
+      "vaultSacBalance": "10000000",
+      "fundSacBalance": "9990000000"
+    }
   }
 }

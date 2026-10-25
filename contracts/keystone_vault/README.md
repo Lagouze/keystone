@@ -54,7 +54,7 @@ The CLI marks this generator deprecated; it remains the generator requested by
 the project plan. Regeneration replaces the generated directory, including
 installed dependencies, so install them again before compiling.
 
-## Testnet verification and remaining deposit
+## Testnet verification
 
 Public evidence and constructor arguments are recorded in [testnet-c1.json](testnet-c1.json).
 The keeper owns the canonical `deployments/testnet.json`; this evidence file
@@ -74,11 +74,27 @@ does not replace it. The team fund, bank, keeper and KMMF SAC were read from
   zero balances/requirement/epoch/deadline. The KMMF SAC balance is zero.
 - Tracked bindings match fresh generation from the local WASM byte for byte;
   their embedded ABI also matches bindings generated from the deployed vault.
-- A deposit of 1 KMMF (`10000000` base units), sourced by the project fund,
-  simulates successfully. This is **not a confirmed deposit**. No local signing
-  identity matches the project fund or its sole authorized signer.
+- A real deposit of **1 KMMF** (`10000000` base units) is confirmed in
+  [17868920…](https://stellar.expert/explorer/testnet/tx/178689208be148899ac567ac6c68da6526e040b39962d313d9594a4eeca07202),
+  RPC SUCCESS, ledger **5388931**. Its envelope calls this vault's `deposit`
+  with the expected amount; the fund is the transaction source and its
+  signature was independently verified using the public key.
+- Grégoire's keeper signed using its locally held **demonstration fund key**,
+  **not Freighter**, as confirmed by the operator. The chain verifies the
+  fund's authorization; it does not identify the software used for signing.
+- Transaction events confirm the SAC transfer from the project fund to this
+  vault and one `deposited` event with data `{amount: 10000000}`. State and SAC
+  balances were independently re-read: available = `10000000`, locked = `0`,
+  vault balance = `10000000`, fund balance = `9990000000`; status Active,
+  required/shortfall/epoch/deadline = zero. Thus available + locked equals
+  the vault SAC balance.
 
-### Deposit handoff to Grégoire
+### Optional deposit reproduction
+
+The confirmed deposit above closes the C1 deposit test. Do not repeat it to
+close C1; another invocation would deposit another KMMF. The following
+preparation and signing instructions remain available only for reproduction.
+Freighter signing itself has not been tested in this validation.
 
 Use an existing authorized fund identity on Grégoire's machine, after verifying
 its public address with `stellar keys address fund` is exactly
@@ -117,6 +133,10 @@ Alternatively, use Freighter with the project fund account on Testnet:
    the fund's SAC balance decreased by the same amount and check `deposited`
    event data `{amount: 10000000}`. Give the confirmed hash to the keeper.
 
-The full C1 milestone remains pending this signed deposit and the keeper's
-recording of public deployment evidence. C2 settlement and its refusal tests
-are not implemented in this C1 build.
+Code, tests, build, bindings and the real deposit now satisfy C1's technical
+validation. The keeper's [PR #13](https://github.com/Lagouze/keystone/pull/13)
+records the canonical deployment evidence; its commit
+`f18d32989ce6e883a25400d88056c88d2af95e09` was checked against these proofs.
+The WASM/vault IDs, three transaction hashes, role addresses and SAC all match;
+the PRs change disjoint paths. Human approval is still required for merging.
+C2 settlement and its refusal tests are not implemented in this C1 build.
