@@ -5,10 +5,13 @@
   "workspaces": [
     "app",
     "keeper",
-    "packages/*"
+    "packages/*",
+    "scripts"
   ],
   "scripts": {
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "test": "npm run test --workspaces --if-present"
+    "test": "npm run test --workspaces --if-present",
+    "init-env": "npm run init-env -w @keystone/scripts",
+    "bootstrap": "npm run bootstrap -w @keystone/scripts"
   }
 }
