@@ -1,0 +1,42 @@
+{
+  "network": "testnet",
+  "networkPassphrase": "Test SDF Network ; September 2015",
+  "wasmHash": "173fc4aa48b40a051862a720fa3d4827efd03ad25f4e7549b3314c4cba3f8516",
+  "vaultId": "CCLE3RBDYNMRMBVTAPXLQ5JRWQOGR3RHOQYCMH43N6VYY6T2OGSZCB2N",
+  "upload": {
+    "hash": "cf9812534038af3f17741140dcb5963ceae8ef6b6c3645cfe1a1bff2bc35431d",
+    "status": "SUCCESS",
+    "ledger": 5387705,
+    "note": "Already installed before this task; upload command skipped reinstall. Transaction envelope WASM hash and fetched on-chain bytes verified against the local build."
+  },
+  "deployment": {
+    "hash": "66af48946f18f1a16673c78eb37a76ace759c1ba0b9ab35ec825df65c9ecbdec",
+    "status": "SUCCESS",
+    "ledger": 5388742,
+    "feePayer": "GD372X3Z5AVVZPNHZELJSRPF4GAKT2BL5J7AT22TDM5WD4I5INX4KDUH"
+  },
+  "constructor": {
+    "fund": "GDQ6AWAXZWIOCBHDSFIIKCWV3PQ6ZJE6BBC4VJCWA3SCFB4G7A2TMQOY",
+    "bank": "GAUHK4ZBP2W5VSKLJOTTKKHWUB2MGFXBMHYLSH3EERTVYYMVPWSR7W6C",
+    "keeper": "GDGUJHZGU57RU4RHARM37GU2IDX4KV7V23XVFORDWRYIBWIIQ6U7G4TO",
+    "asset": "CDB3KHRGMFXFRXEVVJUNUCDVPIR5RPKSSCTP5JUBK32F2ZMOZQVLMIA5",
+    "max_required": "10000000000",
+    "grace_period_secs": 90
+  },
+  "initialStateVerified": {
+    "status": "Active",
+    "available": "0",
+    "locked": "0",
+    "required": "0",
+    "shortfall": "0",
+    "epoch": 0,
+    "call_deadline": 0,
+    "sacBalance": "0"
+  },
+  "deposit": {
+    "status": "not_tested",
+    "transactionHash": null,
+    "unsignedSimulation": "success",
+    "reason": "No configured local identity matches the project fund or its authorized signer. Grégoire/Freighter must sign."
+  }
+}

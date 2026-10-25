@@ -54,10 +54,69 @@ The CLI marks this generator deprecated; it remains the generator requested by
 the project plan. Regeneration replaces the generated directory, including
 installed dependencies, so install them again before compiling.
 
-## Not yet verified
+## Testnet verification and remaining deposit
 
-No Testnet upload, deployment or live deposit was executed in this C1 PR task;
-the local WASM hash is not proof of an upload. The full C1 on-chain milestone
-remains pending. The keeper records deployment IDs and transaction proofs when
-provided. C2 settlement and its refusal tests are not implemented in this C1
-build; post-default behavior must be validated as part of C2.
+Public evidence and constructor arguments are recorded in [testnet-c1.json](testnet-c1.json).
+The keeper owns the canonical `deployments/testnet.json`; this evidence file
+does not replace it. The team fund, bank, keeper and KMMF SAC were read from
+`origin/staging:deployments/testnet.json`.
+
+- WASM upload [cf981253…](https://stellar.expert/explorer/testnet/tx/cf9812534038af3f17741140dcb5963ceae8ef6b6c3645cfe1a1bff2bc35431d)
+  was already installed. The CLI skipped reinstall; RPC reports SUCCESS at
+  ledger 5387705. Its envelope contains the expected WASM hash, and fetched
+  on-chain WASM bytes match the local build exactly.
+- Vault `CCLE3RBDYNMRMBVTAPXLQ5JRWQOGR3RHOQYCMH43N6VYY6T2OGSZCB2N`
+  was deployed in [66af4894…](https://stellar.expert/explorer/testnet/tx/66af48946f18f1a16673c78eb37a76ace759c1ba0b9ab35ec825df65c9ecbdec),
+  confirmed SUCCESS at ledger 5388742. A preconfigured local C1 test identity
+  paid the fee; all three vault roles use the team addresses. Cap: 1,000 KMMF
+  (`10000000000` base units); grace period: 90 seconds.
+- Read-only `get_state` confirms the constructor arguments, Active status,
+  zero balances/requirement/epoch/deadline. The KMMF SAC balance is zero.
+- Tracked bindings match fresh generation from the local WASM byte for byte;
+  their embedded ABI also matches bindings generated from the deployed vault.
+- A deposit of 1 KMMF (`10000000` base units), sourced by the project fund,
+  simulates successfully. This is **not a confirmed deposit**. No local signing
+  identity matches the project fund or its sole authorized signer.
+
+### Deposit handoff to Grégoire
+
+Use an existing authorized fund identity on Grégoire's machine, after verifying
+its public address with `stellar keys address fund` is exactly
+`GDQ6AWAXZWIOCBHDSFIIKCWV3PQ6ZJE6BBC4VJCWA3SCFB4G7A2TMQOY`.
+The following signing/submission step is **not executed on this machine**:
+
+```powershell
+stellar contract invoke --id CCLE3RBDYNMRMBVTAPXLQ5JRWQOGR3RHOQYCMH43N6VYY6T2OGSZCB2N --source-account fund --rpc-url https://soroban-testnet.stellar.org --network-passphrase "Test SDF Network ; September 2015" --send yes -- deposit --amount 10000000
+```
+
+Do not substitute the local `keystone-c1-fund-20261025`: its address differs
+from the configured project fund. Never export or transfer a secret key.
+
+Alternatively, use Freighter with the project fund account on Testnet:
+
+1. Install dependencies in `packages/vault-client` using
+   `npm install --workspaces=false` if needed. From the repository root run
+   `node contracts/keystone_vault/prepare-deposit.cjs`. This executed helper
+   loads a fresh fund sequence, simulates, assembles the resource footprint and
+   authorization entries, and prints **unsigned** XDR only on stdout. It neither
+   loads a signing identity nor submits. `stellar contract invoke --build-only`
+   alone does not assemble the footprint, so do not sign its raw output.
+2. Have Freighter sign that XDR through the team's signing UI or Stellar Lab's
+   transaction signing flow, on Testnet, with the exact project fund account
+   above. Check the vault ID and deposit amount (1 KMMF). The XDR expires after
+   180 seconds; regenerate on expiry or a concurrent fund transaction. This
+   Freighter signing step is **not tested here**.
+3. Save the returned signed XDR locally and submit with
+   `stellar tx send --rpc-url https://soroban-testnet.stellar.org --network-passphrase "Test SDF Network ; September 2015" signed-deposit.xdr`.
+   This submission step is **not tested here**. Do not publish an expired XDR
+   as a reusable transaction.
+4. Poll RPC `getTransaction` with the returned hash until SUCCESS or FAILED.
+   Only SUCCESS counts as a deposit proof. Before other operations, re-read
+   `get_state` and the KMMF SAC balance: available and vault balance should be
+   `10000000`, locked/required/shortfall should stay zero, status Active. Confirm
+   the fund's SAC balance decreased by the same amount and check `deposited`
+   event data `{amount: 10000000}`. Give the confirmed hash to the keeper.
+
+The full C1 milestone remains pending this signed deposit and the keeper's
+recording of public deployment evidence. C2 settlement and its refusal tests
+are not implemented in this C1 build.
