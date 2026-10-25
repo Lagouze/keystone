@@ -1,6 +1,8 @@
 // Keystone presets for the React Bits components: tokens, durations and the single typeface are
 // set here once, so the dashboard never configures the raw components itself.
 import { useEffect, useState } from 'react'
+import { useReducedMotion } from 'motion/react'
+import { formatUnits } from '../lib/format.ts'
 import Counter from './bits/Counter.tsx'
 import CountUp from './bits/CountUp.tsx'
 import DecryptedText from './bits/DecryptedText.tsx'
@@ -52,6 +54,17 @@ export function unitDecimals(value: number): number {
   return Number.isInteger(Math.round(value * 100) / 100) ? 0 : 2
 }
 
+/**
+ * A token amount that rolls. Built from formatUnits (floored to 2 decimals, never shows a non-zero
+ * amount as 0), so the rolling figure always agrees with the text elsewhere on the screen.
+ */
+export function RollUnits({ units, decimals, duration }: { units: string; decimals: number; duration?: number }) {
+  const text = formatUnits(units, decimals)
+  if (text.includes('<')) return <>{text}</>
+  const value = Number(text.replace(/,/g, '').replace('−', '-'))
+  return <Figure value={value} decimals={unitDecimals(value)} duration={duration} />
+}
+
 /** The key figure counts up once when a session opens (CountUp), then rolls like the others. */
 export function KeyFigure({ value, intro }: { value: number; intro: boolean }) {
   if (!intro) return <Figure value={value} decimals={2} />
@@ -64,9 +77,11 @@ export function KeyFigure({ value, intro }: { value: number; intro: boolean }) {
  */
 export function FlapLabel({ text }: { text: string }) {
   // Start flipping in the same render as the new word, so it never shows plainly for a frame.
+  const reduced = useReducedMotion()
   const [last, setLast] = useState(text)
   const [flipping, setFlipping] = useState(false)
-  if (text !== last) {
+  if (text !== last && reduced) setLast(text)
+  if (text !== last && !reduced) {
     setLast(text)
     setFlipping(true)
   }
@@ -125,7 +140,9 @@ export function RevealHash({ text, animate }: { text: string; animate: boolean }
 
 /** Ring → progress arc → check for a Testnet entry (StatusMark). */
 export function TxMark({ status }: { status: 'pending' | 'confirmed' | 'failed' }) {
+  // Decorative: the visible text next to it (Pending, Failed, the hash) carries the meaning.
   return (
+    <span aria-hidden="true" className="inline-flex">
     <StatusMark
       status={status === 'pending' ? 'running' : status === 'confirmed' ? 'done' : 'failed'}
       size={14}
@@ -135,6 +152,7 @@ export function TxMark({ status }: { status: 'pending' | 'confirmed' | 'failed' 
       errorColor={DANGER}
       drawDuration={200}
     />
+    </span>
   )
 }
 
@@ -186,7 +204,9 @@ export function HoldToSettle({ disabled, onHold }: { disabled: boolean; onHold: 
       radius={999}
       wave={false}
       glow={false}
-      resetAfter={0}
+      // Back to idle after a refused or failed settlement (e.g. GracePeriodRunning); on success the
+      // card leaves the margin-call state anyway.
+      resetAfter={1200}
       disabled={disabled}
       doneLabel="Settling…"
       onHold={onHold}

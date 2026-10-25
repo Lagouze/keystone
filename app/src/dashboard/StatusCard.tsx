@@ -37,7 +37,8 @@ export function StatusCard(props: StatusCardProps) {
   const remainingMs = vault.callDeadline ? Date.parse(vault.callDeadline) - now : null
   const secondsLeft = remainingMs === null ? 0 : Math.max(0, Math.ceil(remainingMs / 1000))
   const deadlinePassed = vault.status === 'margin_call' && remainingMs !== null && remainingMs <= 0
-  const otherBusy = (action: Action) => busy !== null && busy !== action
+  // While a sequence plays, the screen lags the confirmed state: no action on stale figures.
+  const otherBusy = (action: Action) => stage.sequencing || (busy !== null && busy !== action)
 
   let headline: string
   let detail: string
@@ -65,7 +66,7 @@ export function StatusCard(props: StatusCardProps) {
   const callOpen = vault.status === 'margin_call'
 
   return (
-    <Card tone={tone} star={stage.halo}>
+    <Card tone={tone} starCapable star={stage.halo}>
       <div className="grid items-start gap-6 sm:grid-cols-[minmax(0,1fr)_auto]">
         <div className="flex max-w-2xl flex-col items-start gap-3">
           <StatusPill status={stage.status} label={<FlapLabel text={STATUS_WORD[stage.status]} />} />

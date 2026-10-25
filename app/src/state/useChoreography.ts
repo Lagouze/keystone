@@ -42,6 +42,8 @@ export interface Stage {
   opening: boolean
   /** Duration, in seconds, the counters should use for the current change. */
   figuresDuration: number
+  /** A sequence is playing: what is shown lags the confirmed state, so actions stay disabled. */
+  sequencing: boolean
 }
 
 function restingStage(session: SessionState): Stage {
@@ -56,6 +58,7 @@ function restingStage(session: SessionState): Stage {
     settled: status === 'defaulted',
     opening: false,
     figuresDuration: CHOREO.figuresMs / 1000,
+    sequencing: false,
   }
 }
 
@@ -64,15 +67,26 @@ function restingStage(session: SessionState): Stage {
  * snaps the previous one to its end, then plays its own. Reduced motion: no sequence, the new
  * state shows at once.
  */
-export function useChoreography(session: SessionState | null): Stage | null {
+/**
+ * `openingRequested`: the user started a session from this page, so the first session that
+ * appears opens with the stagger (a page reload on an existing session does not).
+ */
+export function useChoreography(session: SessionState | null, openingRequested = false): Stage | null {
   const reduced = useReducedMotion()
   const [stage, setStage] = useState<Stage | null>(() => (session ? restingStage(session) : null))
   const timers = useRef<number[]>([])
+  const openingTimer = useRef<number | undefined>(undefined)
   const target = useRef<SessionState | null>(session)
 
   // Timers are cleared when a new sequence starts or on unmount, never by a re-render: the same
   // state often arrives twice (write-route response, then SSE) and must not cut a sequence short.
-  useEffect(() => () => timers.current.forEach((id) => window.clearTimeout(id)), [])
+  useEffect(
+    () => () => {
+      timers.current.forEach((id) => window.clearTimeout(id))
+      window.clearTimeout(openingTimer.current)
+    },
+    [],
+  )
 
   useEffect(() => {
     const prev = target.current
@@ -96,9 +110,13 @@ export function useChoreography(session: SessionState | null): Stage | null {
 
     // First load, a new session, or reduced motion: no sequence.
     if (!prev || prev.sessionId !== session.sessionId || reduced) {
-      const opening = !!prev && prev.sessionId !== session.sessionId && !reduced
+      const opening = !reduced && prev?.sessionId !== session.sessionId && (!!prev || openingRequested)
       setStage({ ...restingStage(session), opening })
-      if (opening) at(CHOREO.openingMs, (s) => ({ ...s, opening: false }))
+      window.clearTimeout(openingTimer.current)
+      // Its own timer: a state arriving during the opening must not leave `opening` stuck.
+      if (opening) {
+        openingTimer.current = window.setTimeout(() => setStage((s) => (s ? { ...s, opening: false } : s)), CHOREO.openingMs)
+      }
       return
     }
 
@@ -111,11 +129,12 @@ export function useChoreography(session: SessionState | null): Stage | null {
     setStage((s) => ({
       ...restingStage(prev),
       opening: s?.opening ?? false,
+      sequencing: true,
       shown: { ...prev, swap: session.swap, margin: session.margin, updatedAt: session.updatedAt },
     }))
 
     if (!flips) {
-      at(CHOREO.figuresAtNoFlip, (s) => ({ ...s, shown: session, figuresDuration: CHOREO.figuresMs / 1000 }))
+      at(CHOREO.figuresAtNoFlip, (s) => ({ ...s, shown: session, figuresDuration: CHOREO.figuresMs / 1000, sequencing: false }))
       return
     }
 
@@ -131,7 +150,7 @@ export function useChoreography(session: SessionState | null): Stage | null {
         figuresDuration: CHOREO.transferMs / 1000,
       }))
       at(CHOREO.figuresAt + CHOREO.transferMs, (s) => ({ ...s, transfer: false }))
-      at(CHOREO.settledRedAt, (s) => ({ ...s, settled: true }))
+      at(CHOREO.settledRedAt, (s) => ({ ...s, settled: true, sequencing: false }))
       return
     }
 
@@ -143,9 +162,11 @@ export function useChoreography(session: SessionState | null): Stage | null {
     }))
     if (to === 'margin_call') {
       at(CHOREO.haloAt, (s) => ({ ...s, halo: true }))
-      at(CHOREO.countdownAt, (s) => ({ ...s, countdown: true }))
+      at(CHOREO.countdownAt, (s) => ({ ...s, countdown: true, sequencing: false }))
+    } else {
+      at(CHOREO.figuresAt, (s) => ({ ...s, sequencing: false }))
     }
-  }, [session, reduced])
+  }, [session, reduced, openingRequested])
 
   return stage
 }

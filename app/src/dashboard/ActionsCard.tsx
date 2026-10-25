@@ -12,6 +12,8 @@ interface ActionsCardProps {
   mocks: boolean
   busy: Action | null
   step: string | null
+  /** A choreography sequence is playing (figures lag the confirmed state). */
+  sequencing: boolean
   onDeposit(input: string): void
   onWithdraw(input: string): void
   onShock(bp: number): void
@@ -30,7 +32,7 @@ export function ActionsCard(props: ActionsCardProps) {
 
   const defaulted = vault.status === 'defaulted'
   const hasAvailable = BigInt(vault.availableUnits) > 0n
-  const otherBusy = (action: Action) => busy !== null && busy !== action
+  const otherBusy = (action: Action) => props.sequencing || (busy !== null && busy !== action)
 
   const signing =
     props.signerMode === 'keeper'
@@ -60,7 +62,7 @@ export function ActionsCard(props: ActionsCardProps) {
                 key={bp}
                 variant="sim"
                 busy={busy === 'shock' && lastShock === bp}
-                disabled={defaulted || (busy !== null && !(busy === 'shock' && lastShock === bp))}
+                disabled={defaulted || props.sequencing || (busy !== null && !(busy === 'shock' && lastShock === bp))}
                 onClick={() => {
                   setLastShock(bp)
                   props.onShock(bp)

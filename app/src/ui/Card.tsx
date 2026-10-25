@@ -17,13 +17,26 @@ interface CardProps {
   description?: string
   actions?: ReactNode
   tone?: Tone
-  /** Margin call only: a point of light travels the border while the call is open (StarBorder). */
+  /**
+   * Star-capable card (the status card): always rendered through StarBorder, so lighting the star
+   * never remounts the content (focus, running animations). `star` turns the travelling light on.
+   */
+  starCapable?: boolean
   star?: boolean
   className?: string
   children: ReactNode
 }
 
-export function Card({ title, description, actions, tone = 'default', star = false, className, children }: CardProps) {
+export function Card({
+  title,
+  description,
+  actions,
+  tone = 'default',
+  starCapable = false,
+  star = false,
+  className,
+  children,
+}: CardProps) {
   const body = (
     <>
       {(title || actions) && (
@@ -39,7 +52,13 @@ export function Card({ title, description, actions, tone = 'default', star = fal
     </>
   )
 
-  if (star && tone === 'call') {
+  if (starCapable) {
+    const lit = star && tone === 'call'
+    const palette = {
+      call: { bg: '#fffcf5', border: 'rgba(184, 110, 0, 0.45)', shadow: 'shadow-call' },
+      default: { bg: '#ffffff', border: '#e3e7ed', shadow: 'shadow-card' },
+      'default-settled': { bg: '#ffffff', border: 'rgba(180, 35, 24, 0.45)', shadow: 'shadow-card' },
+    }[tone]
     return (
       <StarBorder
         as="section"
@@ -47,15 +66,20 @@ export function Card({ title, description, actions, tone = 'default', star = fal
         radius={16}
         thickness={1}
         duration={4}
-        glow={0.5}
-        trailLength={0.25}
-        color="#b86e00"
-        borderColor="rgba(184, 110, 0, 0.45)"
-        backgroundColor="#fffcf5"
+        glow={lit ? 0.5 : 0}
+        trailLength={lit ? 0.25 : 0}
+        color={lit ? '#b86e00' : 'transparent'}
+        trailColor={lit ? '#b86e00' : 'transparent'}
+        borderColor={palette.border}
+        backgroundColor={palette.bg}
         textColor="#0b1f33"
         hover="none"
         clickPulse={false}
-        className={cx('!block !w-full !items-stretch !p-5 !text-left !leading-normal !font-normal shadow-call sm:!p-6', className)}
+        className={cx(
+          '!block !w-full !items-stretch !p-5 !text-left !leading-normal !font-normal transition-shadow duration-200 sm:!p-6',
+          palette.shadow,
+          className,
+        )}
       >
         {body}
       </StarBorder>

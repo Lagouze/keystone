@@ -22,7 +22,12 @@ export function ActivityFeed({ activity }: { activity: ActivityEvent[] }) {
         <p className="text-sm text-ink-subtle">Nothing yet.</p>
       ) : (
         <div className="relative">
-          <ul className="max-h-[28rem] divide-y divide-line-soft overflow-y-auto pb-6" aria-live="polite">
+          <ul
+            className="max-h-[28rem] divide-y divide-line-soft overflow-y-auto pb-6 focus-visible:outline-2 focus-visible:outline-chain"
+            aria-live="polite"
+            aria-label="Activity feed"
+            tabIndex={0}
+          >
             <AnimatePresence initial={false}>
               {activity.map((event) => (
                 <motion.li

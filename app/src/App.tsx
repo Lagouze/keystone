@@ -23,7 +23,13 @@ type KeystoneHook = ReturnType<typeof useKeystone>
 export default function App() {
   const k = useKeystone()
   const now = useNow()
-  const stage = useChoreography(k.session)
+  // Set when the user starts a session from this page: that first session opens with the stagger.
+  const [startedHere, setStartedHere] = useState(false)
+  const stage = useChoreography(k.session, startedHere)
+  const startSession = (asset: AssetId) => {
+    setStartedHere(true)
+    return k.startSession(asset)
+  }
   const mocks = k.source === 'mocks'
   const asset = k.config && k.session ? assetOf(k.config, k.session) : null
 
@@ -86,9 +92,10 @@ export default function App() {
           {!k.config ? (
             !k.loadError && <p className="text-sm text-ink-muted">Loading…</p>
           ) : !stage || !asset ? (
-            <StartSession config={k.config} busy={k.busy === 'start'} onStart={k.startSession} />
+            <StartSession config={k.config} busy={k.busy === 'start'} onStart={startSession} />
           ) : (
-            <Dashboard k={k} stage={stage} config={k.config} now={now} mocks={mocks} />
+            // Keyed by session: a new session remounts the cards (stagger) and resets the toast state.
+            <Dashboard key={stage.shown.sessionId} k={k} stage={stage} config={k.config} now={now} mocks={mocks} />
           )}
         </div>
       </main>
@@ -219,6 +226,7 @@ function Dashboard({ k, stage, config, now, mocks }: DashboardProps) {
             mocks={mocks}
             busy={k.busy}
             step={k.step}
+            sequencing={stage.sequencing}
             onDeposit={k.deposit}
             onWithdraw={k.withdraw}
             onShock={k.rateShock}

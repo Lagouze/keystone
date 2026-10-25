@@ -22,9 +22,6 @@ export function proofOf(event: ActivityEvent): Proof | null {
  * `reveal`: the entry was seen pending in this session, so its hash decrypts on confirmation.
  */
 export function ActivityProof({ event, reveal = false }: { event: ActivityEvent; reveal?: boolean }) {
-  if (event.kind === 'sim') {
-    return <span className="text-xs text-ink-subtle">No hash</span>
-  }
   if (event.status === 'failed') {
     return (
       <span className="inline-flex items-center gap-1.5 text-xs font-medium text-danger">
@@ -32,6 +29,9 @@ export function ActivityProof({ event, reveal = false }: { event: ActivityEvent;
         Failed
       </span>
     )
+  }
+  if (event.kind === 'sim') {
+    return <span className="text-xs text-ink-subtle">No hash</span>
   }
   if (event.status === 'pending') {
     return (

@@ -1,7 +1,7 @@
 import type { AssetInfo, SessionState } from '@keystone/shared'
-import { formatEur, formatUnits, shortAddress, unitsToFloat } from '../lib/format.ts'
+import { formatEur, formatUnits, shortAddress } from '../lib/format.ts'
 import { AllocationBar, Card, CoverageRing, Stat, Tile } from '../ui/index.ts'
-import { Figure, unitDecimals } from '../ui/motion.tsx'
+import { RollUnits } from '../ui/motion.tsx'
 
 interface VaultCardProps {
   session: SessionState
@@ -13,10 +13,7 @@ interface VaultCardProps {
 export function VaultCard({ session, asset, duration }: VaultCardProps) {
   const { vault, margin } = session
   const fmt = (units: string) => formatUnits(units, asset.decimals)
-  const roll = (units: string) => {
-    const value = unitsToFloat(units, asset.decimals)
-    return <Figure value={value} decimals={unitDecimals(value)} duration={duration} />
-  }
+  const roll = (units: string) => <RollUnits units={units} decimals={asset.decimals} duration={duration} />
   const historical = vault.status === 'defaulted'
   // Below the MTA the keeper does not post the new requirement: the vault keeps the previous one.
   const notPosted = !historical && margin.requiredUnits !== vault.requiredUnits

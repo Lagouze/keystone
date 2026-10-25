@@ -2,7 +2,7 @@
 
 Copied from [React Bits](https://reactbits.dev) (registry entries `<Name>-TS-TW`, fetched on 25 October 2026) and used as part of the Keystone dashboard.
 
-Copyright (c) 2026 David Haz. Licensed under "MIT + Commons Clause License Condition v1.0": free to use, copy and modify as part of an application, website or product; the components themselves may not be sold, sublicensed or redistributed on their own. Full text: https://github.com/DavidHDev/react-bits/blob/main/LICENSE.md
+Copyright (c) 2026 David Haz. Licensed under "MIT + Commons Clause License Condition v1.0": free to use, copy and modify as part of an application, website or product; the components themselves may not be sold, sublicensed or redistributed on their own. Full text: [LICENSE.md](LICENSE.md) (copied from the React Bits repository).
 
 Keystone changes:
 

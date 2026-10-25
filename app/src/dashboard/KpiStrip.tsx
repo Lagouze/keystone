@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react'
 import type { AssetInfo, SessionState } from '@keystone/shared'
-import { formatUtcTime, unitsToFloat, valueAfterHaircut } from '../lib/format.ts'
+import { formatUtcTime, valueAfterHaircut } from '../lib/format.ts'
 import { SimulatedTag } from '../ui/index.ts'
 import { cx } from '../ui/cx.ts'
-import { Figure, KeyFigure, unitDecimals } from '../ui/motion.tsx'
+import { Figure, KeyFigure, RollUnits } from '../ui/motion.tsx'
 
 interface KpiStripProps {
   session: SessionState
@@ -24,7 +24,6 @@ export function KpiStrip({ session, asset, opening, duration }: KpiStripProps) {
   // Gap between the floating and the fixed leg, in bp (shown as a gap, not as the cumulated shock).
   const gapBp = Math.round((Number(swap.floatRatePct) - Number(swap.fixedRatePct)) * 100)
   const SOURCE = { ecb: 'ECB', cache: 'ECB, cached', scenario: 'scenario' } as const
-  const required = unitsToFloat(vault.requiredUnits, asset.decimals)
   const cashKept = Number(valueAfterHaircut(vault.lockedUnits, asset.decimals, margin.unitPriceEur, margin.haircutPct))
 
   const items: Array<{ label: string; sim?: boolean; value: ReactNode; tone?: string; hint?: string }> = [
@@ -62,7 +61,7 @@ export function KpiStrip({ session, asset, opening, duration }: KpiStripProps) {
       label: 'Required on-chain',
       value: (
         <>
-          <Figure value={required} decimals={unitDecimals(required)} duration={duration} /> {asset.code}
+          <RollUnits units={vault.requiredUnits} decimals={asset.decimals} duration={duration} /> {asset.code}
         </>
       ),
     },
