@@ -155,17 +155,32 @@ Only commands that have been run successfully are listed. Run them from the repo
 
 | Command | What it does | Status |
 | --- | --- | --- |
-| `npm run typecheck` | Type-checks every workspace that defines a `typecheck` script (today: `packages/shared`, `scripts` and `keeper`) | Verified (macOS) |
+| `npm run typecheck` | Type-checks every workspace that defines a `typecheck` script (today: `app`, `packages/shared`, `scripts` and `keeper`) | Verified (macOS) |
 | `npm test` | Runs the tests of every workspace that defines a `test` script (today: Vitest checks of the shared mocks, the script helpers, the margin model with reference values, the Euribor cache and the keeper API on the in-memory vault) | Verified (macOS): 51 keeper tests pass |
 | `npm run init-env` | Creates `.env` from `.env.example` if needed and generates the Testnet keys still empty (issuer, bank, keeper). Never generates `FUND_SECRET`, never overwrites a value, prints public keys only | Verified (macOS) |
 | `npm run bootstrap` | Idempotent Testnet bootstrap: issuer, bank and keeper accounts (friendbot), bank trustlines, KMMF and KBOND Stellar Asset Contracts, and, when `FUND_SECRET` is set, fund trustlines and issuance up to 1 000 units of each asset (the fund address is derived from `FUND_SECRET`). Writes `deployments/testnet.json` | Verified (macOS) over seven runs (the first stopped on a bug, since fixed); once everything exists, a run sends no transaction |
 | `KEEPER_BACKEND=fake npm run keeper` | Starts the keeper API on `http://127.0.0.1:8787/api` (`SIGNER` and `PORT` from the environment) on an **in-memory fake vault**: the rules of `docs/interfaces.md` section 3 are simulated, transaction hashes start with `FAKE` and their explorer links do not open. Routes: `/health`, `/config`, `/session` (POST, GET), `/session/deposit`, `/session/withdraw`, `/session/deposit/prepare`, `/session/withdraw/prepare`, `/session/submit`, `/session/rate-shock`, `/session/settle-default`, `/events` (SSE) | Verified (macOS) with `curl`, `SIGNER=keeper`, against the live ECB API. Freighter signing is not tested: the fake `prepare` / `submit` do not produce real XDR |
 
-Still to come, once they work: real Testnet vault client (after the contract), build and start dashboard, end-to-end script.
+Still to come, once they work: real Testnet vault client (after the contract) and the end-to-end script. Dashboard commands are listed below.
 
 **Keeper model** (`keeper/src/margin.ts`, parameters in `keeper/scenarios/default.json`): flat curve, 20 quarterly periods, `Q = ceil(V / (P × (1 − h)))` in the token's smallest unit, requirement posted only when it moved by at least the MTA (50 000 EUR). The starting rate is the last ECB Euribor 3M observation (`keeper/data/euribor-cache.json` is the versioned fallback seed, shown as `cache`; it is rewritten only when the ECB value changes, so a run may modify it). Reference values for 0, −50 and −80 bp (computed outside the code, in Python with 50-digit decimals) are checked in `keeper/test/margin.test.ts`.
 
 `packages/shared` (`@keystone/shared`) holds the shared types, an exact copy of [`docs/interfaces.md`](docs/interfaces.md) section 5, and mocks under `@keystone/shared/mocks`: a `KeystoneConfig`, one `SessionState` per vault status and the activity feed of scenario 1. Every address and transaction hash in the mocks is fake and starts with `MOCK`. The package ships TypeScript sources with explicit `.ts` import extensions: Vite, `tsx` and Node 24 load them directly, and a consuming TypeScript project needs `allowImportingTsExtensions` (with `noEmit`) or a bundler resolution.
+
+### Dashboard (`app/`)
+
+The dashboard is the `@keystone/app` workspace; it imports the shared types from `@keystone/shared`. Install from the root with `npm install` (see above), then run from the root. Verified on macOS with Node 24.21 and npm 11.19.
+
+| Command | What it does |
+| --- | --- |
+| `npm run dev -w @keystone/app` | Starts the Vite dev server on `http://localhost:5173` |
+| `npm run build -w @keystone/app` | Type-checks, then builds the static site into `app/dist/` |
+
+The root `npm run typecheck` also covers the dashboard.
+
+The dashboard reads `VITE_KEEPER_URL` (default `http://localhost:8787/api`) and `VITE_USE_MOCKS` from the root `.env`; only `VITE_*` variables reach the browser bundle, and they are fixed at build time. At this stage it shows a design preview on static sample values: no keeper call, no wallet.
+
+**Visual direction.** Light surfaces, one navy accent and large tabular numbers ("Ledger clair", chosen by the team). Design tokens live in `app/src/index.css` (Tailwind CSS v4 `@theme`), base components in `app/src/ui/`. Inter and JetBrains Mono are bundled with the app (no external font request).
 
 ## 10. Demo instructions
 
@@ -194,7 +209,7 @@ Only the status "verified" counts as done, and only with a proof link.
 | 6 | Deposit, lock and release with verifiable results | Not started | |
 | 7 | Separate default scenario with on-chain transfer to the bank | Not started | |
 | 8 | Real Stellar Testnet transactions shown with proof | Not started | |
-| 9 | Dashboard showing asset choice, steps and on-chain proof | Not started | |
+| 9 | Dashboard showing asset choice, steps and on-chain proof | In progress (app scaffold, design base) | |
 | 10 | End-to-end integration of the three poles | Not started | |
 | 11 | Submission: public repo, README, public URL, video, pitch deck | Not started | |
 | 12 | Continuous quality: review of every PR, tests, README updates | In place from phase zero | This repository's PR history |
