@@ -154,7 +154,7 @@ Only commands that have been run successfully are listed. Run them from the repo
 
 | Command | What it does | Status |
 | --- | --- | --- |
-| `npm run typecheck` | Type-checks every workspace that defines a `typecheck` script (today: `packages/shared` and `scripts`) | Verified (macOS) |
+| `npm run typecheck` | Type-checks every workspace that defines a `typecheck` script (today: `app`, `packages/shared` and `scripts`) | Verified (macOS) |
 | `npm test` | Runs the tests of every workspace that defines a `test` script (today: Vitest checks of the shared mocks and of the script helpers) | Verified (macOS) |
 | `npm run init-env` | Creates `.env` from `.env.example` if needed and generates the Testnet keys still empty (issuer, bank, keeper). Never generates `FUND_SECRET`, never overwrites a value, prints public keys only | Verified (macOS) |
 | `npm run bootstrap` | Idempotent Testnet bootstrap: issuer, bank and keeper accounts (friendbot), bank trustlines, KMMF and KBOND Stellar Asset Contracts, and, when `FUND_SECRET` is set, fund trustlines and issuance up to 1 000 units of each asset (the fund address is derived from `FUND_SECRET`). Writes `deployments/testnet.json` | Verified (macOS) over seven runs (the first stopped on a bug, since fixed); once everything exists, a run sends no transaction |
@@ -165,14 +165,14 @@ Still to come, once they work: build, start keeper, start dashboard, end-to-end 
 
 ### Dashboard (`app/`)
 
-Run from `app/`. Tested with Node 24.21 and npm 11.19. The dashboard is a standalone npm package until the root npm workspaces are set up.
+The dashboard is the `@keystone/app` workspace; it imports the shared types from `@keystone/shared`. Install from the root with `npm install` (see above), then run from the root. Verified on macOS with Node 24.21 and npm 11.19.
 
 | Command | What it does |
 | --- | --- |
-| `npm ci` | Installs the dashboard dependencies from `app/package-lock.json` |
-| `npm run dev` | Starts the Vite dev server on `http://localhost:5173` |
-| `npm run typecheck` | Type-checks the dashboard and the shared types it imports from `packages/shared` |
-| `npm run build` | Type-checks, then builds the static site into `app/dist/` |
+| `npm run dev -w @keystone/app` | Starts the Vite dev server on `http://localhost:5173` |
+| `npm run build -w @keystone/app` | Type-checks, then builds the static site into `app/dist/` |
+
+The root `npm run typecheck` also covers the dashboard.
 
 The dashboard reads `VITE_KEEPER_URL` (default `http://localhost:8787/api`) and `VITE_USE_MOCKS` from the root `.env`; only `VITE_*` variables reach the browser bundle, and they are fixed at build time. At this stage it only shows a placeholder screen: no keeper call, no wallet.
 
