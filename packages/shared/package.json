@@ -1,0 +1,19 @@
+{
+  "name": "@keystone/shared",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Keystone shared types (docs/interfaces.md v1.0, section 5) and mocks",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./mocks": "./src/mocks/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.5"
+  }
+}

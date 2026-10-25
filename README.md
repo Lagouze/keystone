@@ -57,17 +57,20 @@ Bootstrap script --issues KMMF and KBOND--> fund account                 Fund an
 - **Freighter wallet**: the fund signs its deposits and withdrawals.
 - **Soroban RPC and Horizon**: transaction submission, simulation, confirmation and event reading.
 
-**On-chain identifiers** (filled from `deployments/testnet.json` once deployed)
+**On-chain identifiers** (Stellar Testnet, from [`deployments/testnet.json`](deployments/testnet.json))
 
 | Item | Value |
 | --- | --- |
-| KMMF asset (code:issuer) | *not yet deployed* |
-| KMMF SAC contract ID | *not yet deployed* |
-| KBOND asset (code:issuer) | *not yet deployed* |
-| KBOND SAC contract ID | *not yet deployed* |
-| `keystone_vault` WASM hash | *not yet deployed* |
-| Example vault contract ID | *not yet deployed* |
-| Demo accounts (fund, bank, keeper) | *not yet created* |
+| Issuer of KMMF and KBOND | [`GDWMFOSV4L2O66PDZ4BL4K5HEJJLGMGXXWLHUJNJ4N4ZICSUSBGTGNGX`](https://stellar.expert/explorer/testnet/account/GDWMFOSV4L2O66PDZ4BL4K5HEJJLGMGXXWLHUJNJ4N4ZICSUSBGTGNGX) (no `auth_required` flag) |
+| KMMF asset (code:issuer) | `KMMF:GDWMFOSV4L2O66PDZ4BL4K5HEJJLGMGXXWLHUJNJ4N4ZICSUSBGTGNGX` |
+| KMMF SAC contract ID | [`CDB3KHRGMFXFRXEVVJUNUCDVPIR5RPKSSCTP5JUBK32F2ZMOZQVLMIA5`](https://stellar.expert/explorer/testnet/contract/CDB3KHRGMFXFRXEVVJUNUCDVPIR5RPKSSCTP5JUBK32F2ZMOZQVLMIA5) |
+| KBOND asset (code:issuer) | `KBOND:GDWMFOSV4L2O66PDZ4BL4K5HEJJLGMGXXWLHUJNJ4N4ZICSUSBGTGNGX` |
+| KBOND SAC contract ID | [`CDB2XDXZ4CPE242D5KYIKQ2L2PQKENQCSYTW6PA5ROHOX5QWDBKVEUPF`](https://stellar.expert/explorer/testnet/contract/CDB2XDXZ4CPE242D5KYIKQ2L2PQKENQCSYTW6PA5ROHOX5QWDBKVEUPF) |
+| `keystone_vault` WASM hash | *not yet deployed* (provided by the contract pole) |
+| Example vault contract ID | *not yet deployed* (provided by the contract pole) |
+| Demo bank account | [`GAUHK4ZBP2W5VSKLJOTTKKHWUB2MGFXBMHYLSH3EERTVYYMVPWSR7W6C`](https://stellar.expert/explorer/testnet/account/GAUHK4ZBP2W5VSKLJOTTKKHWUB2MGFXBMHYLSH3EERTVYYMVPWSR7W6C) (trustlines on KMMF and KBOND) |
+| Keeper account | [`GDGUJHZGU57RU4RHARM37GU2IDX4KV7V23XVFORDWRYIBWIIQ6U7G4TO`](https://stellar.expert/explorer/testnet/account/GDGUJHZGU57RU4RHARM37GU2IDX4KV7V23XVFORDWRYIBWIIQ6U7G4TO) |
+| Demo fund account (Freighter) | [`GDQ6AWAXZWIOCBHDSFIIKCWV3PQ6ZJE6BBC4VJCWA3SCFB4G7A2TMQOY`](https://stellar.expert/explorer/testnet/account/GDQ6AWAXZWIOCBHDSFIIKCWV3PQ6ZJE6BBC4VJCWA3SCFB4G7A2TMQOY) (trustlines on KMMF and KBOND, holds 1 000 of each) |
 
 **APIs used:** Soroban RPC (`https://soroban-testnet.stellar.org`), Horizon Testnet, ECB Data Portal API (Euribor 3M, no key).
 
@@ -75,7 +78,20 @@ The exact contract functions, events, errors, keeper API and shared types are sp
 
 ## 6. Proof of on-chain transactions
 
-*None yet.* Links to stellar.expert (Testnet) will be listed here for: a deposit, a margin posting that locks collateral, a release and withdrawal, and a default settlement.
+Setup transactions (Testnet bootstrap):
+
+| Step | Transaction |
+| --- | --- |
+| KMMF Stellar Asset Contract deployed | [`bc7d9d9a…0e11`](https://stellar.expert/explorer/testnet/tx/bc7d9d9a2a15473b5bae6b81461cac9a68003235dea60056605c8b2631df0e11) |
+| KBOND Stellar Asset Contract deployed | [`08089cde…dcd3`](https://stellar.expert/explorer/testnet/tx/08089cde2ab558289d0a18c8f85817e18297bb40b41c6506c2d109462b47dcd3) |
+| Bank trustline on KMMF | [`463ee916…5b40`](https://stellar.expert/explorer/testnet/tx/463ee916c3136a3ceb6b983fee9392fd8af5c152a765b93a3647c2d663035b40) |
+| Bank trustline on KBOND | [`590b9879…e923`](https://stellar.expert/explorer/testnet/tx/590b98798fa2d19d213feabfd3910f1d2b6b09a0902300c1da4250889b86e923) |
+| Fund trustline on KMMF | [`a6554f6b…58ca`](https://stellar.expert/explorer/testnet/tx/a6554f6b7772ff683fa9bbf4d578415dc1d9b1264c655e4627c0edf77a6758ca) |
+| 1 000 KMMF issued to the fund | [`ec2b3c50…a532`](https://stellar.expert/explorer/testnet/tx/ec2b3c50209bbdfa0851274c03b6cd339b20fdc86774f170cf76d4a65315a532) |
+| Fund trustline on KBOND | [`dd531751…5cff`](https://stellar.expert/explorer/testnet/tx/dd531751e447c167f36430666dde853e8345b5b495ba4e1550d14b73ff455cff) |
+| 1 000 KBOND issued to the fund | [`637fa5e9…f463`](https://stellar.expert/explorer/testnet/tx/637fa5e953241c7a7a2f474b4239e44871d67e60af667419aff8f16a0f8ff463) |
+
+Collateral flow: *none yet.* Links will be listed here for a deposit, a margin posting that locks collateral, a release and withdrawal, and a default settlement.
 
 ## 7. Repository structure and poles
 
@@ -107,11 +123,17 @@ deployments/testnet.json   public on-chain identifiers
 
 **Prerequisites** (versions to be confirmed on each machine during phase zero)
 
-- Node.js 22 LTS and npm
+- Node.js ≥ 22 and npm (verified on the keeper machine with Node 24.22.1 and npm 11.19.1)
 - Rust ≥ 1.84 with the `wasm32v1-none` target, and stellar-cli ≥ 25.2.0 (contract pole only)
 - A browser with the Freighter extension set to Testnet (to sign as the fund)
 
-**Installation:** *not tested yet.* The commands will be added here once they have been run successfully.
+**Installation.** The repository is an npm workspace (`app`, `keeper`, `packages/*`). From the root:
+
+```bash
+npm install
+```
+
+Verified on the keeper machine (macOS). Not yet verified on Windows.
 
 **Environment variables** (see `.env.example`; secrets stay in a local `.env`, never committed)
 
@@ -128,7 +150,18 @@ deployments/testnet.json   public on-chain identifiers
 
 ## 9. Commands
 
-*Not tested yet.* Each command will be listed with what it does once it has been run successfully (build, test, bootstrap Testnet, start keeper, start dashboard, end-to-end script).
+Only commands that have been run successfully are listed. Run them from the repository root.
+
+| Command | What it does | Status |
+| --- | --- | --- |
+| `npm run typecheck` | Type-checks every workspace that defines a `typecheck` script (today: `packages/shared` and `scripts`) | Verified (macOS) |
+| `npm test` | Runs the tests of every workspace that defines a `test` script (today: Vitest checks of the shared mocks and of the script helpers) | Verified (macOS) |
+| `npm run init-env` | Creates `.env` from `.env.example` if needed and generates the Testnet keys still empty (issuer, bank, keeper). Never generates `FUND_SECRET`, never overwrites a value, prints public keys only | Verified (macOS) |
+| `npm run bootstrap` | Idempotent Testnet bootstrap: issuer, bank and keeper accounts (friendbot), bank trustlines, KMMF and KBOND Stellar Asset Contracts, and, when `FUND_SECRET` is set, fund trustlines and issuance up to 1 000 units of each asset (the fund address is derived from `FUND_SECRET`). Writes `deployments/testnet.json` | Verified (macOS) over seven runs (the first stopped on a bug, since fixed); once everything exists, a run sends no transaction |
+
+Still to come, once they work: build, start keeper, start dashboard, end-to-end script.
+
+`packages/shared` (`@keystone/shared`) holds the shared types, an exact copy of [`docs/interfaces.md`](docs/interfaces.md) section 5, and mocks under `@keystone/shared/mocks`: a `KeystoneConfig`, one `SessionState` per vault status and the activity feed of scenario 1. Every address and transaction hash in the mocks is fake and starts with `MOCK`. The package ships TypeScript sources with explicit `.ts` import extensions: Vite, `tsx` and Node 24 load them directly, and a consuming TypeScript project needs `allowImportingTsExtensions` (with `noEmit`) or a bundler resolution.
 
 ### Dashboard (`app/`)
 
@@ -153,7 +186,7 @@ The dashboard reads `VITE_KEEPER_URL` (default `http://localhost:8787/api`) and 
 ## 11. Workflow
 
 - Each pole works on its branch and opens pull requests into `staging`. No direct commit on `main` or `staging`. Humans merge.
-- Every code change is reviewed with Claudex (Claude Code ↔ Codex) and tested before merge, and updates this README when relevant.
+- Every change is reviewed before its pull request by a fresh Claude sub-agent that only sees the diff (Codex on the Windows contract machine), contract pull requests get an extra security review by Claude Code, and every change is tested before merge and updates this README when relevant. See [`AGENTS.md`](AGENTS.md) section 7.
 - Rules for agents: [`AGENTS.md`](AGENTS.md). Interfaces: [`docs/interfaces.md`](docs/interfaces.md). Decisions: [`docs/decisions.md`](docs/decisions.md). Plan: [`docs/plan.md`](docs/plan.md).
 
 ## 12. Progress
@@ -163,7 +196,7 @@ Only the status "verified" counts as done, and only with a proof link.
 | # | P0 item | Status | Proof |
 | --- | --- | --- | --- |
 | 1 | Swap + CSA scenario and margin model | Not started | |
-| 2 | KMMF and KBOND issued on Testnet | Not started | |
+| 2 | KMMF and KBOND issued on Testnet | Verified | [KMMF issued](https://stellar.expert/explorer/testnet/tx/ec2b3c50209bbdfa0851274c03b6cd339b20fdc86774f170cf76d4a65315a532), [KBOND issued](https://stellar.expert/explorer/testnet/tx/637fa5e953241c7a7a2f474b4239e44871d67e60af667419aff8f16a0f8ff463), [KMMF SAC](https://stellar.expert/explorer/testnet/tx/bc7d9d9a2a15473b5bae6b81461cac9a68003235dea60056605c8b2631df0e11), [KBOND SAC](https://stellar.expert/explorer/testnet/tx/08089cde2ab558289d0a18c8f85817e18297bb40b41c6506c2d109462b47dcd3) |
 | 3 | Manual choice of collateral class in the UI | Not started | |
 | 4 | Soroban vault: authorized deposit, available / locked accounting | Not started | |
 | 5 | Keeper: exposure and margin computation, posting to the vault | Not started | |
@@ -173,7 +206,7 @@ Only the status "verified" counts as done, and only with a proof link.
 | 9 | Dashboard showing asset choice, steps and on-chain proof | In progress (app scaffold) | |
 | 10 | End-to-end integration of the three poles | Not started | |
 | 11 | Submission: public repo, README, public URL, video, pitch deck | Not started | |
-| 12 | Continuous quality: Claudex review, tests, README updates | In place from phase zero | This repository's PR history |
+| 12 | Continuous quality: review of every PR, tests, README updates | In place from phase zero | This repository's PR history |
 
 ## 13. Prior work and work done during the event
 
