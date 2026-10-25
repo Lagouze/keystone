@@ -22,13 +22,17 @@ export interface TestnetOptions {
 }
 
 /** Maps a thrown error to the API error model: contract rejection, RPC trouble, or other failure. */
-export function mapChainError(e: unknown): KeeperError {
+export function mapChainError(e: unknown, vaultId?: string): KeeperError {
   if (e instanceof KeeperError) return e;
   const msg = e instanceof Error ? e.message : String(e);
   const code = /Error\(Contract, #(\d+)\)/.exec(msg)?.[1];
   const name = code ? CONTRACT_ERRORS[Number(code) - 1] : undefined;
-  if (name) return new VaultError(name);
-  if (/still pending|timed? ?out|timeout|ECONN|ENOTFOUND|fetch failed|network|\b(429|502|503|504)\b/i.test(msg)) {
+  // The token contract numbers its errors too: when the message names other contracts and not the vault,
+  // the code is not a vault code.
+  const contracts: string[] = msg.match(/\bC[A-Z2-7]{55}\b/g) ?? [];
+  const foreign = vaultId !== undefined && contracts.length > 0 && !contracts.includes(vaultId);
+  if (name && !foreign) return new VaultError(name);
+  if (/still pending|timed? ?out|timeout|ECONN|ENOTFOUND|fetch failed|socket hang up|\bHTTP (429|5\d\d)\b|\b(429|502|503|504)\b/i.test(msg)) {
     return new KeeperError("RpcUnavailable", `RPC unavailable or no confirmation: ${msg.slice(0, 200)}`);
   }
   return new KeeperError("TxFailed", msg.slice(0, 400));
@@ -92,7 +96,7 @@ export class TestnetVaultClient implements VaultClient {
   }
 
   async getState(vaultId: string): Promise<VaultState> {
-    return this.guard(async () => toState((await this.bindings(vaultId, this.o.keeper).get_state()).result));
+    return this.guard(vaultId, async () => toState((await this.bindings(vaultId, this.o.keeper).get_state()).result));
   }
 
   async balances(vaultId: string): Promise<{ fund: bigint; bank: bigint }> {
@@ -120,7 +124,7 @@ export class TestnetVaultClient implements VaultClient {
   }
 
   async prepare(vaultId: string, action: "deposit" | "withdraw", units: bigint): Promise<string> {
-    return this.guard(async () => {
+    return this.guard(vaultId, async () => {
       // No signer: the transaction is simulated and assembled with the fund as source, and left unsigned.
       const client = new VaultBindings({
         contractId: vaultId, rpcUrl: this.o.rpcUrl, networkPassphrase: this.o.networkPassphrase,
@@ -139,23 +143,30 @@ export class TestnetVaultClient implements VaultClient {
       throw new KeeperError("BadRequest", "signedTxXdr is not a valid transaction envelope");
     }
     if ("innerTransaction" in tx) throw new KeeperError("BadRequest", "Fee-bump transactions are not accepted");
-    const op = tx.operations[0] as { type: string; func?: xdr.HostFunction } | undefined;
-    if (tx.operations.length !== 1 || op?.type !== "invokeHostFunction" || !op.func) {
-      throw new KeeperError("BadRequest", "The transaction must contain exactly one contract invocation");
+    const op = tx.operations[0] as { type: string; func?: xdr.HostFunction; source?: string } | undefined;
+    if (tx.operations.length !== 1 || op?.type !== "invokeHostFunction" || !op.func || op.source) {
+      throw new KeeperError("BadRequest", "The transaction must contain exactly one contract invocation, without operation source");
     }
     if (tx.source !== this.o.fundAddress) throw new KeeperError("BadRequest", "The transaction source must be the fund account");
     if (tx.signatures.length === 0) throw new KeeperError("BadRequest", "The transaction is not signed");
-    const call = op.func.invokeContract();
-    const action = call.functionName().toString();
-    if (action !== "deposit" && action !== "withdraw") throw new KeeperError("BadRequest", "Only deposit and withdraw may be submitted");
-    const amount = scValToNative(call.args()[0]!) as bigint;
-    return { action, units: BigInt(amount), vaultId: Address.fromScAddress(call.contractAddress()).toString() };
+    try {
+      if (op.func.switch().name !== "hostFunctionTypeInvokeContract") throw new Error("not an invocation");
+      const call = op.func.invokeContract();
+      const action = call.functionName().toString();
+      const args = call.args();
+      if ((action !== "deposit" && action !== "withdraw") || args.length !== 1 || args[0]!.switch().name !== "scvI128") {
+        throw new Error("not a deposit or withdraw of an amount");
+      }
+      return { action, units: BigInt(scValToNative(args[0]!) as bigint), vaultId: Address.fromScAddress(call.contractAddress()).toString() };
+    } catch {
+      throw new KeeperError("BadRequest", "Only a deposit or withdraw of an i128 amount on the vault may be submitted");
+    }
   }
 
   async submitSigned(vaultId: string, signedTxXdr: string): Promise<TxResult> {
     const info = this.inspectSigned(signedTxXdr);
     if (info.vaultId !== vaultId) throw new KeeperError("BadRequest", "The transaction targets another vault");
-    return this.guard(async () => {
+    return this.guard(vaultId, async () => {
       const tx = TransactionBuilder.fromXDR(signedTxXdr, this.o.networkPassphrase);
       const sent = await this.server.sendTransaction(tx);
       if (sent.status === "ERROR" || sent.status === "TRY_AGAIN_LATER") {
@@ -188,12 +199,14 @@ export class TestnetVaultClient implements VaultClient {
     vaultId: string, signer: Keypair,
     call: (c: VaultBindings, opts: { timeoutInSeconds: number }) => ReturnType<VaultBindings["deposit"]>,
   ): Promise<TxResult> {
-    return this.guard(async () => {
+    return this.guard(vaultId, async () => {
       const tx = await call(this.bindings(vaultId, signer), { timeoutInSeconds: this.timeout });
       const sent = await tx.signAndSend();
       const txHash = this.hashOf(sent);
       const res = await this.confirm(txHash);
-      return { txHash, events: await this.eventsOf(vaultId, txHash, res.ledger), state: toState(sent.result) };
+      // The transaction is confirmed: a failing event read must not turn it into an error.
+      const events = await this.eventsOf(vaultId, txHash, res.ledger).catch(() => []);
+      return { txHash, events, state: toState(sent.result) };
     });
   }
 
@@ -231,11 +244,13 @@ export class TestnetVaultClient implements VaultClient {
     return BigInt(scValToNative(sim.result.retval) as bigint);
   }
 
-  private async guard<T>(fn: () => Promise<T>): Promise<T> {
+  private async guard<T>(vaultOrFn: string | (() => Promise<T>), maybeFn?: () => Promise<T>): Promise<T> {
+    const vaultId = typeof vaultOrFn === "string" ? vaultOrFn : undefined;
+    const fn = typeof vaultOrFn === "string" ? maybeFn! : vaultOrFn;
     try {
       return await fn();
     } catch (e) {
-      throw mapChainError(e);
+      throw mapChainError(e, vaultId);
     }
   }
 }

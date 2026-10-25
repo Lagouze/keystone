@@ -17,6 +17,7 @@ function parseUnits(body: unknown): bigint {
 }
 
 const LOCAL_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
+const LOCAL_HOST = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
 
 /** Default CORS policy: only pages served from the developer's own machine may call the keeper. */
 export const isLocalOrigin = (origin: string): boolean => LOCAL_ORIGIN.test(origin);
@@ -24,13 +25,24 @@ export const isLocalOrigin = (origin: string): boolean => LOCAL_ORIGIN.test(orig
 export interface ServerOptions {
   /** Which browser origins may call the API. Default: local pages only (`isLocalOrigin`). */
   allowedOrigin?: (origin: string) => boolean;
+  /** Which `Host` header values are served. Default: loopback names only, against DNS rebinding. */
+  allowedHost?: (host: string) => boolean;
 }
 
 export function buildServer(config: KeystoneConfig, sessions: SessionManager, options: ServerOptions = {}): FastifyInstance {
   const allowed = options.allowedOrigin ?? isLocalOrigin;
+  const allowedHost = options.allowedHost ?? ((h: string) => LOCAL_HOST.test(h));
   const app = Fastify({ logger: false, forceCloseConnections: true });
   const streams = new Set<FastifyReply>();
 
+  // A page that rebinds its DNS name to 127.0.0.1 is same-origin with the keeper and bypasses CORS:
+  // refuse any request whose Host or Origin is not expected.
+  app.addHook("onRequest", async (req, reply) => {
+    const origin = req.headers.origin;
+    if (!allowedHost(req.headers.host ?? "") || (origin !== undefined && !allowed(origin))) {
+      return reply.status(403).send({ error: { code: "BadRequest", message: "Host or Origin not allowed" } });
+    }
+  });
   app.register(cors, { origin: (origin, cb) => cb(null, !origin || allowed(origin)) });
 
   app.setErrorHandler((err, _req, reply) => {

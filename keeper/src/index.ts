@@ -64,7 +64,11 @@ const sessions = new SessionManager({
   scenario,
   euribor: () => getEuribor({ cachePath: join(keeperDir, "data", "euribor-cache.json") }),
 });
-const app = buildServer(config, sessions, { allowedOrigin: (o) => isLocalOrigin(o) || extraOrigins.includes(o) });
+const app = buildServer(config, sessions, {
+  allowedOrigin: (o) => isLocalOrigin(o) || extraOrigins.includes(o),
+  // a hosted deployment adds its own host names here
+  allowedHost: (h) => /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(h) || extraOrigins.some((o) => new URL(o).host === h),
+});
 await app.listen({ port, host: "127.0.0.1" });
 console.log(
   `Keeper listening on http://127.0.0.1:${port}/api (SIGNER=${signer}, backend: ` +

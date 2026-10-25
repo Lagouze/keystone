@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { nativeToScVal, xdr } from "vault-client";
+import { Account, Contract, Keypair, Networks, nativeToScVal, Operation, TransactionBuilder, xdr } from "vault-client";
 import { KeeperError, VaultError } from "../src/errors.ts";
-import { decodeEvent, mapChainError } from "../src/testnet-vault-client.ts";
+import { TestnetVaultClient, decodeEvent, mapChainError } from "../src/testnet-vault-client.ts";
 import { isLocalOrigin } from "../src/server.ts";
 
 const sym = (s: string) => xdr.ScVal.scvSymbol(s);
@@ -47,5 +47,58 @@ describe("CORS origin policy", () => {
   it("allows only local pages by default", () => {
     for (const o of ["http://localhost:5173", "http://127.0.0.1:3000", "https://localhost"]) expect(isLocalOrigin(o)).toBe(true);
     for (const o of ["https://evil.example", "http://localhost.evil.example", "http://127.0.0.1.evil.com"]) expect(isLocalOrigin(o)).toBe(false);
+  });
+});
+
+describe("SAC errors are not vault errors", () => {
+  const VAULT = "CDL5GRMUQGDTCFVRKJPXKUUIXYLICZOPQP54WYODPGN2XLIVHKWGTQA2";
+  const SAC = "CDB3KHRGMFXFRXEVVJUNUCDVPIR5RPKSSCTP5JUBK32F2ZMOZQVLMIA5";
+  it("refuses to map a code when only another contract is named", () => {
+    expect(mapChainError(new Error(`contract ${SAC} failed: Error(Contract, #4)`), VAULT).code).toBe("TxFailed");
+    expect(mapChainError(new Error(`contract ${VAULT} failed: Error(Contract, #4)`), VAULT).code).toBe("AboveCap");
+    expect(mapChainError(new Error("Error(Contract, #4)"), VAULT).code).toBe("AboveCap");
+  });
+});
+
+describe("inspectSigned only accepts a signed deposit or withdraw on the vault", () => {
+  const fund = Keypair.random();
+  const VAULT = "CDL5GRMUQGDTCFVRKJPXKUUIXYLICZOPQP54WYODPGN2XLIVHKWGTQA2";
+  const client = new TestnetVaultClient({
+    rpcUrl: "https://rpc.invalid", networkPassphrase: Networks.TESTNET, wasmHash: "00", keeper: Keypair.random(), fundAddress: fund.publicKey(),
+  });
+  const build = (ops: xdr.Operation[], opts: { sign?: boolean; source?: string } = {}) => {
+    const b = new TransactionBuilder(new Account(opts.source ?? fund.publicKey(), "1"), { fee: "100", networkPassphrase: Networks.TESTNET });
+    ops.forEach((o) => b.addOperation(o));
+    const tx = b.setTimeout(60).build();
+    if (opts.sign !== false) tx.sign(fund);
+    return tx.toXDR();
+  };
+  const call = (fn: string, ...args: xdr.ScVal[]) => new Contract(VAULT).call(fn, ...args);
+  const amount = nativeToScVal(10000000n, { type: "i128" });
+  const refused = (xdrString: string) => expect(() => client.inspectSigned(xdrString)).toThrow(KeeperError);
+  const code = (xdrString: string) => { try { client.inspectSigned(xdrString); } catch (e) { return (e as KeeperError).code; } return null; };
+
+  it("accepts a signed deposit and a withdraw", () => {
+    expect(client.inspectSigned(build([call("deposit", amount)]))).toEqual({ action: "deposit", units: 10000000n, vaultId: VAULT });
+    expect(client.inspectSigned(build([call("withdraw", amount)])).action).toBe("withdraw");
+  });
+  it("refuses everything else with BadRequest", () => {
+    for (const x of [
+      build([call("deposit", amount)], { sign: false }),
+      build([call("deposit", amount), call("deposit", amount)]),
+      build([call("post_margin", amount)]),
+      build([call("deposit")]),
+      build([call("deposit", nativeToScVal("x", { type: "string" }))]),
+      build([call("deposit", amount)], { source: Keypair.random().publicKey() }),
+      build([Operation.bumpSequence({ bumpTo: "5" })]),
+      "not xdr",
+    ]) {
+      expect(code(x)).toBe("BadRequest");
+      refused(x);
+    }
+  });
+  it("reports the vault so the caller can compare it", () => {
+    const other = new Contract("CDB3KHRGMFXFRXEVVJUNUCDVPIR5RPKSSCTP5JUBK32F2ZMOZQVLMIA5").call("deposit", amount);
+    expect(client.inspectSigned(build([other])).vaultId).not.toBe(VAULT);
   });
 });

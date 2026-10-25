@@ -48,6 +48,17 @@ describe("CORS", () => {
   });
 });
 
+describe("Host and Origin checks (DNS rebinding)", () => {
+  const call = (headers: Record<string, string>) => keeper!.app.inject({ method: "GET", url: "/api/health", headers });
+  it("serves loopback hosts and refuses other Host or Origin values", async () => {
+    start();
+    expect((await call({ host: "127.0.0.1:8787" })).statusCode).toBe(200);
+    expect((await call({ host: "localhost:8787", origin: "http://localhost:5173" })).statusCode).toBe(200);
+    expect((await call({ host: "attacker.example:8787" })).statusCode).toBe(403);
+    expect((await call({ host: "127.0.0.1:8787", origin: "http://attacker.example:8787" })).statusCode).toBe(403);
+  });
+});
+
 describe("validation", () => {
   it("rejects bad bodies with BadRequest (400)", async () => {
     const k = start();
