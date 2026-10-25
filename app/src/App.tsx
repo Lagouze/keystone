@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { AssetId, VaultStatus } from '@keystone/shared'
+import type { ActivityEvent, AssetId, VaultStatus } from '@keystone/shared'
 import { KEEPER_URL, USE_MOCKS } from './config.ts'
 import {
   AllocationBar,
@@ -12,6 +12,7 @@ import {
   Stat,
   StatusPill,
   TxHash,
+  proofOf,
 } from './ui/index.ts'
 
 // Direction A preview: shows the base components on static sample values.
@@ -24,7 +25,38 @@ const SAMPLE_VAULT: Record<VaultStatus, { available: number; locked: number; sho
 }
 
 const MOCK_HASH = 'MOCK3f9a0000000000000000000000000000000000000000000000000000c21e'
-const EXPLORER = 'https://stellar.expert/explorer/testnet'
+
+const SAMPLE_ACTIVITY: ActivityEvent[] = [
+  {
+    id: 'preview-1',
+    sessionId: 'preview',
+    ts: '2026-10-25T21:00:00Z',
+    kind: 'chain',
+    type: 'margin_set',
+    title: 'Margin set',
+    status: 'confirmed',
+    txHash: MOCK_HASH,
+    explorerUrl: `https://stellar.expert/explorer/testnet/tx/${MOCK_HASH}`,
+  },
+  {
+    id: 'preview-2',
+    sessionId: 'preview',
+    ts: '2026-10-25T21:00:05Z',
+    kind: 'chain',
+    type: 'deposit',
+    title: 'Deposit 96 KMMF',
+    status: 'pending',
+  },
+  {
+    id: 'preview-3',
+    sessionId: 'preview',
+    ts: '2026-10-25T20:59:55Z',
+    kind: 'sim',
+    type: 'rate_shock',
+    title: 'Rate shock −30 bp',
+    status: 'confirmed',
+  },
+]
 
 export default function App() {
   const [asset, setAsset] = useState<AssetId>('KMMF')
@@ -89,18 +121,23 @@ export default function App() {
 
           <Card title="Activity" description="Every token movement links to its Stellar transaction.">
             <ul className="divide-y divide-line">
-              <li className="flex items-center justify-between gap-3 py-2.5">
-                <span className="flex items-center gap-2 text-sm">
-                  <KindBadge kind="chain" /> Margin set
-                </span>
-                <TxHash hash={MOCK_HASH} explorerUrl={EXPLORER} />
-              </li>
-              <li className="flex items-center justify-between gap-3 py-2.5">
-                <span className="flex items-center gap-2 text-sm">
-                  <KindBadge kind="sim" /> Rate shock −30 bp
-                </span>
-                <span className="text-xs text-ink-subtle">no hash</span>
-              </li>
+              {SAMPLE_ACTIVITY.map((event) => {
+                const proof = proofOf(event)
+                return (
+                  <li key={event.id} className="flex items-center justify-between gap-3 py-2.5">
+                    <span className="flex items-center gap-2 text-sm">
+                      <KindBadge kind={event.kind} /> {event.title}
+                    </span>
+                    {proof ? (
+                      <TxHash {...proof} />
+                    ) : (
+                      <span className="text-xs text-ink-subtle">
+                        {event.status === 'pending' ? 'pending…' : 'no hash'}
+                      </span>
+                    )}
+                  </li>
+                )
+              })}
             </ul>
           </Card>
         </div>

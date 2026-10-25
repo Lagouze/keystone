@@ -141,7 +141,9 @@ Run from `app/`. Tested with Node 24.21 and npm 11.19. The dashboard is a standa
 | `npm run typecheck` | Type-checks the dashboard and the shared types it imports from `packages/shared` |
 | `npm run build` | Type-checks, then builds the static site into `app/dist/` |
 
-The dashboard reads `VITE_KEEPER_URL` (default `http://localhost:8787/api`) and `VITE_USE_MOCKS` from the root `.env`; only `VITE_*` variables reach the browser bundle, and they are fixed at build time. At this stage it only shows a placeholder screen: no keeper call, no wallet.
+The dashboard reads `VITE_KEEPER_URL` (default `http://localhost:8787/api`) and `VITE_USE_MOCKS` from the root `.env`; only `VITE_*` variables reach the browser bundle, and they are fixed at build time. At this stage it shows a design preview on static sample values: no keeper call, no wallet.
+
+**Visual direction.** Light surfaces, one navy accent and large tabular numbers ("Ledger clair", chosen by the team). Design tokens live in `app/src/index.css` (Tailwind CSS v4 `@theme`), base components in `app/src/ui/`. Inter and JetBrains Mono are bundled with the app (no external font request).
 
 ## 10. Demo instructions
 
@@ -170,7 +172,7 @@ Only the status "verified" counts as done, and only with a proof link.
 | 6 | Deposit, lock and release with verifiable results | Not started | |
 | 7 | Separate default scenario with on-chain transfer to the bank | Not started | |
 | 8 | Real Stellar Testnet transactions shown with proof | Not started | |
-| 9 | Dashboard showing asset choice, steps and on-chain proof | In progress (app scaffold) | |
+| 9 | Dashboard showing asset choice, steps and on-chain proof | In progress (app scaffold, design base) | |
 | 10 | End-to-end integration of the three poles | Not started | |
 | 11 | Submission: public repo, README, public URL, video, pitch deck | Not started | |
 | 12 | Continuous quality: Claudex review, tests, README updates | In place from phase zero | This repository's PR history |
