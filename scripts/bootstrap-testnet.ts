@@ -78,7 +78,8 @@ for (const [id, asset] of Object.entries(assets) as [AssetId, Asset][]) {
 
 // 5. Fund trustlines and issuance (needs the operator's FUND_SECRET)
 if (fund) {
-  await ensureAccount(fund.publicKey());
+  const { created } = await ensureAccount(fund.publicKey());
+  log(`account fund   ${fund.publicKey()} ${created ? "created with friendbot" : "exists"} (derived from FUND_SECRET)`);
   for (const [id, asset] of Object.entries(assets)) {
     const trust = await ensureTrustline(fund, asset);
     log(`fund trustline ${id.padEnd(5)} ${trust ? `added ${tx(trust)}` : "exists"}`);

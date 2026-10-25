@@ -70,7 +70,7 @@ Bootstrap script --issues KMMF and KBOND--> fund account                 Fund an
 | Example vault contract ID | *not yet deployed* (provided by the contract pole) |
 | Demo bank account | [`GAUHK4ZBP2W5VSKLJOTTKKHWUB2MGFXBMHYLSH3EERTVYYMVPWSR7W6C`](https://stellar.expert/explorer/testnet/account/GAUHK4ZBP2W5VSKLJOTTKKHWUB2MGFXBMHYLSH3EERTVYYMVPWSR7W6C) (trustlines on KMMF and KBOND) |
 | Keeper account | [`GDGUJHZGU57RU4RHARM37GU2IDX4KV7V23XVFORDWRYIBWIIQ6U7G4TO`](https://stellar.expert/explorer/testnet/account/GDGUJHZGU57RU4RHARM37GU2IDX4KV7V23XVFORDWRYIBWIIQ6U7G4TO) |
-| Demo fund account | *not yet recorded* (Freighter account; its trustlines and the issuance of KMMF and KBOND follow) |
+| Demo fund account (Freighter) | [`GDQ6AWAXZWIOCBHDSFIIKCWV3PQ6ZJE6BBC4VJCWA3SCFB4G7A2TMQOY`](https://stellar.expert/explorer/testnet/account/GDQ6AWAXZWIOCBHDSFIIKCWV3PQ6ZJE6BBC4VJCWA3SCFB4G7A2TMQOY) (trustlines on KMMF and KBOND, holds 1 000 of each) |
 
 **APIs used:** Soroban RPC (`https://soroban-testnet.stellar.org`), Horizon Testnet, ECB Data Portal API (Euribor 3M, no key).
 
@@ -86,6 +86,10 @@ Setup transactions (Testnet bootstrap):
 | KBOND Stellar Asset Contract deployed | [`08089cde…dcd3`](https://stellar.expert/explorer/testnet/tx/08089cde2ab558289d0a18c8f85817e18297bb40b41c6506c2d109462b47dcd3) |
 | Bank trustline on KMMF | [`463ee916…5b40`](https://stellar.expert/explorer/testnet/tx/463ee916c3136a3ceb6b983fee9392fd8af5c152a765b93a3647c2d663035b40) |
 | Bank trustline on KBOND | [`590b9879…e923`](https://stellar.expert/explorer/testnet/tx/590b98798fa2d19d213feabfd3910f1d2b6b09a0902300c1da4250889b86e923) |
+| Fund trustline on KMMF | [`a6554f6b…58ca`](https://stellar.expert/explorer/testnet/tx/a6554f6b7772ff683fa9bbf4d578415dc1d9b1264c655e4627c0edf77a6758ca) |
+| 1 000 KMMF issued to the fund | [`ec2b3c50…a532`](https://stellar.expert/explorer/testnet/tx/ec2b3c50209bbdfa0851274c03b6cd339b20fdc86774f170cf76d4a65315a532) |
+| Fund trustline on KBOND | [`dd531751…5cff`](https://stellar.expert/explorer/testnet/tx/dd531751e447c167f36430666dde853e8345b5b495ba4e1550d14b73ff455cff) |
+| 1 000 KBOND issued to the fund | [`637fa5e9…f463`](https://stellar.expert/explorer/testnet/tx/637fa5e953241c7a7a2f474b4239e44871d67e60af667419aff8f16a0f8ff463) |
 
 Collateral flow: *none yet.* Links will be listed here for a deposit, a margin posting that locks collateral, a release and withdrawal, and a default settlement.
 
@@ -153,7 +157,7 @@ Only commands that have been run successfully are listed. Run them from the repo
 | `npm run typecheck` | Type-checks every workspace that defines a `typecheck` script (today: `packages/shared`) | Verified (macOS) |
 | `npm test` | Runs the tests of every workspace that defines a `test` script (today: Vitest checks of the shared mocks and of the script helpers) | Verified (macOS) |
 | `npm run init-env` | Creates `.env` from `.env.example` if needed and generates the Testnet keys still empty (issuer, bank, keeper). Never generates `FUND_SECRET`, never overwrites a value, prints public keys only | Verified (macOS) |
-| `npm run bootstrap` | Idempotent Testnet bootstrap: issuer, bank and keeper accounts (friendbot), bank trustlines, KMMF and KBOND Stellar Asset Contracts, and, when `FUND_SECRET` is set, fund trustlines and issuance up to 1 000 units of each asset. Writes `deployments/testnet.json` | Verified (macOS), run three times; fund steps *not tested yet* |
+| `npm run bootstrap` | Idempotent Testnet bootstrap: issuer, bank and keeper accounts (friendbot), bank trustlines, KMMF and KBOND Stellar Asset Contracts, and, when `FUND_SECRET` is set, fund trustlines and issuance up to 1 000 units of each asset (the fund address is derived from `FUND_SECRET`). Writes `deployments/testnet.json` | Verified (macOS) over six runs (the first stopped on a bug, since fixed); once everything exists, a run sends no transaction |
 
 Still to come, once they work: build, start keeper, start dashboard, end-to-end script.
 
@@ -179,7 +183,7 @@ Only the status "verified" counts as done, and only with a proof link.
 | # | P0 item | Status | Proof |
 | --- | --- | --- | --- |
 | 1 | Swap + CSA scenario and margin model | Not started | |
-| 2 | KMMF and KBOND issued on Testnet | In progress: assets and SACs deployed, bank trustlines set; fund trustlines and issuance pending | [KMMF SAC](https://stellar.expert/explorer/testnet/tx/bc7d9d9a2a15473b5bae6b81461cac9a68003235dea60056605c8b2631df0e11), [KBOND SAC](https://stellar.expert/explorer/testnet/tx/08089cde2ab558289d0a18c8f85817e18297bb40b41c6506c2d109462b47dcd3) |
+| 2 | KMMF and KBOND issued on Testnet | Verified | [KMMF issued](https://stellar.expert/explorer/testnet/tx/ec2b3c50209bbdfa0851274c03b6cd339b20fdc86774f170cf76d4a65315a532), [KBOND issued](https://stellar.expert/explorer/testnet/tx/637fa5e953241c7a7a2f474b4239e44871d67e60af667419aff8f16a0f8ff463), [KMMF SAC](https://stellar.expert/explorer/testnet/tx/bc7d9d9a2a15473b5bae6b81461cac9a68003235dea60056605c8b2631df0e11), [KBOND SAC](https://stellar.expert/explorer/testnet/tx/08089cde2ab558289d0a18c8f85817e18297bb40b41c6506c2d109462b47dcd3) |
 | 3 | Manual choice of collateral class in the UI | Not started | |
 | 4 | Soroban vault: authorized deposit, available / locked accounting | Not started | |
 | 5 | Keeper: exposure and margin computation, posting to the vault | Not started | |

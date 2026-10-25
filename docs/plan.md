@@ -395,7 +395,7 @@ SIGNER=freighter      # freighter | keeper
 PORT=8787
 ```
 
-Le compte Freighter créé pendant le test Etherfuse (`GBJT…TLAZ`) peut servir de compte du fonds. Sa clé secrète se dérive de la recovery phrase, que Grégoire tape lui-même dans un terminal : `stellar keys add fund --seed-phrase`, puis `stellar keys show fund`. Ce compte ne détient pas de CETES, puisque la livraison Etherfuse n'a jamais eu lieu.
+Le compte du fonds est un compte Freighter dédié à la démo, financé par friendbot. L'opérateur colle lui-même sa clé secrète dans `FUND_SECRET` du `.env` local (jamais générée par un script, jamais affichée) ; le bootstrap en dérive l'adresse publique et l'écrit dans `deployments/testnet.json`, sans adresse codée en dur. Le compte Freighter du test Etherfuse n'est plus utilisé.
 
 ### Tâches
 

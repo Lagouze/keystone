@@ -6,7 +6,7 @@
   "explorerTxBase": "https://stellar.expert/explorer/testnet/tx/",
   "accounts": {
     "issuer": "GDWMFOSV4L2O66PDZ4BL4K5HEJJLGMGXXWLHUJNJ4N4ZICSUSBGTGNGX",
-    "fund": null,
+    "fund": "GDQ6AWAXZWIOCBHDSFIIKCWV3PQ6ZJE6BBC4VJCWA3SCFB4G7A2TMQOY",
     "bank": "GAUHK4ZBP2W5VSKLJOTTKKHWUB2MGFXBMHYLSH3EERTVYYMVPWSR7W6C",
     "keeper": "GDGUJHZGU57RU4RHARM37GU2IDX4KV7V23XVFORDWRYIBWIIQ6U7G4TO"
   },
@@ -28,5 +28,5 @@
     "wasmHash": null,
     "testVaultId": null
   },
-  "updatedAt": "2026-10-25T21:05:18.020Z"
+  "updatedAt": "2026-10-25T21:14:38.221Z"
 }
