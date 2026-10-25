@@ -141,7 +141,7 @@ Run from `app/`. Tested with Node 24.21 and npm 11.19. The dashboard is a standa
 | `npm run typecheck` | Type-checks the dashboard and the shared types it imports from `packages/shared` |
 | `npm run build` | Type-checks, then builds the static site into `app/dist/` |
 
-The dashboard reads `VITE_KEEPER_URL` (default `http://localhost:8787/api`) and `VITE_USE_MOCKS`. At this stage it only shows a placeholder screen: no keeper call, no wallet.
+The dashboard reads `VITE_KEEPER_URL` (default `http://localhost:8787/api`) and `VITE_USE_MOCKS` from the root `.env`; only `VITE_*` variables reach the browser bundle, and they are fixed at build time. At this stage it only shows a placeholder screen: no keeper call, no wallet.
 
 ## 10. Demo instructions
 
