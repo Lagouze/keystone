@@ -50,7 +50,9 @@ async function insertUser(db: PGlite, email: string, password: string): Promise<
 
 async function open(): Promise<PGlite> {
   const { PGlite } = await import('@electric-sql/pglite')
-  const db = await PGlite.create('idb://keystone-auth')
+  // Private mode or blocked storage: fall back to a database kept in memory for this tab, so the demo
+  // account still opens (accounts created then are lost on reload).
+  const db = await PGlite.create('idb://keystone-auth').catch(() => PGlite.create())
   await db.exec(`
     CREATE TABLE IF NOT EXISTS users (
       email      text PRIMARY KEY,
