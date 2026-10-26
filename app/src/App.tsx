@@ -123,15 +123,14 @@ function Aura() {
 
 function Main({ user, onLock }: { user: string; onLock(): void }) {
   const k = useKeystone()
-  // Reading a shared keeper session must not skip the presentation. Navigation is local only.
-  const [view, setView] = useState<'home' | 'dashboard'>('home')
+  // Navigation belongs to this visit, never to a GET/SSE session update or browser storage.
+  const [page, setPage] = useState<'home' | 'dashboard'>('home')
   // Set when the user starts a session from this page: that first session opens with the stagger.
   const [startedHere, setStartedHere] = useState(false)
   const stage = useChoreography(k.session, startedHere)
-  const startSession = (asset: AssetId) => {
+  const startSession = async (asset: AssetId) => {
     setStartedHere(true)
-    setView('dashboard')
-    return k.startSession(asset)
+    if (await k.startSession(asset)) setPage('dashboard')
   }
   const mocks = k.source === 'mocks'
   const asset = k.config && k.session ? assetOf(k.config, k.session) : null
@@ -150,9 +149,10 @@ function Main({ user, onLock }: { user: string; onLock(): void }) {
         mocks={mocks}
         user={user}
         onLock={onLock}
-        onDetails={view === 'dashboard' && stage && asset ? () => setDetails(true) : undefined}
-        onHome={view === 'dashboard' ? () => { setDetails(false); setView('home') } : undefined}
-        onResume={view === 'home' && stage && asset ? () => setView('dashboard') : undefined}
+        page={page}
+        onHome={() => { setDetails(false); setPage('home') }}
+        onDashboard={() => setPage('dashboard')}
+        onDetails={page === 'dashboard' && stage && asset ? () => setDetails(true) : undefined}
         onStart={startSession}
       />
 
@@ -206,9 +206,9 @@ function Main({ user, onLock }: { user: string; onLock(): void }) {
               <HeroSkeleton />
             </Page>
           )
-        ) : view === 'home' || !stage || !asset ? (
+        ) : page === 'home' || !stage || !asset ? (
           <Page key="landing">
-            <Landing config={k.config} busy={k.busy === 'start'} onStart={startSession} />
+            <Landing config={k.config} busy={k.busy === 'start'} onStart={startSession} onResume={k.session ? () => setPage('dashboard') : undefined} />
           </Page>
         ) : (
           <Page key={`session-${stage.shown.sessionId}`} className="mx-auto max-w-6xl px-4 py-5 sm:px-6">
@@ -231,18 +231,20 @@ function TopBar({
   mocks,
   user,
   onLock,
-  onDetails,
+  page,
   onHome,
-  onResume,
+  onDashboard,
+  onDetails,
   onStart,
 }: {
   k: KeystoneHook
   mocks: boolean
   user: string
   onLock(): void
+  page: 'home' | 'dashboard'
+  onHome(): void
+  onDashboard(): void
   onDetails?: () => void
-  onHome?: () => void
-  onResume?: () => void
   onStart(asset: AssetId): void
 }) {
   return (
@@ -259,7 +261,15 @@ function TopBar({
           {/* §4: the public demo (SIGNER=keeper) must say that the keeper signs for the fund. */}
           {k.config?.signerMode === 'keeper' && <Chip>Public demo · keeper signs</Chip>}
         </div>
-        <div className="flex items-center gap-2 text-sm text-ink-muted">
+        <div className="flex flex-wrap items-center gap-2 text-sm text-ink-muted">
+          <nav aria-label="Navigation principale" className="flex items-center gap-2">
+            <Button className="!h-9 !px-4" aria-current={page === 'home' ? 'page' : undefined} onClick={onHome}>
+              Accueil
+            </Button>
+            <Button className="!h-9 !px-4" disabled={!k.session} aria-current={page === 'dashboard' ? 'page' : undefined} onClick={onDashboard}>
+              Dashboard
+            </Button>
+          </nav>
           <span className="mr-2 flex items-center gap-2" title={mocks ? 'Mock keeper' : `Keeper ${k.connection}`}>
             <span
               aria-hidden="true"
@@ -282,8 +292,6 @@ function TopBar({
             </span>
           </span>
           {/* The advisor is read-only: with a session running it stays one click away (it never starts or changes anything). */}
-          {onHome && <Button className="!h-9 !px-4" onClick={onHome}>Home</Button>}
-          {onResume && <Button className="!h-9 !px-4" onClick={onResume}>Resume session</Button>}
           {k.session && <MarketAdvisor className="!h-9 !px-4" label="Market" closeLabel="Close" inSession />}
           {onDetails && (
             <Button variant="sim" className="!h-9 !px-4" onClick={onDetails}>

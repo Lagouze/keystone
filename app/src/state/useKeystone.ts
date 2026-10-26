@@ -92,12 +92,13 @@ export function useKeystone() {
     async (action: Action, task: (backend: Backend) => Promise<SessionState>) => {
       const backend = backendRef.current
       // One action at a time: a second click or Enter never sends a second transaction.
-      if (!backend || inFlight.current) return
+      if (!backend || inFlight.current) return false
       inFlight.current = true
       setBusy(action)
       setError(null)
       try {
         acceptState(await task(backend), action === 'start')
+        return true
       } catch (e) {
         if ((action === 'deposit' || action === 'withdraw') && e instanceof KeystoneError && e.code === 'RpcUnavailable') {
           unconfirmedAt.current = Date.now()
@@ -108,6 +109,7 @@ export function useKeystone() {
           setHasAccessCode(false)
         }
         setError(describeError(e))
+        return false
       } finally {
         inFlight.current = false
         setBusy(null)

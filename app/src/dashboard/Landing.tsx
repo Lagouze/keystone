@@ -66,10 +66,12 @@ export function Landing({
   config,
   busy,
   onStart,
+  onResume,
 }: {
   config: KeystoneConfig
   busy: boolean
   onStart(asset: AssetId): void
+  onResume?: () => void
 }) {
   const [asset, setAsset] = useState<AssetId>(config.assets[0]?.id ?? 'KMMF')
   // Scroll-linked styles ignore MotionConfig: with reduced motion, everything stays put.
@@ -147,6 +149,13 @@ export function Landing({
               </motion.span>
             </motion.button>
           </Magnetic>
+          {onResume && (
+            <div className="mt-4">
+              <Button variant="primary" onClick={onResume}>
+                Reprendre la session
+              </Button>
+            </div>
+          )}
         </motion.div>
       </section>
 
@@ -199,8 +208,9 @@ export function Landing({
               {/* Read-only comparison of real market observations: it never selects or starts anything. */}
               <MarketAdvisor className="mt-8 w-full max-w-sm" />
               <Button className="mt-3 !h-14 w-full max-w-sm text-base" variant="primary" busy={busy} onClick={() => onStart(asset)}>
-                {busy ? 'Deploying the vault…' : 'Start'}
+                {busy ? 'Deploying the vault…' : onResume ? 'Start a new session' : 'Start'}
               </Button>
+              {onResume && <p className="mt-3 text-sm text-ink-subtle">Starting a new session replaces the current vault and clears its activity.</p>}
             </motion.div>
           </motion.div>
         </div>
