@@ -1,21 +1,12 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { motion, useAnimationControls } from 'motion/react'
+import { BlurReveal } from '../ui/BlurReveal.tsx'
+import { Logo } from '../ui/Logo.tsx'
 import { DEMO_ACCOUNT, signIn, signUp, warmUp } from './db.ts'
 
 type Mode = 'signin' | 'signup'
 
-function useClock(): Date {
-  const [now, setNow] = useState(() => new Date())
-  useEffect(() => {
-    const id = window.setInterval(() => setNow(new Date()), 1000)
-    return () => window.clearInterval(id)
-  }, [])
-  return now
-}
-
-/** Arrival screen in the style of the Mac login: clock, avatar, one rounded field at a time. */
 export function LockScreen({ onUnlock }: { onUnlock(email: string): void }) {
-  const now = useClock()
   const [mode, setMode] = useState<Mode>('signin')
   const [email, setEmail] = useState<string>(DEMO_ACCOUNT.email)
   const [password, setPassword] = useState('')
@@ -25,8 +16,6 @@ export function LockScreen({ onUnlock }: { onUnlock(email: string): void }) {
   const shake = useAnimationControls()
 
   useEffect(() => warmUp(), [])
-
-  const initials = (email.split('@')[0] || 'K').slice(0, 2).toUpperCase()
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
@@ -59,40 +48,27 @@ export function LockScreen({ onUnlock }: { onUnlock(email: string): void }) {
 
   return (
     <motion.div
-      className="fixed inset-0 z-[60] flex flex-col items-center overflow-y-auto px-4"
+      className="fixed inset-0 z-[60] flex flex-col items-center justify-center overflow-y-auto px-4 py-10"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0, scale: 1.04, filter: 'blur(12px)' }}
       transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
-      style={{
-        background:
-          'radial-gradient(70rem 50rem at 20% 0%, #ffffff 0%, transparent 60%), radial-gradient(60rem 40rem at 90% 100%, #dfe3ea 0%, transparent 60%), linear-gradient(180deg, #eef0f4, #e3e6ec)',
-      }}
     >
-      <div className="mt-[9vh] text-center text-ink">
-        <p className="text-lg font-medium text-ink-muted">
-          {now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
-        </p>
-        <p className="mt-1 text-8xl font-light tracking-tight">
-          {now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
-        </p>
-      </div>
-
-      <div className="mt-auto mb-[12vh] flex w-full max-w-xs flex-col items-center">
+      <div className="glass-heavy gpu w-full max-w-md rounded-[2.5rem] px-8 pt-12 pb-9 shadow-card sm:px-12">
         <motion.div
           key={mode}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
+          initial={{ opacity: 0, y: 10, scale: 0.96 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
           className="flex flex-col items-center"
         >
-          <div className="glass flex size-24 items-center justify-center rounded-full text-3xl font-light shadow-card" aria-hidden="true">
-            {mode === 'signin' ? initials : '+'}
-          </div>
-          <h1 className="mt-4 text-xl font-medium">{mode === 'signin' ? 'Keystone' : 'Create an account'}</h1>
+          <Logo size={120} />
+          <h1 className="mt-6 text-3xl font-light tracking-tight text-ink">
+            <BlurReveal key={mode} text={mode === 'signin' ? 'Keystone' : 'Create an account'} />
+          </h1>
         </motion.div>
 
-        <motion.form animate={shake} onSubmit={submit} className="mt-5 grid w-full gap-2.5" noValidate>
+        <motion.form animate={shake} onSubmit={submit} className="mt-8 grid w-full gap-3" noValidate>
           <label className="sr-only" htmlFor="lock-email">
             Email
           </label>
@@ -103,7 +79,7 @@ export function LockScreen({ onUnlock }: { onUnlock(email: string): void }) {
             placeholder="Email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="glass h-11 w-full rounded-full px-4 text-center text-sm outline-none placeholder:text-ink-subtle focus-visible:ring-2 focus-visible:ring-ink/20"
+            className="h-14 w-full rounded-full bg-white/45 px-5 text-center text-base text-ink shadow-[inset_0_0_0_1px_rgba(255,255,255,0.6)] outline-none transition-shadow placeholder:text-ink-subtle focus-visible:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.8),0_0_0_3px_rgba(28,28,30,0.18)]"
           />
           <div className="relative">
             <label className="sr-only" htmlFor="lock-password">
@@ -117,17 +93,21 @@ export function LockScreen({ onUnlock }: { onUnlock(email: string): void }) {
               value={password}
               autoFocus
               onChange={(e) => setPassword(e.target.value)}
-              className="glass h-11 w-full rounded-full pr-12 pl-4 text-center text-sm outline-none placeholder:text-ink-subtle focus-visible:ring-2 focus-visible:ring-ink/20"
+              className="h-14 w-full rounded-full bg-white/45 pr-16 pl-5 text-center text-base text-ink shadow-[inset_0_0_0_1px_rgba(255,255,255,0.6)] outline-none transition-shadow placeholder:text-ink-subtle focus-visible:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.8),0_0_0_3px_rgba(28,28,30,0.18)]"
             />
             <motion.button
               type="submit"
               aria-label={mode === 'signin' ? 'Sign in' : 'Create account'}
               disabled={pending || !password}
               whileTap={{ scale: 0.92 }}
-              className="absolute top-1.5 right-1.5 flex size-8 items-center justify-center rounded-full bg-ink text-white transition-opacity disabled:opacity-30"
+              className="absolute top-2 right-2 flex size-10 items-center justify-center rounded-full bg-ink text-white transition-opacity disabled:opacity-30"
             >
               {pending ? (
-                <span aria-hidden="true" className="size-3.5 rounded-full border-2 border-current border-r-transparent motion-safe:animate-spin" />
+                <span aria-hidden="true" className="flex gap-0.5">
+                  {[0, 1, 2].map((n) => (
+                    <span key={n} className="size-1 rounded-full bg-current motion-safe:animate-dot" style={{ animationDelay: `${n * 0.15}s` }} />
+                  ))}
+                </span>
               ) : (
                 <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
                   <path d="M2 7h9M7.5 3.5 11 7l-3.5 3.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
@@ -137,7 +117,7 @@ export function LockScreen({ onUnlock }: { onUnlock(email: string): void }) {
           </div>
         </motion.form>
 
-        <p role="alert" className="mt-3 min-h-5 text-center text-sm text-danger">
+        <p role="alert" className="mt-4 min-h-5 text-center text-sm text-danger">
           {error}
         </p>
 

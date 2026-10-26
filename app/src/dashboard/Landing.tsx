@@ -2,7 +2,8 @@ import { useRef, useState } from 'react'
 import { motion, useReducedMotion, useScroll, useTransform, type MotionValue } from 'motion/react'
 import type { AssetId, KeystoneConfig } from '@keystone/shared'
 import { formatEur } from '../lib/format.ts'
-import { Button, Card, SegmentedControl } from '../ui/index.ts'
+import { Button, Card, Magnetic, SegmentedControl } from '../ui/index.ts'
+import { BlurReveal } from '../ui/BlurReveal.tsx'
 
 const STEPS = [
   { title: 'Lock', text: 'The fund posts tokens it already holds. The vault locks what the margin needs.' },
@@ -19,7 +20,7 @@ function Step({ index, progress, still }: { index: number; progress: MotionValue
   const step = STEPS[index]!
   return (
     <motion.div style={still ? undefined : { opacity, y }} className="flex gap-5">
-      <span className="mt-1.5 flex size-9 shrink-0 items-center justify-center rounded-full bg-ink text-sm font-medium text-white">
+      <span className="glass mt-1.5 flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-medium text-ink">
         {index + 1}
       </span>
       <div>
@@ -52,6 +53,12 @@ export function Landing({
   const heroOpacity = useTransform(heroProgress, [0, 0.8], [1, 0])
   const heroBlur = useTransform(heroProgress, [0, 1], ['blur(0px)', 'blur(8px)'])
 
+  // "Choose the collateral" arrives like a cloud: it grows, clears and sharpens as it is scrolled into view.
+  const { scrollYProgress: cloudProgress } = useScroll({ target: start, offset: ['start 95%', 'start 45%'] })
+  const cloudScale = useTransform(cloudProgress, [0, 1], [0.8, 1])
+  const cloudOpacity = useTransform(cloudProgress, [0, 0.7], [0, 1])
+  const cloudBlur = useTransform(cloudProgress, [0, 1], ['blur(14px)', 'blur(0px)'])
+
   const story = useRef<HTMLElement>(null)
   const { scrollYProgress: storyProgress } = useScroll({ target: story, offset: ['start start', 'end end'] })
 
@@ -59,16 +66,11 @@ export function Landing({
     <div>
       <section ref={hero} className="relative flex min-h-[88vh] items-center justify-center px-4">
         <motion.div style={still ? undefined : { scale: heroScale, opacity: heroOpacity, filter: heroBlur }} className="text-center">
-          <motion.h1
-            className="text-6xl font-medium tracking-tight sm:text-8xl"
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-          >
-            Post tokens,
+          <h1 className="text-6xl font-medium tracking-tight sm:text-8xl">
+            <BlurReveal text="Post tokens," />
             <br />
-            not cash.
-          </motion.h1>
+            <BlurReveal text="not cash." delay={0.25} />
+          </h1>
           <motion.p
             className="mx-auto mt-6 max-w-xl text-xl text-ink-muted"
             initial={{ opacity: 0, y: 16 }}
@@ -77,21 +79,23 @@ export function Landing({
           >
             Margin calls, covered by the assets a fund already holds. On Stellar.
           </motion.p>
-          <motion.button
-            type="button"
-            className="mx-auto mt-14 flex h-11 items-center gap-2 rounded-full glass px-5 text-sm font-medium text-ink"
-            whileTap={{ scale: 0.96 }}
-            onClick={() => start.current?.scrollIntoView({ behavior: still ? 'auto' : 'smooth' })}
-          >
-            Skip to start
-            <motion.span
-              aria-hidden="true"
-              animate={still ? undefined : { y: [0, 3, 0] }}
-              transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
+          <Magnetic className="mt-14">
+            <motion.button
+              type="button"
+              className="glass flex h-12 items-center gap-2 rounded-full px-6 text-sm font-medium text-ink shadow-card"
+              whileTap={{ scale: 0.96 }}
+              onClick={() => start.current?.scrollIntoView({ behavior: still ? 'auto' : 'smooth' })}
             >
-              ↓
-            </motion.span>
-          </motion.button>
+              Skip to start
+              <motion.span
+                aria-hidden="true"
+                animate={still ? undefined : { y: [0, 3, 0] }}
+                transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
+              >
+                ↓
+              </motion.span>
+            </motion.button>
+          </Magnetic>
         </motion.div>
       </section>
 
@@ -103,7 +107,7 @@ export function Landing({
                 <Step key={i} index={i} progress={storyProgress} still={still} />
               ))}
             </div>
-            <div className="glass mx-auto hidden size-64 items-center md:flex justify-center rounded-full shadow-card" aria-hidden="true">
+            <div className="glass gpu mx-auto hidden size-64 items-center justify-center rounded-full shadow-card md:flex" aria-hidden="true">
               <svg width="200" height="200" viewBox="0 0 200 200">
                 <circle cx="100" cy="100" r="86" fill="none" strokeWidth="12" className="stroke-surface-muted" />
                 <motion.circle
@@ -123,13 +127,10 @@ export function Landing({
         </div>
       </section>
 
-      <section ref={start} className="scroll-mt-20 px-4 pb-24">
+      <section ref={start} className="scroll-mt-20 px-4 pt-[20vh] pb-32">
         <motion.div
-          className="mx-auto max-w-xl"
-          initial={{ opacity: 0, y: 32 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, amount: 0.4 }}
-          transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+          className="gpu mx-auto max-w-xl"
+          style={still ? undefined : { scale: cloudScale, opacity: cloudOpacity, filter: cloudBlur }}
         >
           <Card title="Choose the collateral" description="Fictitious tokens, issued on Stellar Testnet.">
             <SegmentedControl

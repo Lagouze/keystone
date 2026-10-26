@@ -16,7 +16,7 @@ import { VaultCard } from './dashboard/VaultCard.tsx'
 import { CHOREO, useChoreography, type Stage } from './state/useChoreography.ts'
 import { useKeystone, useNow } from './state/useKeystone.ts'
 import SwipeToast from './ui/bits/SwipeToast.tsx'
-import { Banner, Button, SegmentedControl } from './ui/index.ts'
+import { Banner, Button, DashboardSkeleton, Logo, SegmentedControl } from './ui/index.ts'
 import { Modal } from './ui/Modal.tsx'
 import { cx } from './ui/cx.ts'
 
@@ -45,7 +45,9 @@ export default function App() {
     setUser(null)
   }
   return (
-    <AnimatePresence>
+    <>
+      <Aura />
+      <AnimatePresence>
       {user ? (
         <motion.div key="app" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4, delay: 0.15 }}>
           <Main user={user} onLock={lock} />
@@ -53,7 +55,19 @@ export default function App() {
       ) : (
         <LockScreen key="lock" onUnlock={unlock} />
       )}
-    </AnimatePresence>
+      </AnimatePresence>
+    </>
+  )
+}
+
+/** The page's background: three slow blurred auras behind every screen (see .aura in index.css). */
+function Aura() {
+  return (
+    <div className="aura" aria-hidden="true">
+      <span />
+      <span />
+      <span />
+    </div>
   )
 }
 
@@ -126,16 +140,16 @@ function Main({ user, onLock }: { user: string; onLock(): void }) {
       <AnimatePresence mode="wait" onExitComplete={() => window.scrollTo(0, 0)}>
         {!k.config ? (
           !k.loadError && (
-            <motion.p key="loading" {...PAGE} className="mt-24 text-center text-sm text-ink-subtle">
-              Loading…
-            </motion.p>
+            <motion.div key="loading" {...PAGE}>
+              <DashboardSkeleton />
+            </motion.div>
           )
         ) : !stage || !asset ? (
           <motion.main key="landing" {...PAGE}>
             <Landing config={k.config} busy={k.busy === 'start'} onStart={startSession} />
           </motion.main>
         ) : (
-          <motion.main key={`session-${stage.shown.sessionId}`} {...PAGE} className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+          <motion.main key={`session-${stage.shown.sessionId}`} {...PAGE} className="mx-auto max-w-6xl px-4 py-5 sm:px-6">
             <Dashboard k={k} stage={stage} config={k.config} now={now} mocks={mocks} />
             <DetailsModal open={details} onClose={() => setDetails(false)} session={stage.shown} asset={asset} />
           </motion.main>
@@ -145,8 +159,9 @@ function Main({ user, onLock }: { user: string; onLock(): void }) {
   )
 }
 
+/** A fact about the connection, as quiet type (no pill). */
 function Chip({ children }: { children: ReactNode }) {
-  return <span className="rounded-full bg-surface-muted px-2.5 py-1 text-[0.6875rem] font-medium text-ink-muted">{children}</span>
+  return <span className="text-xs font-medium tracking-wide text-ink-subtle">{children}</span>
 }
 
 function TopBar({
@@ -165,10 +180,11 @@ function TopBar({
   onStart(asset: AssetId): void
 }) {
   return (
-    <header className="glass sticky top-0 z-40 border-x-0 border-t-0 !bg-white/60">
-      <div className="mx-auto flex min-h-14 max-w-6xl flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-2 sm:px-6">
-        <div className="flex flex-wrap items-center gap-2.5">
-          <h1 className="mr-2 text-[1.0625rem] font-medium tracking-tight">Keystone</h1>
+    <header className="sticky top-3 z-40 px-3 sm:px-6">
+      <div className="glass mx-auto flex min-h-14 max-w-6xl flex-wrap items-center justify-between gap-x-6 gap-y-2 rounded-full px-5 py-2 shadow-card sm:px-6">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <Logo size={26} />
+          <h1 className="text-[1.0625rem] font-medium tracking-tight">Keystone</h1>
           {mocks ? <Chip>Demo data · nothing sent to Stellar</Chip> : <Chip>Testnet</Chip>}
           {/* §4: the public demo (SIGNER=keeper) must say that the keeper signs for the fund. */}
           {k.config?.signerMode === 'keeper' && <Chip>Public demo · keeper signs</Chip>}
@@ -232,10 +248,10 @@ const TOAST: Record<VaultStatus, { title: string; description: string }> = {
 }
 
 /** Panels rise in once, 60 ms apart, when a session opens. */
-function Reveal({ index, opening, children }: { index: number; opening: boolean; children: ReactNode }) {
+function Reveal({ index, opening, children, className }: { index: number; opening: boolean; children: ReactNode; className?: string }) {
   return (
     <motion.div
-      className="min-w-0"
+      className={cx('gpu min-w-0', className)}
       initial={opening ? { opacity: 0, y: 12 } : false}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, delay: opening ? (index * CHOREO.openingStaggerMs) / 1000 : 0, ease: [0.16, 1, 0.3, 1] }}
@@ -271,8 +287,8 @@ function Dashboard({ k, stage, config, now, mocks }: DashboardProps) {
   }, [stage.status, statusVisible])
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
-      <div className="grid min-w-0 content-start gap-5">
+    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="grid min-w-0 content-start gap-4">
         <Reveal index={0} opening={stage.opening}>
           <div ref={statusRef}>
             <StatusCard
@@ -305,13 +321,17 @@ function Dashboard({ k, stage, config, now, mocks }: DashboardProps) {
           />
         </Reveal>
       </div>
-      <aside className="grid min-w-0 content-start gap-5">
-        <Reveal index={3} opening={stage.opening}>
-          <MarketCard session={session} asset={asset} opening={stage.opening} />
-        </Reveal>
-        <Reveal index={4} opening={stage.opening}>
-          <ActivityFeed activity={k.activity} />
-        </Reveal>
+      {/* The right column never sets the row's height: it fills what the left column needs, and the
+          activity list scrolls inside it, so both columns end on the same line. */}
+      <aside className="relative min-w-0 lg:min-h-[34rem]">
+        <div className="flex min-h-0 flex-col gap-4 lg:absolute lg:inset-0">
+          <Reveal index={3} opening={stage.opening} className="shrink-0">
+            <MarketCard session={session} asset={asset} opening={stage.opening} />
+          </Reveal>
+          <Reveal index={4} opening={stage.opening} className="flex min-h-0 flex-1 flex-col">
+            <ActivityFeed activity={k.activity} />
+          </Reveal>
+        </div>
       </aside>
       {toast &&
         createPortal(
@@ -319,8 +339,8 @@ function Dashboard({ k, stage, config, now, mocks }: DashboardProps) {
           key={toast}
           title={TOAST[toast].title}
           description={TOAST[toast].description}
-          background="rgba(255, 255, 255, 0.85)"
-          color="#1d1d1f"
+          background="rgba(255, 255, 255, 0.8)"
+          color="#1c1c1e"
           fuseColor={toast === 'active' ? '#1d7f3a' : '#c9372c'}
           duration={5000}
           onClose={() => setToast(null)}

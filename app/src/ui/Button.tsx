@@ -12,9 +12,9 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const VARIANTS: Record<Variant, string> = {
   // Black primary, Apple style; blue stays reserved for on-chain proof.
-  primary: 'bg-ink text-white enabled:hover:bg-ink-hover',
-  secondary: 'glass text-ink enabled:hover:bg-white',
-  sim: 'bg-surface-muted text-ink enabled:hover:bg-black/10',
+  primary: 'bg-ink text-white shadow-[0_8px_24px_-8px_rgba(0,0,0,0.45)] enabled:hover:bg-ink-hover',
+  secondary: 'glass text-ink enabled:hover:bg-white/60',
+  sim: 'glass text-ink enabled:hover:bg-white/60',
   danger: 'bg-danger text-white enabled:hover:bg-danger-hover',
 }
 
@@ -49,10 +49,11 @@ export function Button({
       )}
     >
       {busy && (
-        <span
-          aria-hidden="true"
-          className="size-3.5 rounded-full border-2 border-current border-r-transparent motion-safe:animate-spin"
-        />
+        <span aria-hidden="true" className="flex gap-1">
+          {[0, 1, 2].map((i) => (
+            <span key={i} className="size-1 rounded-full bg-current motion-safe:animate-dot" style={{ animationDelay: `${i * 0.15}s` }} />
+          ))}
+        </span>
       )}
       {children}
     </motion.button>

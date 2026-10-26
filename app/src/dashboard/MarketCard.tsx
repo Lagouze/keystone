@@ -12,7 +12,7 @@ export function MarketCard({ session, asset, opening }: { session: SessionState;
   const cashKept = Number(valueAfterHaircut(vault.lockedUnits, asset.decimals, margin.unitPriceEur, margin.haircutPct))
 
   return (
-    <Card title="Market" description="Simulated">
+    <Card title="Market" description="Simulated" className="min-h-56">
       <dl className="grid gap-5">
         <div>
           <dt className="label-caps">Fund P&amp;L</dt>

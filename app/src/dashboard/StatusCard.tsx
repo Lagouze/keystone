@@ -63,36 +63,35 @@ export function StatusCard(props: StatusCardProps) {
 
   return (
     <Card tone={tone} starCapable star={stage.halo}>
-      <div className="grid items-start gap-6 sm:grid-cols-[minmax(0,1fr)_auto]">
-        <div className="flex flex-col items-start gap-2.5">
-          {stage.status !== 'active' && (
-            <StatusPill status={stage.status} label={<FlapLabel text={STATUS_WORD[stage.status]} />} />
-          )}
-          <h2 className="text-3xl font-medium tracking-tight sm:text-4xl">{headline}</h2>
-          <p className="text-[0.9375rem] text-ink-muted">{detail}</p>
-        </div>
-        {callOpen && stage.countdown && (
-          <motion.div
-            className="flex flex-col items-end gap-1"
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.2 }}
-          >
-            <span className="label-caps">Time left</span>
-            <span className="text-5xl font-light leading-none text-warning-ink">
-              <Countdown seconds={secondsLeft} />
-            </span>
-          </motion.div>
+      <div className="flex min-h-24 flex-col items-start gap-3">
+        {stage.status !== 'active' && (
+          <StatusPill status={stage.status} label={<FlapLabel text={STATUS_WORD[stage.status]} />} />
         )}
+        {/* The countdown sits on the title's line: one glance, less height. */}
+        <div className="flex w-full flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+          <h2 className="text-3xl font-medium tracking-tight sm:text-4xl">{headline}</h2>
+          {callOpen && stage.countdown && (
+            <motion.span
+              className="text-4xl font-light leading-none tabular-nums text-warning-ink sm:text-5xl"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.2 }}
+              aria-label="Time left"
+            >
+              <Countdown seconds={secondsLeft} />
+            </motion.span>
+          )}
+        </div>
+        <p className="text-[0.9375rem] text-ink-muted">{detail}</p>
       </div>
 
       {stage.transfer && stage.transferUnits && (
         <div className="relative mt-6 flex h-11 items-center justify-between text-sm" aria-hidden="true">
-          <span className="rounded-full bg-surface-muted px-3.5 py-1.5">Vault</span>
-          <span className="absolute inset-x-24 top-1/2 border-t border-dashed border-line-strong" />
-          <span className="rounded-full bg-surface-muted px-3.5 py-1.5">Bank</span>
+          <span className="text-ink-muted">Vault</span>
+          <span className="absolute inset-x-16 top-1/2 border-t border-dashed border-line-strong" />
+          <span className="text-ink-muted">Bank</span>
           <motion.span
-            className="absolute top-2 whitespace-nowrap rounded-full bg-danger px-3 py-1 text-xs font-medium text-white"
+            className="absolute top-2.5 whitespace-nowrap text-sm font-medium text-danger"
             initial={{ left: '4.5rem', opacity: 0 }}
             animate={{ left: 'calc(100% - 10rem)', opacity: 1 }}
             transition={{ duration: CHOREO.transferMs / 1000, ease: [0.8, 0.05, 0.2, 0.95] }}
