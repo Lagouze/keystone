@@ -3,6 +3,7 @@ import { motion, useReducedMotion, useScroll, useTransform, type MotionValue } f
 import type { AssetId, KeystoneConfig } from '@keystone/shared'
 import { formatEur } from '../lib/format.ts'
 import { Button, Card, SegmentedControl } from '../ui/index.ts'
+import { MarketAdvisor } from './MarketAdvisor.tsx'
 
 const STEPS = [
   { title: 'Lock', text: 'The fund posts tokens it already holds. The vault locks what the margin needs.' },
@@ -143,6 +144,7 @@ export function Landing({
                 {info.label} · €{formatEur(info.unitPriceEur)} (simulated) · haircut {info.haircutPct}%
               </p>
             )}
+            <MarketAdvisor />
             <Button className="mt-6 w-full" variant="primary" busy={busy} onClick={() => onStart(asset)}>
               {busy ? 'Deploying the vault…' : 'Start'}
             </Button>

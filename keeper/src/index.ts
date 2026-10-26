@@ -7,6 +7,7 @@ import { Keypair } from "vault-client";
 import type { SignerMode } from "@keystone/shared";
 import { buildConfig } from "./config.ts";
 import { getEuribor } from "./euribor.ts";
+import { createMarketProvider } from './market-data.ts';
 import { FakeVaultClient } from "./fake-vault-client.ts";
 import { loadScenarioFile } from "./scenarios.ts";
 import { buildServer, isLocalOrigin } from "./server.ts";
@@ -65,6 +66,10 @@ const sessions = new SessionManager({
   euribor: () => getEuribor({ cachePath: join(keeperDir, "data", "euribor-cache.json") }),
 });
 const app = buildServer(config, sessions, {
+  market: createMarketProvider({
+    cachePath: join(keeperDir, 'data', 'market-cache.local.json'),
+    vixEnabled: process.env.MARKET_VIX_ENABLED === 'true',
+  }),
   allowedOrigin: (o) => isLocalOrigin(o) || extraOrigins.includes(o),
   // a hosted deployment adds its own host names here
   allowedHost: (h) => /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(h) || extraOrigins.some((o) => new URL(o).host === h),

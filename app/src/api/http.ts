@@ -1,6 +1,18 @@
-import type { ActivityEvent, ApiError, AssetId, KeystoneConfig, SessionState } from '@keystone/shared'
+import type { ActivityEvent, ApiError, AssetId, KeystoneConfig, MarketSnapshot, SessionState } from '@keystone/shared'
 import type { KeeperClient, StreamListener } from './client.ts'
 import { KeystoneError } from './errors.ts'
+
+/** Advisor deliberately uses only this GET, even while session actions run in mock mode. */
+export async function getMarketSnapshot(baseUrl: string, signal: AbortSignal): Promise<MarketSnapshot> {
+  const response = await fetch(`${baseUrl}/market-advisor`, { method: 'GET', signal })
+  if (!response.ok) throw new Error('Market provider unavailable.')
+  const data = await response.json() as MarketSnapshot
+  const ids = ['vix', 'sovereignVol', 'euribor3m', 'sovereign2y', 'estr']
+  const outcomes = ['KMMF potentially preferable', 'KBOND potentially preferable', 'No clear preference', 'Insufficient market data']
+  if (!data || !Array.isArray(data.metrics) || data.metrics.length !== 5 || !ids.every((id) => data.metrics.some((m) => m.id === id))
+    || !data.advice || !outcomes.includes(data.advice.outcome) || !Array.isArray(data.advice.criteria) || !Array.isArray(data.advice.limits)) throw new Error('Invalid market response.')
+  return data
+}
 
 /** Client of the real keeper: REST routes and the SSE stream of docs/interfaces.md section 4. */
 export function createHttpClient(baseUrl: string): KeeperClient {
