@@ -36,7 +36,7 @@ Keystone does not promise a return, does not remove the need for cash entirely, 
 
 ## 4. Live demo
 
-After signing in, every page load opens the animated landing, including when the shared keeper already has a session. **Resume session** opens that dashboard; **Home** returns to the landing. These buttons only change the displayed page: they do not create, reset or close a vault, and they send no write request. Starting a new session remains an explicit action.
+After signing in, every page load opens the animated landing, including when the shared keeper already has a session. **Reprendre la session** or **Dashboard** opens that dashboard; **Accueil** returns to the landing. These buttons only change the displayed page: they do not create, reset or close a vault, and they send no write request. Starting a new session remains an explicit action.
 
 | What | Where |
 | --- | --- |
