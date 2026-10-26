@@ -14,7 +14,7 @@ interface SegmentedControlProps<T extends string> {
 export function SegmentedControl<T extends string>({ label, options, value, onChange, className }: SegmentedControlProps<T>) {
   const id = useId()
   return (
-    <div role="group" aria-label={label} className={cx('glass inline-flex rounded-full p-1', className)}>
+    <div role="group" aria-label={label} className={cx('glass-lite inline-flex rounded-full p-1', className)}>
       {options.map((option) => {
         const selected = option.value === value
         return (

@@ -2,13 +2,15 @@ import type { ReactNode } from 'react'
 import StarBorder from './bits/StarBorder.tsx'
 import { cx } from './cx.ts'
 
-type Tone = 'default' | 'call' | 'default-settled'
+type Tone = 'default' | 'call' | 'default-settled' | 'bare'
 
 // Frosted glass panels. Only the margin-call panel is tinted (sober red), like Flighty's single alert.
 const TONES: Record<Tone, string> = {
   default: 'glass shadow-card',
   call: 'glass !bg-warning-tint shadow-call',
   'default-settled': 'glass shadow-card',
+  // No panel of its own: a section of a larger glass panel, set apart by whitespace.
+  bare: '',
 }
 
 interface CardProps {
@@ -54,6 +56,7 @@ export function Card({
 
   if (starCapable) {
     const lit = star && tone === 'call'
+    const bare = tone === 'bare'
     return (
       <StarBorder
         as="section"
@@ -65,14 +68,15 @@ export function Card({
         trailLength={lit ? 0.25 : 0}
         color={lit ? '#c0362b' : 'transparent'}
         trailColor={lit ? '#c0362b' : 'transparent'}
-        borderColor={tone === 'call' ? 'rgba(192, 54, 43, 0.35)' : 'rgba(255, 255, 255, 0.45)'}
-        backgroundColor={tone === 'call' ? 'rgba(255, 235, 233, 0.5)' : 'rgba(255, 255, 255, 0.3)'}
+        borderColor={tone === 'call' ? 'rgba(192, 54, 43, 0.35)' : bare ? 'transparent' : 'rgba(255, 255, 255, 0.45)'}
+        backgroundColor={tone === 'call' ? 'rgba(255, 235, 233, 0.5)' : bare ? 'transparent' : 'rgba(255, 255, 255, 0.3)'}
         textColor="#1c1c1e"
         hover="none"
         clickPulse={false}
         className={cx(
-          '!block !w-full !items-stretch !p-7 !text-left !leading-normal !font-normal backdrop-blur-2xl backdrop-saturate-[1.7] transition-shadow duration-200 sm:!p-8',
-          tone === 'call' ? 'shadow-call' : 'shadow-card',
+          '!block !w-full !items-stretch !text-left !leading-normal !font-normal transition-shadow duration-200',
+          bare ? '!p-0' : '!p-7 backdrop-blur-lg backdrop-saturate-150 sm:!p-8',
+          tone === 'call' ? 'shadow-call' : bare ? '' : 'shadow-card',
           className,
         )}
       >
@@ -84,7 +88,8 @@ export function Card({
   return (
     <section
       className={cx(
-        'rounded-card p-7 transition-[background-color,box-shadow] duration-200 ease-std sm:p-8',
+        'transition-[background-color,box-shadow] duration-200 ease-std',
+        tone === 'bare' ? '' : 'rounded-card p-7 sm:p-8',
         TONES[tone],
         className,
       )}

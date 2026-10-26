@@ -53,7 +53,7 @@ export function ActionsCard(props: ActionsCardProps) {
   }
 
   return (
-    <Card title="Controls" className="min-h-60">
+    <Card tone="bare" title="Controls" className="min-h-60">
       <div className="grid gap-8">
         <section aria-label="Rate shocks" className="grid gap-3">
           <p className="text-sm text-ink-subtle">Move rates · simulated Euribor shock</p>
@@ -72,7 +72,7 @@ export function ActionsCard(props: ActionsCardProps) {
                     props.onShock(bp)
                   }}
                   // Icon tiles of the references: a soft glass tile, a trend arrow, the shock under it.
-                  className="glass flex flex-col items-center gap-2 rounded-3xl px-2 py-4 text-ink shadow-card transition-colors enabled:hover:bg-white/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-chain disabled:cursor-not-allowed disabled:opacity-45"
+                  className="glass-lite flex flex-col items-center gap-2 rounded-3xl px-2 py-4 text-ink shadow-card transition-colors enabled:hover:bg-white/75 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-chain disabled:cursor-not-allowed disabled:opacity-45"
                   initial={{ opacity: 0, y: 14 }}
                   animate={{ opacity: 1, y: i % 2 ? 4 : 0 }}
                   whileHover={off ? undefined : { y: -4 }}

@@ -25,7 +25,7 @@ export function MarketCard({ session, asset, opening }: { session: SessionState;
   }, [session.sessionId, session.updatedAt, mtm])
 
   return (
-    <Card title="Market" description="Simulated" className="min-h-56">
+    <Card tone="bare" title="Market" description="Simulated" className="min-h-52">
       <dl className="grid gap-5">
         <div>
           <dt className="label-caps">Fund P&amp;L</dt>

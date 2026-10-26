@@ -64,7 +64,7 @@ export function Journey() {
               transition={{ duration: 0.7, delay: i * 0.12, ease: [0.16, 1, 0.3, 1] }}
             >
               <div className="mb-6 flex flex-col items-center gap-3 max-md:hidden">
-                <span className="glass rounded-full px-4 py-1.5 text-sm font-medium">{m.when}</span>
+                <span className="glass-lite rounded-full px-4 py-1.5 text-sm font-medium">{m.when}</span>
                 <span className="-mb-[3px] size-2.5 rounded-full border border-ink/40 bg-white/80" aria-hidden="true" />
               </div>
               <div className="glass h-full rounded-[2rem] p-7 shadow-card">

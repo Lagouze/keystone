@@ -159,11 +159,13 @@ export function useKeystone() {
 }
 
 /** Current time, refreshed for countdowns. */
-export function useNow(intervalMs = 250): number {
+export function useNow(intervalMs = 250, enabled = true): number {
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
+    if (!enabled) return
+    setNow(Date.now())
     const timer = window.setInterval(() => setNow(Date.now()), intervalMs)
     return () => window.clearInterval(timer)
-  }, [intervalMs])
+  }, [intervalMs, enabled])
   return now
 }

@@ -19,7 +19,7 @@ export function VaultCard({ session, asset, duration }: VaultCardProps) {
   const notPosted = vault.status !== 'defaulted' && session.margin.requiredUnits !== vault.requiredUnits
 
   return (
-    <Card title={`Vault · ${asset.code}`} className="min-h-72">
+    <Card tone="bare" title={`Vault · ${asset.code}`}>
       <div className="grid gap-8">
         <dl className="grid grid-cols-3 gap-6">
           <Stat label="Free" value={roll(vault.availableUnits)} />

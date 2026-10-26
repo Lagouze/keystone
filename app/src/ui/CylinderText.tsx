@@ -14,11 +14,10 @@ function Line({ index, count, progress, line }: { index: number; count: number; 
   const angle = useTransform(t, (v) => (index - v) * ANGLE)
   const transform = useTransform(angle, (a) => `rotateX(${-a}deg) translateZ(${RADIUS}px)`)
   const opacity = useTransform(angle, (a) => Math.max(0, 1 - Math.abs(a) / 62))
-  const blur = useTransform(angle, (a) => `blur(${Math.min(6, Math.abs(a) / 12)}px)`)
   return (
     <motion.div
       className="absolute inset-x-0 top-1/2 -mt-24 px-8 [backface-visibility:hidden]"
-      style={{ transform, opacity, filter: blur, transformOrigin: '50% 50%' }}
+      style={{ transform, opacity, transformOrigin: '50% 50%' }}
     >
       <h3 className="text-5xl font-semibold uppercase tracking-tight sm:text-7xl">{line.title}</h3>
       <p className="mt-3 max-w-md text-lg text-ink-muted">{line.text}</p>

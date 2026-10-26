@@ -2,6 +2,7 @@ import { motion } from 'motion/react'
 import type { AssetInfo, KeystoneConfig, VaultStatus } from '@keystone/shared'
 import { formatUnits, formatUtcTime } from '../lib/format.ts'
 import { CHOREO, type Stage } from '../state/useChoreography.ts'
+import { useNow } from '../state/useKeystone.ts'
 import type { Action } from '../state/useKeystone.ts'
 import { Button, Card, StatusPill } from '../ui/index.ts'
 import { Countdown, FlapLabel, HoldToSettle } from '../ui/motion.tsx'
@@ -13,7 +14,6 @@ interface StatusCardProps {
   signerMode: KeystoneConfig['signerMode']
   busy: Action | null
   step: string | null
-  now: number
   onDeposit(input: string): void
   onSettle(): void
 }
@@ -29,7 +29,9 @@ const STATUS_WORD: Record<VaultStatus, string> = {
  * appears when something is wrong (margin call, default).
  */
 export function StatusCard(props: StatusCardProps) {
-  const { stage, asset, busy, now } = props
+  const { stage, asset, busy } = props
+  // The clock only ticks while a margin call is open: no re-render of the page otherwise.
+  const now = useNow(250, stage.shown.vault.status === 'margin_call')
   const session = stage.shown
   const { vault } = session
   const fmt = (units: string) => formatUnits(units, asset.decimals)
@@ -58,11 +60,12 @@ export function StatusCard(props: StatusCardProps) {
     detail = `${fmt(vault.lockedUnits)} ${code} locked · ${fmt(vault.availableUnits)} ${code} free · no cash set aside.`
   }
 
-  const tone = stage.halo ? 'call' : stage.settled ? 'default-settled' : 'default'
+  // Only a margin call or a settled default is a panel; the rest is plain type on the page.
+  const tone = stage.halo ? 'call' : stage.settled ? 'default-settled' : 'bare'
   const callOpen = vault.status === 'margin_call'
 
   return (
-    <Card tone={tone} starCapable star={stage.halo}>
+    <Card tone={tone} starCapable star={stage.halo} className={tone === 'bare' ? 'px-2' : ''}>
       <div className="flex min-h-24 flex-col items-start gap-3">
         {stage.status !== 'active' && (
           <StatusPill status={stage.status} label={<FlapLabel text={STATUS_WORD[stage.status]} />} />

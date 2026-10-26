@@ -13,8 +13,8 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 const VARIANTS: Record<Variant, string> = {
   // Black primary, Apple style; blue stays reserved for on-chain proof.
   primary: 'bg-ink text-white shadow-[0_8px_24px_-8px_rgba(0,0,0,0.45)] enabled:hover:bg-ink-hover',
-  secondary: 'glass text-ink enabled:hover:bg-white/60',
-  sim: 'glass text-ink enabled:hover:bg-white/60',
+  secondary: 'glass-lite text-ink enabled:hover:bg-white/75',
+  sim: 'glass-lite text-ink enabled:hover:bg-white/75',
   danger: 'bg-danger text-white enabled:hover:bg-danger-hover',
 }
 

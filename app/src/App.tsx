@@ -14,7 +14,7 @@ import { MarketCard } from './dashboard/MarketCard.tsx'
 import { StatusCard } from './dashboard/StatusCard.tsx'
 import { VaultCard } from './dashboard/VaultCard.tsx'
 import { CHOREO, useChoreography, type Stage } from './state/useChoreography.ts'
-import { useKeystone, useNow } from './state/useKeystone.ts'
+import { useKeystone } from './state/useKeystone.ts'
 import SwipeToast from './ui/bits/SwipeToast.tsx'
 import { Banner, Button, DashboardSkeleton, Logo, SegmentedControl } from './ui/index.ts'
 import { Modal } from './ui/Modal.tsx'
@@ -73,7 +73,6 @@ function Aura() {
 
 function Main({ user, onLock }: { user: string; onLock(): void }) {
   const k = useKeystone()
-  const now = useNow()
   // Set when the user starts a session from this page: that first session opens with the stagger.
   const [startedHere, setStartedHere] = useState(false)
   const stage = useChoreography(k.session, startedHere)
@@ -150,7 +149,7 @@ function Main({ user, onLock }: { user: string; onLock(): void }) {
           </motion.main>
         ) : (
           <motion.main key={`session-${stage.shown.sessionId}`} {...PAGE} className="mx-auto max-w-6xl px-4 py-5 sm:px-6">
-            <Dashboard k={k} stage={stage} config={k.config} now={now} mocks={mocks} />
+            <Dashboard k={k} stage={stage} config={k.config} mocks={mocks} />
             <DetailsModal open={details} onClose={() => setDetails(false)} session={stage.shown} asset={asset} />
           </motion.main>
         )}
@@ -220,7 +219,7 @@ function TopBar({
             onClick={onLock}
             title={`Signed in as ${user}`}
             aria-label={`Lock (signed in as ${user})`}
-            className="glass flex size-9 items-center justify-center rounded-full text-ink-muted transition-colors hover:text-ink focus-visible:outline-2 focus-visible:outline-chain"
+            className="glass-lite flex size-9 items-center justify-center rounded-full text-ink-muted transition-colors hover:text-ink focus-visible:outline-2 focus-visible:outline-chain"
           >
             <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
               <rect x="2.5" y="6" width="9" height="6.5" rx="1.6" fill="currentColor" />
@@ -237,7 +236,6 @@ interface DashboardProps {
   k: KeystoneHook
   stage: Stage
   config: KeystoneConfig
-  now: number
   mocks: boolean
 }
 
@@ -261,7 +259,7 @@ function Reveal({ index, opening, children, className }: { index: number; openin
   )
 }
 
-function Dashboard({ k, stage, config, now, mocks }: DashboardProps) {
+function Dashboard({ k, stage, config, mocks }: DashboardProps) {
   const session = stage.shown
   const asset = assetOf(config, session)
 
@@ -297,39 +295,43 @@ function Dashboard({ k, stage, config, now, mocks }: DashboardProps) {
               signerMode={config.signerMode}
               busy={k.busy}
               step={k.step}
-              now={now}
               onDeposit={k.deposit}
               onSettle={k.settleDefault}
             />
           </div>
         </Reveal>
+        {/* One frosted panel for the vault and the controls: two sections, set apart by whitespace. */}
         <Reveal index={1} opening={stage.opening}>
-          <VaultCard session={session} asset={asset} duration={stage.figuresDuration} />
-        </Reveal>
-        <Reveal index={2} opening={stage.opening}>
-          <ActionsCard
-            session={session}
-            asset={asset}
-            signerMode={config.signerMode}
-            mocks={mocks}
-            busy={k.busy}
-            step={k.step}
-            sequencing={stage.sequencing}
-            onDeposit={k.deposit}
-            onWithdraw={k.withdraw}
-            onShock={k.rateShock}
-          />
+          <div className="glass grid gap-9 rounded-card p-7 shadow-card sm:p-8">
+            <VaultCard session={session} asset={asset} duration={stage.figuresDuration} />
+            <div className="border-t border-line-soft pt-9">
+              <ActionsCard
+                session={session}
+                asset={asset}
+                signerMode={config.signerMode}
+                mocks={mocks}
+                busy={k.busy}
+                step={k.step}
+                sequencing={stage.sequencing}
+                onDeposit={k.deposit}
+                onWithdraw={k.withdraw}
+                onShock={k.rateShock}
+              />
+            </div>
+          </div>
         </Reveal>
       </div>
       {/* The right column never sets the row's height: it fills what the left column needs, and the
           activity list scrolls inside it, so both columns end on the same line. */}
       <aside className="relative min-w-0 lg:min-h-[34rem]">
-        <div className="flex min-h-0 flex-col gap-4 lg:absolute lg:inset-0">
-          <Reveal index={3} opening={stage.opening} className="shrink-0">
-            <MarketCard session={session} asset={asset} opening={stage.opening} />
-          </Reveal>
-          <Reveal index={4} opening={stage.opening} className="flex min-h-0 flex-1 flex-col">
-            <ActivityFeed activity={k.activity} />
+        <div className="flex min-h-0 flex-col lg:absolute lg:inset-0">
+          <Reveal index={3} opening={stage.opening} className="flex min-h-0 flex-1 flex-col">
+            <div className="glass flex min-h-0 flex-1 flex-col gap-9 rounded-card p-7 shadow-card sm:p-8">
+              <MarketCard session={session} asset={asset} opening={stage.opening} />
+              <div className="flex min-h-0 flex-1 flex-col border-t border-line-soft pt-9">
+                <ActivityFeed activity={k.activity} />
+              </div>
+            </div>
           </Reveal>
         </div>
       </aside>
