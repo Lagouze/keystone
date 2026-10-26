@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Keystone pitch scenes</title>
+<!--
+  Animated schemas for the 3-minute pitch video (see docs/pitch-video.md, section 5).
+  Self-contained: no network, no library. 1920x1080 stage scaled to the window.
+
+  ?scene=1..6   one scene, plays its own animation
+  ?auto         S1 -> S2 -> S3 (0:00 -> 0:50)
+  ?auto=2       S4 -> S5 (0:50 -> 1:25)
+  ?safe         shows the face-cam safe zone (bottom right, 18 % of the width): keep it empty
+  ?debug        shows a clock
+  Keys: Space / Right = next scene, Left = previous, R = restart, F = full screen
+-->
+<style>
+  :root {
+    --canvas: #eef0f5; --ink: #1c1c1e; --muted: #48484d; --chain: #0a5cc2; --chain-soft: rgba(10, 92, 194, .12);
+    --danger: #a92b21; --danger-soft: rgba(169, 43, 33, .12); --success: #1a7a37; --sim: #55555a;
+    --out: cubic-bezier(.16, 1, .3, 1);
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { height: 100%; background: #0d0d10; overflow: hidden; }
+  body { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; color: var(--ink); }
+  #stage { position: absolute; left: 50%; top: 50%; width: 1920px; height: 1080px; transform-origin: 0 0; background: var(--canvas); overflow: hidden; }
+
+  /* the aura of the product: three slow soft blobs */
+  .aura span { position: absolute; border-radius: 50%; filter: blur(110px); opacity: .75; }
+  .aura span:nth-child(1) { width: 900px; height: 900px; left: -200px; top: -250px; background: #c9d2f7; animation: drift1 26s ease-in-out infinite alternate; }
+  .aura span:nth-child(2) { width: 800px; height: 800px; right: -150px; top: 80px; background: #e3d4f4; animation: drift2 32s ease-in-out infinite alternate; }
+  .aura span:nth-child(3) { width: 1000px; height: 700px; left: 400px; bottom: -350px; background: #d2efe4; animation: drift3 38s ease-in-out infinite alternate; }
+  @keyframes drift1 { to { transform: translate(180px, 120px); } }
+  @keyframes drift2 { to { transform: translate(-160px, 160px); } }
+  @keyframes drift3 { to { transform: translate(-220px, -90px); } }
+
+  .scene { position: absolute; inset: 0; opacity: 0; pointer-events: none; transition: opacity .6s ease; }
+  .scene.active { opacity: 1; }
+  .scene.under { opacity: 1; } /* S4 stays visible under the S5 chips */
+
+  .glass { background: rgba(255, 255, 255, .5); border-radius: 36px; box-shadow: 0 30px 80px -30px rgba(40, 40, 70, .35), inset 0 1px 0 rgba(255, 255, 255, .7); backdrop-filter: blur(20px); }
+  .abs { position: absolute; }
+  .hide { opacity: 0; transform: translateY(26px) scale(.98); transition: opacity .8s var(--out), transform .8s var(--out); }
+  .hide.on { opacity: 1; transform: none; }
+  .title { left: 0; right: 0; top: 78px; text-align: center; font-size: 60px; font-weight: 500; letter-spacing: -.02em; }
+  .sub { left: 0; right: 0; text-align: center; font-size: 42px; color: var(--muted); }
+  .label { font-size: 22px; letter-spacing: .22em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+  .big { font-size: 66px; font-weight: 500; letter-spacing: -.02em; }
+  .tag { display: inline-block; padding: 10px 26px; border-radius: 999px; background: rgba(255, 255, 255, .6); font-size: 30px; font-weight: 500; box-shadow: 0 10px 30px -14px rgba(40, 40, 70, .4); }
+  .center { display: flex; align-items: center; justify-content: center; flex-direction: column; text-align: center; }
+
+  /* ---------- S1 ---------- */
+  #s1 .fund, #s1 .bank { top: 300px; width: 520px; height: 380px; }
+  #s1 .fund { left: 220px; } #s1 .bank { left: 1180px; }
+  #s1 .fund.red { box-shadow: 0 30px 90px -20px rgba(169, 43, 33, .55), inset 0 0 0 3px rgba(169, 43, 33, .35); transition: box-shadow 1s ease; }
+  #s1 svg.arrows { left: 740px; top: 360px; width: 440px; height: 260px; }
+  #s1 .draw path { stroke-dasharray: 1; stroke-dashoffset: 1; transition: stroke-dashoffset 1.2s var(--out); }
+  #s1 .draw.on path { stroke-dashoffset: 0; }
+  #s1 .alabel { width: 440px; left: 740px; text-align: center; font-size: 26px; color: var(--muted); }
+  #s1 .chart { left: 640px; top: 720px; width: 640px; height: 260px; }
+  #s1 .chart path.line { stroke-dasharray: 1; stroke-dashoffset: 1; transition: stroke-dashoffset 2.4s cubic-bezier(.6, 0, .3, 1); }
+  #s1 .chart.on path.line { stroke-dashoffset: 0; }
+  #s1 .bp { left: 1180px; top: 790px; }
+  #s1 .call { left: 1180px; top: 700px; width: 520px; text-align: center; }
+  .pill-red { display: inline-block; padding: 14px 36px; border-radius: 999px; background: var(--danger); color: #fff; font-size: 36px; font-weight: 600; letter-spacing: .08em; position: relative; }
+  .ripple { position: absolute; inset: -8px; border-radius: 999px; border: 3px solid var(--danger); opacity: 0; }
+  .ripple.go { animation: ripple 1.3s ease-out 1; }
+  @keyframes ripple { from { opacity: .8; transform: scale(1); } to { opacity: 0; transform: scale(1.7, 2.2); } }
+
+  /* ---------- S2 ---------- */
+  #s2 .bar { left: 260px; top: 400px; width: 1400px; height: 150px; border-radius: 30px; overflow: hidden; background: rgba(255, 255, 255, .5); box-shadow: inset 0 0 0 2px rgba(60, 60, 67, .12); }
+  #s2 .inv { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: linear-gradient(90deg, #2d9d57, #1a7a37); transition: width 3.6s cubic-bezier(.5, 0, .2, 1); }
+  #s2 .idle { position: absolute; right: 0; top: 0; bottom: 0; width: 32%; background: repeating-linear-gradient(135deg, #b9bac2 0 12px, #d4d5db 12px 24px); opacity: 0; transition: opacity 1s ease; }
+  #s2 .idle.pulse { animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 50% { filter: brightness(1.08) saturate(.8); } }
+  #s2 .cap { width: 650px; font-size: 30px; }
+  #s2 .cap b { display: block; font-size: 84px; font-weight: 500; letter-spacing: -.03em; line-height: 1.1; }
+  #s2 .pills { left: 160px; right: 160px; top: 760px; display: flex; gap: 28px; justify-content: center; flex-wrap: wrap; }
+
+  /* ---------- S3 ---------- */
+  #s3 .chip { width: 520px; height: 190px; left: 170px; padding: 0 36px; display: flex; flex-direction: column; justify-content: center; gap: 6px; }
+  #s3 .chip b { font-size: 60px; font-weight: 600; letter-spacing: -.02em; }
+  #s3 .chip span { font-size: 26px; color: var(--muted); }
+  #s3 .c1 { top: 330px; } #s3 .c2 { top: 570px; }
+  #s3 .spark { position: absolute; width: 14px; height: 14px; border-radius: 50%; background: #3cb371; opacity: 0; }
+  #s3 .vault { left: 1230px; top: 330px; width: 520px; height: 430px; }
+  #s3 .wall { left: 880px; top: 270px; width: 4px; height: 560px; background: repeating-linear-gradient(to bottom, rgba(60, 60, 67, .55) 0 18px, transparent 18px 34px); transition: opacity 1s ease, filter 1s ease, transform 1s ease; }
+  #s3 .q { left: 840px; top: 470px; width: 84px; text-align: center; font-size: 120px; font-weight: 300; color: var(--danger); transition: opacity .6s ease; }
+  #s3 .wall.gone, #s3 .q.gone { opacity: 0; filter: blur(14px); transform: scale(1.4); }
+
+  /* ---------- S4 ---------- */
+  #s4 .node { top: 430px; }
+  #s4 .fund { left: 130px; width: 400px; height: 300px; }
+  #s4 .bank { left: 1390px; width: 400px; height: 300px; }
+  #s4 .vault { left: 640px; top: 400px; width: 640px; height: 440px; padding: 36px 44px; }
+  #s4 .keeper { left: 700px; top: 120px; width: 520px; height: 170px; }
+  #s4 .track { position: relative; margin-top: 90px; height: 56px; border-radius: 28px; background: rgba(60, 60, 67, .12); overflow: hidden; }
+  #s4 .seg { position: absolute; top: 0; bottom: 0; transition: left 1.4s var(--out), width 1.4s var(--out), opacity .8s ease; }
+  #s4 .seg.locked { background: var(--chain); left: 0; width: 0; }
+  #s4 .seg.missing { background: repeating-linear-gradient(135deg, var(--danger) 0 10px, #c9473b 10px 20px); left: 0; width: 0; }
+  #s4 .legend { margin-top: 28px; display: flex; gap: 34px; font-size: 24px; color: var(--muted); }
+  #s4 .legend i { display: inline-block; width: 18px; height: 18px; border-radius: 50%; margin-right: 8px; vertical-align: -2px; }
+  #s4 .ring { left: 1130px; top: 405px; width: 110px; height: 110px; transition: opacity .6s ease; }
+  #s4 .tok { position: absolute; width: 34px; height: 34px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #6fa3ea, var(--chain)); box-shadow: 0 6px 16px -4px rgba(10, 92, 194, .6); opacity: 0; z-index: 5; }
+  #s4 .steps { left: 0; right: 0; top: 930px; display: flex; justify-content: center; gap: 120px; }
+  #s4 .step { display: flex; align-items: center; gap: 18px; font-size: 28px; letter-spacing: .2em; text-transform: uppercase; font-weight: 500; opacity: .35; transition: opacity .6s ease; }
+  #s4 .step i { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--ink); display: inline-block; background: transparent; transition: background .5s ease; }
+  #s4 .step.act { opacity: 1; } #s4 .step.act i { background: var(--ink); }
+  #s4 .note { left: 0; right: 0; top: 860px; text-align: center; font-size: 34px; color: var(--muted); }
+  #s4 .note span { transition: opacity .5s ease; position: absolute; left: 0; right: 0; opacity: 0; }
+  #s4 .note span.on { opacity: 1; }
+  #s4 .lock { left: 1150px; top: 425px; font-size: 64px; opacity: 0; transition: opacity .8s ease, transform .8s var(--out); transform: scale(.6); }
+  #s4 .lock.on { opacity: 1; transform: none; }
+  #s4 .logo-wrap { left: 0; right: 0; top: 260px; text-align: center; transition: transform 1.1s var(--out), opacity .8s ease; }
+  #s4 .logo-wrap.small { transform: translate(-780px, -190px) scale(.32); }
+  svg.logo path { fill: none; stroke: #1c1c1e; stroke-width: 14; stroke-linejoin: miter; stroke-dasharray: 1; stroke-dashoffset: 1; }
+  svg.logo.on path { transition: stroke-dashoffset 2s cubic-bezier(.5, 0, .2, 1); stroke-dashoffset: 0; }
+  svg.logo.on path:nth-child(2) { transition-delay: .15s; } svg.logo.on path:nth-child(3) { transition-delay: .3s; } svg.logo.on path:nth-child(4) { transition-delay: .5s; }
+  .word { font-size: 64px; letter-spacing: .5em; font-weight: 500; margin-left: .5em; }
+  .slogan { font-size: 44px; color: var(--muted); margin-top: 18px; }
+
+  #s4.s5on #note, #s4.s5on #steps { opacity: 0 !important; transition: opacity .5s ease; }
+  /* ---------- S5 ---------- */
+  #s5 .chips { left: 120px; top: 975px; display: flex; gap: 26px; }
+  #s5 .sub { left: 120px; right: auto; text-align: left; top: 900px; font-size: 34px; }
+
+  /* ---------- S6 ---------- */
+  #s6 .urls { left: 0; right: 0; top: 760px; text-align: center; font-size: 46px; font-weight: 500; line-height: 1.5; }
+  #s6 .urls small { display: block; font-size: 26px; color: var(--muted); font-weight: 400; letter-spacing: .12em; text-transform: uppercase; margin-top: 12px; }
+  #s6 .fadeout { position: absolute; inset: 0; background: #000; opacity: 0; transition: opacity 1.4s ease; }
+  #s6 .fadeout.on { opacity: 1; }
+
+  /* helpers */
+  #safe { position: absolute; right: 24px; bottom: 24px; width: 346px; height: 346px; border: 3px dashed rgba(169, 43, 33, .7); border-radius: 50%; display: none; align-items: center; justify-content: center; color: var(--danger); font-size: 22px; z-index: 50; }
+  #clock { position: absolute; left: 24px; top: 20px; font: 28px/1 ui-monospace, Menlo, monospace; color: #888; display: none; z-index: 50; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="aura"><span></span><span></span><span></span></div>
+
+  <!-- S1 : the margin call (0:00 -> 0:12) -->
+  <section class="scene" id="s1">
+    <h1 class="abs title hide" data-t="0.2">A fund. A bank. A €10M swap.</h1>
+    <div class="abs glass fund hide center" data-t="0.5"><div class="label">Fund</div><div class="big" style="margin-top:14px">Pays fixed</div><div style="font-size:28px;color:var(--muted);margin-top:8px">receives Euribor 3M</div></div>
+    <div class="abs glass bank hide center" data-t="0.8"><div class="label">Bank</div><div class="big" style="margin-top:14px">Pays Euribor</div><div style="font-size:28px;color:var(--muted);margin-top:8px">receives fixed</div></div>
+    <svg class="abs arrows draw" viewBox="0 0 440 260" data-t="1.4" data-draw>
+      <g fill="none" stroke="#1c1c1e" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+        <path pathLength="1" d="M10 80 H420 M395 55 L420 80 L395 105" />
+        <path pathLength="1" d="M430 180 H20 M45 155 L20 180 L45 205" />
+      </g>
+    </svg>
+    <div class="abs alabel hide" data-t="1.9" style="top:315px">pays fixed rate</div>
+    <div class="abs alabel hide" data-t="2.1" style="top:640px">pays Euribor 3M</div>
+    <div class="abs tag hide" data-t="2.3" style="left:880px;top:470px;transform-origin:center">€10M · 5 years</div>
+    <svg class="abs chart" viewBox="0 0 640 260" data-t="4.6" data-chart>
+      <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M10 250 H630" stroke="rgba(60,60,67,.25)" stroke-width="2" />
+        <path class="line" pathLength="1" stroke="#1c1c1e" stroke-width="6" d="M10 60 C120 52 210 58 300 70 C400 84 470 150 520 190 C560 215 600 220 630 226" />
+      </g>
+    </svg>
+    <div class="abs tag hide" data-t="7.0" style="left:1010px;top:790px;color:var(--danger)">−100 bp</div>
+    <div class="abs call hide" data-t="8.4"><span class="pill-red">MARGIN CALL<i class="ripple"></i></span></div>
+    <div class="abs hide" data-t="9.6" style="left:1180px;top:800px;width:520px;text-align:left;font-size:34px;color:var(--muted);padding-left:16px">Post more collateral. Today.</div>
+  </section>
+
+  <!-- S2 : idle cash (0:12 -> 0:30) -->
+  <section class="scene" id="s2">
+    <h1 class="abs title hide" data-t="0.2">Cash set aside = cash not invested.</h1>
+    <div class="abs bar hide" data-t="0.4"><div class="inv"></div><div class="idle"></div></div>
+    <div class="abs label hide" data-t="1" style="left:260px;top:350px">The fund's portfolio</div>
+    <div class="abs label hide" data-t="4.2" style="left:260px;top:870px;font-size:20px;letter-spacing:.14em">Illustrative figures</div>
+    <div class="abs cap hide" data-t="4.2" style="left:260px;top:600px"><span style="color:var(--success)">Invested</span><b style="color:var(--success)">+ € <span id="yield">0</span></b></div>
+    <div class="abs cap hide" data-t="4.8" style="left:1010px;top:600px;text-align:right;width:650px"><span style="color:var(--sim)">Cash set aside for margin calls</span><b style="color:var(--sim)">€ 0 earned</b></div>
+    <div class="abs pills" id="pills">
+      <span class="tag hide" data-t="10">Valuations</span><span class="tag hide" data-t="11.5">Notices</span><span class="tag hide" data-t="13">Custody</span><span class="tag hide" data-t="14.5">Disputes</span>
+    </div>
+  </section>
+
+  <!-- S3 : locked outside (0:30 -> 0:50) -->
+  <section class="scene" id="s3">
+    <h1 class="abs title hide" data-t="0.2">The assets are on-chain. The rules are not.</h1>
+    <div class="abs glass chip c1 hide" data-t="0.6"><b>KMMF</b><span>tokenized money-market fund</span></div>
+    <div class="abs glass chip c2 hide" data-t="0.9"><b>KBOND</b><span>tokenized sovereign bond</span></div>
+    <div class="abs glass vault hide center" data-t="1.2"><div style="font-size:90px">🔒</div><div class="label" style="margin-top:10px">Collateral</div><div style="font-size:34px;margin-top:8px">The bank's side</div></div>
+    <div class="abs wall hide" data-t="1.6" id="wall"></div>
+    <div class="abs q hide" data-t="1.8" id="q">?</div>
+    <div class="abs sub hide" data-t="8" style="top:870px;">No simple, enforceable way to post them.</div>
+  </section>
+
+  <!-- S4 : how Keystone works (0:50 -> 1:22) -->
+  <section class="scene" id="s4">
+    <div class="abs logo-wrap" id="logowrap">
+      <svg class="logo" id="logo" width="520" height="350" viewBox="380 380 520 350" style="width:416px;height:280px">
+        <path pathLength="1" d="M540 458.5A243 243 0 0 0 397 680H456A184 184 0 0 1 552 518.4" />
+        <path pathLength="1" d="M740 458.5A243 243 0 0 1 883 680H824A184 184 0 0 0 728 518.4" />
+        <path pathLength="1" d="M544 394.5H736L640 694Z" />
+        <path pathLength="1" d="M556 404L640 452L724 404M640 452V672" />
+      </svg>
+      <div class="word hide" id="word">KEYSTONE</div>
+      <div class="slogan hide" id="slogan">Post tokens, not cash.</div>
+    </div>
+    <div class="abs glass node fund hide center" data-t="5.2"><div class="label">Fund</div><div class="big" style="margin-top:10px">Freighter</div><div style="font-size:26px;color:var(--muted);margin-top:6px">signs its deposits</div></div>
+    <div class="abs glass keeper hide center" data-t="5.5"><div class="label">Keeper</div><div style="font-size:40px;font-weight:500;margin-top:8px">reads ECB Euribor</div><div style="font-size:26px;color:var(--muted);margin-top:6px">computes the requirement</div></div>
+    <div class="abs glass vault hide" data-t="5.8" id="vault">
+      <div class="label">Vault · Soroban · Stellar</div>
+      <div class="track"><div class="seg locked" id="locked"></div><div class="seg missing" id="missing"></div></div>
+      <div class="legend"><span><i style="background:var(--chain)"></i>Locked</span><span><i style="background:var(--danger)"></i>Missing</span><span><i style="background:#b9bac2"></i>Free</span></div>
+      <div style="margin-top:36px;font-size:34px;font-weight:500" id="vaultline">Status · ACTIVE</div>
+    </div>
+    <div class="abs glass node bank hide center" data-t="6.1"><div class="label">Bank</div><div class="big" style="margin-top:10px">Collateral taker</div><div style="font-size:26px;color:var(--muted);margin-top:6px" id="bankline">receives only on default</div></div>
+    <svg class="abs" style="left:780px;top:280px;width:360px;height:120px" viewBox="0 0 360 120"><path d="M180 10 V105 M160 85 L180 108 L200 85" fill="none" stroke="#1c1c1e" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" opacity=".5"/></svg>
+    <svg class="abs ring hide" id="ring" viewBox="0 0 110 110" data-t="99">
+      <circle cx="55" cy="55" r="46" fill="rgba(255,255,255,.8)" stroke="rgba(60,60,67,.15)" stroke-width="8" />
+      <circle id="ringarc" cx="55" cy="55" r="46" fill="none" stroke="#a92b21" stroke-width="8" stroke-linecap="round" transform="rotate(-90 55 55)" pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" />
+      <text id="ringtxt" x="55" y="64" text-anchor="middle" font-size="26" font-weight="600" fill="#a92b21">90s</text>
+    </svg>
+    <div class="abs lock" id="lockicon">🔒</div>
+    <div class="abs note" id="note"><span class="on">&nbsp;</span><span id="n1">Locks only what the swap requires</span><span id="n2">Rates move against the fund: margin call, 90 seconds</span><span id="n3">Exactly what was locked goes to the bank. Nothing more.</span></div>
+    <div class="abs steps hide" data-t="5.6" id="steps"><div class="step" id="st1"><i></i>Lock</div><div class="step" id="st2"><i></i>Call</div><div class="step" id="st3"><i></i>Settle</div></div>
+  </section>
+
+  <!-- S5 : why Stellar (1:22 -> 1:25), overlay -->
+  <section class="scene" id="s5">
+    <div class="abs sub hide" data-t="0.1">Real transactions on Stellar Testnet</div>
+    <div class="abs chips" id="chips"><span class="tag hide" data-t="0.3">Soroban smart contract</span><span class="tag hide" data-t="0.7">Stellar Asset Contracts · KMMF, KBOND</span><span class="tag hide" data-t="1.1">Freighter wallet</span></div>
+  </section>
+
+  <!-- S6 : close (2:50 -> 3:00) -->
+  <section class="scene" id="s6">
+    <div class="abs center" style="inset:0;top:90px;bottom:420px">
+      <svg class="logo" id="logo6" width="520" height="350" viewBox="380 380 520 350" style="width:416px;height:280px">
+        <path pathLength="1" d="M540 458.5A243 243 0 0 0 397 680H456A184 184 0 0 1 552 518.4" />
+        <path pathLength="1" d="M740 458.5A243 243 0 0 1 883 680H824A184 184 0 0 0 728 518.4" />
+        <path pathLength="1" d="M544 394.5H736L640 694Z" />
+        <path pathLength="1" d="M556 404L640 452L724 404M640 452V672" />
+      </svg>
+      <div class="word hide" data-t="1.6">KEYSTONE</div>
+      <div class="slogan hide" data-t="2.4">Post tokens, not cash.</div>
+    </div>
+    <div class="abs urls hide" data-t="3.4">keystone-eta-ebon.vercel.app<br />github.com/Lagouze/keystone<small>Live on Stellar Testnet · open source</small></div>
+    <div class="fadeout" id="fadeout"></div>
+  </section>
+
+  <div id="safe">face-cam safe zone</div>
+  <div id="clock">0.0</div>
+</div>
+
+<script>
+(() => {
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+  const stage = $('#stage');
+  const params = new URLSearchParams(location.search);
+  const fit = () => { const k = Math.min(innerWidth / 1920, innerHeight / 1080); stage.style.transform = `translate(${-960 * k}px, ${-540 * k}px) scale(${k})`; };
+  addEventListener('resize', fit); fit();
+  if (params.has('safe')) $('#safe').style.display = 'flex';
+  if (params.has('debug')) $('#clock').style.display = 'block';
+
+  // ---- tiny timeline runner: every scheduled call is cancelled on restart
+  let timers = [], raf = 0, started = 0, current = 0;
+  const at = (sec, fn) => timers.push(setTimeout(fn, sec * 1000));
+  const clearAll = () => { timers.forEach(clearTimeout); timers = []; cancelAnimationFrame(raf); };
+  const tick = () => { $('#clock').textContent = ((performance.now() - started) / 1000).toFixed(1); raf = requestAnimationFrame(tick); };
+  const counter = (el, from, to, sec, fmt) => {
+    const t0 = performance.now();
+    const step = (now) => { const p = Math.min(1, (now - t0) / (sec * 1000)); el.textContent = fmt(from + (to - from) * p); if (p < 1) raf2 = requestAnimationFrame(step); };
+    raf2 = requestAnimationFrame(step);
+  };
+  let raf2 = 0;
+  const reset = (scene) => {
+    $$('.hide', scene).forEach((e) => e.classList.remove('on'));
+    $$('.draw, svg.logo, .chart', scene).forEach((e) => e.classList.remove('on'));
+  };
+  const show = (scene) => $$('[data-t]', scene).forEach((e) => { const t = parseFloat(e.dataset.t); if (t < 90) at(t, () => e.classList.add('on')); });
+  const names = ['', 's1', 's2', 's3', 's4', 's5', 's6'];
+  const activate = (n, keepUnder) => {
+    names.slice(1).forEach((id, i) => { const el = $('#' + id); const isThis = i + 1 === n; el.classList.toggle('active', isThis); if (!isThis && !(keepUnder && i + 1 === 4)) el.classList.remove('under'); });
+  };
+
+  const play = (n, opts = {}) => {
+    clearAll(); current = n; started = performance.now(); tick();
+    const scene = $('#' + names[n]);
+    if (!opts.keep) names.slice(1).forEach((id) => { reset($('#' + id)); });
+    else reset(scene);
+    $('#s4').classList.toggle('s5on', !!opts.keepUnder);
+    if (opts.keepUnder) $('#s4').classList.add('under');
+    activate(n, opts.keepUnder);
+    show(scene);
+    SCENES[n](scene);
+  };
+
+  const SCENES = {
+    1(s) {
+      at(1.4, () => $('.arrows', s).classList.add('on'));
+      at(4.6, () => $('.chart', s).classList.add('on'));
+      at(7.2, () => $('.fund', s).classList.add('red'));
+      at(8.6, () => $('.ripple', s).classList.add('go'));
+      $('.fund', s).classList.remove('red'); $('.ripple', s).classList.remove('go');
+    },
+    2(s) {
+      const inv = $('.inv', s), idle = $('.idle', s); inv.style.width = '0'; idle.style.opacity = '0'; idle.classList.remove('pulse');
+      at(0.6, () => { inv.style.width = '68%'; idle.style.opacity = '1'; });
+      at(4.8, () => { idle.classList.add('pulse'); counter($('#yield'), 0, 18420, 11, (v) => Math.round(v).toLocaleString('en-US')); });
+    },
+    3(s) {
+      const wall = $('#wall'), q = $('#q'); wall.classList.remove('gone'); q.classList.remove('gone');
+      $$('.chip', s).forEach((c) => { c.style.transform = ''; });
+      const sparks = () => $$('.chip', s).forEach((c, i) => { for (let k = 0; k < 4; k++) { const sp = document.createElement('i'); sp.className = 'spark'; sp.style.left = (c.offsetLeft + 340 + k * 40) + 'px'; sp.style.top = (c.offsetTop + 20 + (k % 2) * 20) + 'px'; s.appendChild(sp); sp.animate([{ opacity: 0, transform: 'translateY(0)' }, { opacity: .9, transform: 'translateY(-22px)' }, { opacity: 0, transform: 'translateY(-50px)' }], { duration: 1800, delay: k * 260 + i * 140 }).onfinish = () => sp.remove(); } });
+      [1.8, 3.6, 5.4].forEach((t) => at(t, sparks));
+      const bounce = (c) => c.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(300px)', offset: .55 }, { transform: 'translateX(-30px)', offset: .75 }, { transform: 'translateX(0)' }], { duration: 1200, easing: 'ease-in-out' });
+      [3.2, 5.8].forEach((t) => at(t, () => $$('.chip', s).forEach(bounce)));
+      at(16, () => { wall.classList.add('gone'); q.classList.add('gone'); });
+    },
+    4(s) {
+      const logo = $('#logo'), wrap = $('#logowrap'), word = $('#word'), slogan = $('#slogan');
+      wrap.classList.remove('small'); $('#locked').style.width = '0'; $('#missing').style.width = '0'; $('#missing').style.left = '0';
+      $('#lockicon').classList.remove('on'); $('#ring').classList.remove('on'); $('#ringarc').style.strokeDashoffset = 1; $('#ringarc').style.transition = 'none';
+      $$('#note span').forEach((x) => x.classList.remove('on')); $$('.step', s).forEach((x) => x.classList.remove('act')); $('#bankline').textContent = 'receives only on default'; $('#vaultline').textContent = 'Status · ACTIVE';
+      at(0.2, () => logo.classList.add('on')); at(2.2, () => word.classList.add('on')); at(3.0, () => slogan.classList.add('on'));
+      at(4.6, () => wrap.classList.add('small'));
+      const tokens = (from, to, n, delay, dur, done) => {
+        const sr = from.getBoundingClientRect(), dr = to.getBoundingClientRect(), k = stage.getBoundingClientRect().width / 1920, base = stage.getBoundingClientRect();
+        for (let i = 0; i < n; i++) { const t = document.createElement('i'); t.className = 'tok'; s.appendChild(t);
+          const x0 = (sr.left - base.left) / k + sr.width / 2 - 17, y0 = (sr.top - base.top) / k + sr.height / 2 - 17 + (i - n / 2) * 16;
+          const x1 = (dr.left - base.left) / k + dr.width / 2 - 17 + (i - n / 2) * 18, y1 = (dr.top - base.top) / k + dr.height / 2 - 17 + (i % 2) * 14;
+          t.animate([{ transform: `translate(${x0}px,${y0}px) scale(.6)`, opacity: 0 }, { transform: `translate(${x0}px,${y0}px) scale(1)`, opacity: 1, offset: .12 }, { transform: `translate(${x1}px,${(y0 + y1) / 2 - 90}px)`, opacity: 1, offset: .6 }, { transform: `translate(${x1}px,${y1}px) scale(.9)`, opacity: 1, offset: .95 }, { transform: `translate(${x1}px,${y1}px) scale(.9)`, opacity: 0 }], { duration: dur, delay: delay + i * 160, fill: 'both', easing: 'cubic-bezier(.3,.1,.2,1)' }).onfinish = () => { t.remove(); if (i === n - 1 && done) done(); };
+        } };
+      // LOCK (0:54 -> 1:03)
+      at(4.1, () => { $('#st1').classList.add('act'); $('#n1').classList.add('on'); });
+      at(5.0, () => tokens($('.fund', s), $('.track', s), 6, 0, 1500));
+      at(7.0, () => { $('#locked').style.width = '55%'; });
+      // CALL (1:03 -> 1:14)
+      at(13.0, () => { $('#st1').classList.remove('act'); $('#st2').classList.add('act'); $('#n1').classList.remove('on'); $('#n2').classList.add('on'); $('#vaultline').textContent = 'Status · MARGIN CALL'; });
+      at(13.4, () => tokens($('.keeper', s), $('.track', s), 3, 0, 1400));
+      at(15.0, () => { $('#locked').style.width = '55%'; $('#missing').style.left = '55%'; $('#missing').style.width = '38%'; });
+      at(15.6, () => { const r = $('#ring'); r.classList.add('on'); const a = $('#ringarc'); a.style.transition = 'stroke-dashoffset 7.5s linear'; a.style.strokeDashoffset = 0; counter($('#ringtxt'), 90, 0, 7.5, (v) => Math.round(v) + 's'); });
+      // SETTLE (1:14 -> 1:22)
+      at(24.0, () => { $('#st2').classList.remove('act'); $('#st3').classList.add('act'); $('#n2').classList.remove('on'); $('#n3').classList.add('on'); $('#vaultline').textContent = 'Deadline passed · anyone can settle'; $('#ring').classList.remove('on'); });
+      at(24.8, () => { tokens($('.track', s), $('.bank', s), 6, 0, 1500, () => { $('#bankline').textContent = 'received what was locked'; }); $('#locked').style.width = '0'; });
+      at(27.4, () => { $('#lockicon').classList.add('on'); $('#vaultline').textContent = 'Status · SETTLED · no admin key'; });
+    },
+    5(s) { /* chips cascade: handled by data-t */ },
+    6(s) {
+      const logo = $('#logo6'); $('#fadeout').classList.remove('on');
+      at(0.2, () => logo.classList.add('on'));
+      if (!params.has('nofade')) at(8.4, () => $('#fadeout').classList.add('on'));
+    },
+  };
+
+  // ---- entry points
+  const sceneParam = parseInt(params.get('scene') || '', 10);
+  if (params.has('auto')) {
+    if (params.get('auto') === '2') { play(4); at(32, () => play(5, { keep: true, keepUnder: true })); }
+    else { play(1); at(12, () => play(2)); at(30, () => play(3)); }
+  } else if (sceneParam >= 1 && sceneParam <= 6) {
+    play(sceneParam);
+  } else {
+    play(1);
+  }
+
+  addEventListener('keydown', (e) => {
+    if (e.key === ' ' || e.key === 'ArrowRight') { e.preventDefault(); play(current % 6 + 1); }
+    else if (e.key === 'ArrowLeft') play((current + 4) % 6 + 1);
+    else if (e.key.toLowerCase() === 'r') play(current);
+    else if (e.key.toLowerCase() === 'f') document.documentElement.requestFullscreen?.();
+  });
+})();
+</script>
+</body>
+</html>
