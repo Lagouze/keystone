@@ -1,8 +1,11 @@
+import { memo } from 'react'
 import { motion } from 'motion/react'
 import type { AssetInfo, KeystoneConfig, VaultStatus } from '@keystone/shared'
 import { formatUnits, formatUtcTime } from '../lib/format.ts'
 import { CHOREO, type Stage } from '../state/useChoreography.ts'
+import { useNow } from '../state/useKeystone.ts'
 import type { Action } from '../state/useKeystone.ts'
+import { AutoHeight } from '../ui/AutoHeight.tsx'
 import { Button, Card, StatusPill } from '../ui/index.ts'
 import { Countdown, FlapLabel, HoldToSettle } from '../ui/motion.tsx'
 import { SigningProgress } from './SigningProgress.tsx'
@@ -13,7 +16,6 @@ interface StatusCardProps {
   signerMode: KeystoneConfig['signerMode']
   busy: Action | null
   step: string | null
-  now: number
   onDeposit(input: string): void
   onSettle(): void
 }
@@ -28,8 +30,10 @@ const STATUS_WORD: Record<VaultStatus, string> = {
  * The one sentence that matters: what is happening, by how much, until when. A status pill only
  * appears when something is wrong (margin call, default).
  */
-export function StatusCard(props: StatusCardProps) {
-  const { stage, asset, busy, now } = props
+export const StatusCard = memo(function StatusCard(props: StatusCardProps) {
+  const { stage, asset, busy } = props
+  // The clock only ticks while a margin call is open: no re-render of the whole page otherwise.
+  const now = useNow(250, stage.shown.vault.status === 'margin_call')
   const session = stage.shown
   const { vault } = session
   const fmt = (units: string) => formatUnits(units, asset.decimals)
@@ -63,65 +67,67 @@ export function StatusCard(props: StatusCardProps) {
 
   return (
     <Card tone={tone} starCapable star={stage.halo}>
-      <div className="grid items-start gap-6 sm:grid-cols-[minmax(0,1fr)_auto]">
-        <div className="flex flex-col items-start gap-2.5">
+      <AutoHeight>
+        <div className="flex min-h-24 flex-col items-start gap-3">
           {stage.status !== 'active' && (
             <StatusPill status={stage.status} label={<FlapLabel text={STATUS_WORD[stage.status]} />} />
           )}
-          <h2 className="text-3xl font-medium tracking-tight sm:text-4xl">{headline}</h2>
+          {/* The countdown sits on the title's line: one glance, less height. */}
+          <div className="flex w-full flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+            <h2 className="text-3xl font-medium tracking-tight sm:text-4xl">{headline}</h2>
+            {callOpen && stage.countdown && (
+              <motion.span
+                className="text-4xl font-light leading-none tabular-nums text-warning-ink sm:text-5xl"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.2 }}
+                role="timer"
+                aria-label="Time left"
+              >
+                <Countdown seconds={secondsLeft} />
+              </motion.span>
+            )}
+          </div>
           <p className="text-[0.9375rem] text-ink-muted">{detail}</p>
         </div>
-        {callOpen && stage.countdown && (
-          <motion.div
-            className="flex flex-col items-end gap-1"
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.2 }}
-          >
-            <span className="label-caps">Time left</span>
-            <span className="text-5xl font-light leading-none text-warning-ink">
-              <Countdown seconds={secondsLeft} />
-            </span>
-          </motion.div>
+
+        {stage.transfer && stage.transferUnits && (
+          <div className="relative mt-6 flex h-11 items-center justify-between text-sm" aria-hidden="true">
+            <span className="text-ink-muted">Vault</span>
+            <span className="absolute inset-x-16 top-1/2 border-t border-dashed border-line-strong" />
+            <span className="text-ink-muted">Bank</span>
+            <motion.span
+              className="absolute top-2.5 whitespace-nowrap text-sm font-medium text-danger"
+              initial={{ left: '4.5rem', opacity: 0 }}
+              animate={{ left: 'calc(100% - 10rem)', opacity: 1 }}
+              transition={{ duration: CHOREO.transferMs / 1000, ease: [0.8, 0.05, 0.2, 0.95] }}
+            >
+              {fmt(stage.transferUnits)} {code}
+            </motion.span>
+          </div>
         )}
-      </div>
 
-      {stage.transfer && stage.transferUnits && (
-        <div className="relative mt-6 flex h-11 items-center justify-between text-sm" aria-hidden="true">
-          <span className="rounded-full bg-surface-muted px-3.5 py-1.5">Vault</span>
-          <span className="absolute inset-x-24 top-1/2 border-t border-dashed border-line-strong" />
-          <span className="rounded-full bg-surface-muted px-3.5 py-1.5">Bank</span>
-          <motion.span
-            className="absolute top-2 whitespace-nowrap rounded-full bg-danger px-3 py-1 text-xs font-medium text-white"
-            initial={{ left: '4.5rem', opacity: 0 }}
-            animate={{ left: 'calc(100% - 10rem)', opacity: 1 }}
-            transition={{ duration: CHOREO.transferMs / 1000, ease: [0.8, 0.05, 0.2, 0.95] }}
-          >
-            {fmt(stage.transferUnits)} {code}
-          </motion.span>
-        </div>
-      )}
-
-      {callOpen && (
-        <div className="mt-6 flex flex-wrap items-center gap-3">
-          <Button
-            variant="primary"
-            busy={busy === 'deposit'}
-            disabled={otherBusy('deposit')}
-            onClick={() => props.onDeposit(formatUnits(vault.shortfallUnits, asset.decimals, asset.decimals).replace(/,/g, ''))}
-          >
-            {busy === 'deposit' ? 'Depositing…' : `Deposit ${formatUnits(vault.shortfallUnits, asset.decimals, asset.decimals)} ${code}`}
-          </Button>
-          {deadlinePassed ? (
-            <HoldToSettle disabled={otherBusy('settle') || busy === 'settle'} onHold={props.onSettle} />
-          ) : (
-            <Button variant="sim" disabled>
-              Settle after deadline
+        {callOpen && (
+          <div className="mt-6 flex flex-wrap items-center gap-3">
+            <Button
+              variant="primary"
+              busy={busy === 'deposit'}
+              disabled={otherBusy('deposit')}
+              onClick={() => props.onDeposit(formatUnits(vault.shortfallUnits, asset.decimals, asset.decimals).replace(/,/g, ''))}
+            >
+              {busy === 'deposit' ? 'Depositing…' : `Deposit ${formatUnits(vault.shortfallUnits, asset.decimals, asset.decimals)} ${code}`}
             </Button>
-          )}
-        </div>
-      )}
-      <SigningProgress busy={busy} step={props.step} />
+            {deadlinePassed ? (
+              <HoldToSettle disabled={otherBusy('settle') || busy === 'settle'} onHold={props.onSettle} />
+            ) : (
+              <Button variant="sim" disabled>
+                Settle after deadline
+              </Button>
+            )}
+          </div>
+        )}
+        <SigningProgress busy={busy} step={props.step} corner={!callOpen} />
+      </AutoHeight>
     </Card>
   )
-}
+})

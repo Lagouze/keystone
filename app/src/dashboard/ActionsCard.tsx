@@ -1,7 +1,9 @@
-import { useState, type FormEvent } from 'react'
+import { useState, type FormEvent, memo } from 'react'
+import { motion } from 'motion/react'
 import type { AssetInfo, KeystoneConfig, SessionState } from '@keystone/shared'
 import type { Action } from '../state/useKeystone.ts'
-import { Button, Card } from '../ui/index.ts'
+import { AutoHeight } from '../ui/AutoHeight.tsx'
+import { Button, Card, SegmentedControl } from '../ui/index.ts'
 
 const SHOCKS = [-50, -30, +60, -100] as const
 
@@ -20,19 +22,23 @@ interface ActionsCardProps {
 }
 
 const inputClass =
-  'h-11 w-28 rounded-full bg-surface-muted px-4 text-sm tabular-nums ' +
-  'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-chain disabled:bg-surface-subtle'
+  'h-11 w-full min-w-0 rounded-full bg-white/45 px-5 text-sm tabular-nums text-ink  ' +
+  'placeholder:text-ink-subtle focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-chain disabled:opacity-50'
 
-export function ActionsCard(props: ActionsCardProps) {
+type Mode = 'deposit' | 'withdraw'
+
+/** One panel for everything the user can do: move rates (simulated), then deposit or withdraw. */
+export const ActionsCard = memo(function ActionsCard(props: ActionsCardProps) {
   const { session, asset, busy } = props
   const { vault } = session
-  const [depositInput, setDepositInput] = useState('300')
-  const [withdrawInput, setWithdrawInput] = useState('')
+  const [mode, setMode] = useState<Mode>('deposit')
+  const [inputs, setInputs] = useState<Record<Mode, string>>({ deposit: '300', withdraw: '' })
   const [lastShock, setLastShock] = useState<number | null>(null)
 
   const defaulted = vault.status === 'defaulted'
   const hasAvailable = BigInt(vault.availableUnits) > 0n
   const otherBusy = (action: Action) => props.sequencing || (busy !== null && busy !== action)
+  const withdrawBlocked = mode === 'withdraw' && !hasAvailable
 
   const signing =
     props.signerMode === 'keeper'
@@ -41,80 +47,116 @@ export function ActionsCard(props: ActionsCardProps) {
         ? 'Signature simulated (demo data).'
         : 'Signed in Freighter.'
 
-  const submit = (handler: (input: string) => void, input: string) => (event: FormEvent) => {
+  const submit = (event: FormEvent) => {
     event.preventDefault()
-    handler(input)
+    if (mode === 'deposit') props.onDeposit(inputs.deposit)
+    else props.onWithdraw(inputs.withdraw)
   }
 
   return (
-    <Card>
-      <div className="grid gap-6">
-        <section aria-label="Rate shocks" className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <h3 className="text-[0.9375rem] font-medium">Move rates</h3>
-            <p className="mt-0.5 text-sm text-ink-subtle">Simulated Euribor shock</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {SHOCKS.map((bp) => (
-              <Button
-                key={bp}
-                variant="sim"
-                busy={busy === 'shock' && lastShock === bp}
-                disabled={defaulted || props.sequencing || (busy !== null && !(busy === 'shock' && lastShock === bp))}
-                onClick={() => {
-                  setLastShock(bp)
-                  props.onShock(bp)
-                }}
-              >
-                {bp > 0 ? '+' : '−'}
-                {Math.abs(bp)} bp
-              </Button>
-            ))}
-          </div>
-        </section>
-
-        <div className="grid gap-5 border-t border-line pt-5 sm:grid-cols-2">
-          <form onSubmit={submit(props.onDeposit, depositInput)} aria-label="Deposit">
-            <label htmlFor="deposit" className="label-caps mb-2 block">
-              Deposit {asset.code}
-            </label>
-            <div className="flex gap-2">
-              <input
-                id="deposit"
-                className={inputClass}
-                inputMode="decimal"
-                value={depositInput}
-                onChange={(e) => setDepositInput(e.target.value)}
-                disabled={defaulted}
-              />
-              <Button type="submit" variant="primary" busy={busy === 'deposit'} disabled={defaulted || otherBusy('deposit')}>
-                {busy === 'deposit' ? (props.step ?? 'Depositing…') : 'Deposit'}
-              </Button>
+    <Card title="Controls" className="min-h-60">
+      <AutoHeight>
+        <div className="grid gap-8">
+          <section aria-label="Rate shocks" className="grid gap-3">
+            <p className="text-sm text-ink-subtle">Move rates · simulated Euribor shock</p>
+            <div className="grid grid-cols-4 gap-2 sm:gap-3">
+              {SHOCKS.map((bp, i) => {
+                const mine = busy === 'shock' && lastShock === bp
+                const off = defaulted || props.sequencing || (busy !== null && !mine)
+                return (
+                  <motion.button
+                    key={bp}
+                    type="button"
+                    disabled={off}
+                    aria-busy={mine || undefined}
+                    onClick={() => {
+                      setLastShock(bp)
+                      props.onShock(bp)
+                    }}
+                    // Icon tiles of the references: a soft glass tile, a trend arrow, the shock under it.
+                    className="glass flex flex-col items-center gap-2 rounded-3xl px-2 py-4 text-ink shadow-card transition-colors enabled:hover:bg-white/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-chain disabled:cursor-not-allowed disabled:opacity-45"
+                    initial={{ opacity: 0, y: 14 }}
+                    animate={{ opacity: 1, y: i % 2 ? 4 : 0 }}
+                    whileHover={off ? undefined : { y: -4 }}
+                    whileTap={off ? undefined : { scale: 0.94 }}
+                    transition={{ type: 'spring', stiffness: 380, damping: 26, delay: i * 0.05 }}
+                  >
+                    <span aria-hidden="true" className={bp > 0 ? 'text-success' : 'text-danger'}>
+                      {mine ? (
+                        <span className="flex h-6 items-center gap-1">
+                          {[0, 1, 2].map((n) => (
+                            <span key={n} className="size-1 rounded-full bg-current motion-safe:animate-dot" style={{ animationDelay: `${n * 0.15}s` }} />
+                          ))}
+                        </span>
+                      ) : (
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                          {bp > 0 ? (
+                            <>
+                              <path d="M3 17l6-6 4 4 8-8" />
+                              <path d="M15 7h6v6" />
+                            </>
+                          ) : (
+                            <>
+                              <path d="M3 7l6 6 4-4 8 8" />
+                              <path d="M15 17h6v-6" />
+                            </>
+                          )}
+                        </svg>
+                      )}
+                    </span>
+                    <span className="text-sm font-medium tabular-nums">
+                      {bp > 0 ? '+' : '−'}
+                      {Math.abs(bp)} bp
+                    </span>
+                  </motion.button>
+                )
+              })}
             </div>
-          </form>
+          </section>
 
-          <form onSubmit={submit(props.onWithdraw, withdrawInput)} aria-label="Withdraw">
-            <label htmlFor="withdraw" className="label-caps mb-2 block">
-              Withdraw {asset.code}
-            </label>
+          <form onSubmit={submit} aria-label="Deposit or withdraw" className="grid gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <label htmlFor="amount" className="text-sm text-ink-subtle">
+                {mode === 'deposit' ? 'Deposit' : 'Withdraw'} {asset.code}
+              </label>
+              <SegmentedControl
+                label="Operation mode"
+                value={mode}
+                onChange={setMode}
+                options={[
+                  { value: 'deposit', label: 'Deposit' },
+                  { value: 'withdraw', label: 'Withdraw' },
+                ]}
+              />
+            </div>
             <div className="flex gap-2">
               <input
-                id="withdraw"
+                id="amount"
                 className={inputClass}
                 inputMode="decimal"
                 placeholder="0"
-                value={withdrawInput}
-                onChange={(e) => setWithdrawInput(e.target.value)}
-                disabled={!hasAvailable}
+                value={inputs[mode]}
+                onChange={(e) => setInputs({ ...inputs, [mode]: e.target.value })}
+                disabled={mode === 'deposit' ? defaulted : !hasAvailable}
               />
-              <Button type="submit" busy={busy === 'withdraw'} disabled={!hasAvailable || otherBusy('withdraw')}>
-                {busy === 'withdraw' ? (props.step ?? 'Withdrawing…') : 'Withdraw'}
+              <Button
+                type="submit"
+                variant="primary"
+                className="shrink-0"
+                busy={busy === mode}
+                disabled={(mode === 'deposit' && defaulted) || withdrawBlocked || otherBusy(mode)}
+              >
+                {busy === mode
+                  ? (props.step ?? (mode === 'deposit' ? 'Depositing…' : 'Withdrawing…'))
+                  : mode === 'deposit'
+                    ? 'Deposit'
+                    : 'Withdraw'}
               </Button>
             </div>
+            <p className="text-xs text-ink-subtle">{signing}</p>
           </form>
         </div>
-        <p className="-mt-2 text-xs text-ink-subtle">{signing}</p>
-      </div>
+      </AutoHeight>
     </Card>
   )
-}
+})

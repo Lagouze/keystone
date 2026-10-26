@@ -1,21 +1,20 @@
-import { useRef, useState } from 'react'
+import { useRef, memo } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import type { ActivityEvent } from '@keystone/shared'
 import { formatTime } from '../lib/format.ts'
 import { entryKind } from '../lib/proof.ts'
 import { ActivityProof, Card, KindBadge } from '../ui/index.ts'
-import { Modal } from '../ui/Modal.tsx'
-
-const VISIBLE = 4
 
 function Row({ event, reveal, detail }: { event: ActivityEvent; reveal: boolean; detail: boolean }) {
   return (
     <motion.li
       layout
-      initial={{ opacity: 0, y: -6 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
-      className="grid grid-cols-[1fr_auto] items-start gap-x-3 gap-y-1 py-3"
+      // React Bits "Animated List": a new entry drops in from above on a spring, the others make room.
+      initial={{ opacity: 0, y: -28, scale: 0.94 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+      whileHover={{ x: 3 }}
+      className="grid grid-cols-[1fr_auto] items-start gap-x-3 gap-y-1 py-3.5"
     >
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         <KindBadge event={event} />
@@ -34,9 +33,8 @@ function Row({ event, reveal, detail }: { event: ActivityEvent; reveal: boolean;
   )
 }
 
-/** The last few entries; the full history, with details, sits behind "See all". */
-export function ActivityFeed({ activity }: { activity: ActivityEvent[] }) {
-  const [open, setOpen] = useState(false)
+/** Every entry, newest first, in a list that scrolls inside the card so the column keeps its height. */
+export const ActivityFeed = memo(function ActivityFeed({ activity }: { activity: ActivityEvent[] }) {
   // Entries seen pending in this browser session: their hash decrypts when they confirm. Entries
   // replayed already confirmed (reload, reconnection) show their hash plainly.
   const seenPending = useRef(new Set<string>())
@@ -45,21 +43,8 @@ export function ActivityFeed({ activity }: { activity: ActivityEvent[] }) {
   }
 
   return (
-    <Card
-      title="Activity"
-      actions={
-        activity.length > VISIBLE ? (
-          <button
-            type="button"
-            onClick={() => setOpen(true)}
-            className="rounded-full bg-surface-muted px-3 py-1 text-xs font-medium text-ink-muted transition-colors hover:bg-black/10 focus-visible:outline-2 focus-visible:outline-chain"
-          >
-            See all {activity.length}
-          </button>
-        ) : undefined
-      }
-    >
-      <p className="-mt-1 mb-1 text-xs text-ink-subtle">
+    <Card title="Activity" className="flex min-h-72 min-w-0 flex-1 flex-col lg:min-h-0">
+      <p className="-mt-2 mb-2 text-xs text-ink-subtle">
         {activity.some((e) => entryKind(e) === 'demo')
           ? 'Sim = computation · Demo tx = simulated transaction, nothing sent to Stellar'
           : 'Sim = computation · On-chain = Testnet transaction'}
@@ -67,21 +52,19 @@ export function ActivityFeed({ activity }: { activity: ActivityEvent[] }) {
       {activity.length === 0 ? (
         <p className="text-sm text-ink-subtle">Nothing yet.</p>
       ) : (
-        <ul className="divide-y divide-line-soft" aria-live="polite">
+        <ul
+          tabIndex={0}
+          role="region"
+          aria-label="Activity, newest first"
+          className="-mr-3 max-h-96 min-h-0 flex-1 overflow-y-auto pr-3 [scrollbar-width:thin] focus-visible:outline-2 focus-visible:outline-chain [mask-image:linear-gradient(to_bottom,black_calc(100%-2.5rem),transparent)] lg:max-h-none"
+        >
           <AnimatePresence initial={false}>
-            {activity.slice(0, VISIBLE).map((event) => (
-              <Row key={event.id} event={event} reveal={seenPending.current.has(event.id)} detail={false} />
+            {activity.map((event) => (
+              <Row key={event.id} event={event} reveal={seenPending.current.has(event.id)} detail />
             ))}
           </AnimatePresence>
         </ul>
       )}
-      <Modal open={open} title="Activity" onClose={() => setOpen(false)}>
-        <ul className="divide-y divide-line-soft">
-          {activity.map((event) => (
-            <Row key={event.id} event={event} reveal={false} detail />
-          ))}
-        </ul>
-      </Modal>
     </Card>
   )
-}
+})

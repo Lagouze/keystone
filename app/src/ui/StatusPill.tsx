@@ -3,9 +3,9 @@ import type { VaultStatus } from '@keystone/shared'
 import { cx } from './cx.ts'
 
 const STYLES: Record<VaultStatus, { label: string; className: string }> = {
-  active: { label: 'Active', className: 'bg-success-soft text-success' },
-  margin_call: { label: 'Margin call', className: 'bg-warning-soft text-warning-ink' },
-  defaulted: { label: 'Defaulted', className: 'bg-danger-soft text-danger' },
+  active: { label: 'Active', className: 'text-success' },
+  margin_call: { label: 'Margin call', className: 'text-warning-ink' },
+  defaulted: { label: 'Defaulted', className: 'text-danger' },
 }
 
 interface StatusPillProps {
@@ -16,6 +16,7 @@ interface StatusPillProps {
   children?: ReactNode
 }
 
+/** Status as typography: a small dot and letter-spaced capitals, no pill, no background. */
 export function StatusPill({ status, label, children }: StatusPillProps) {
   const style = STYLES[status]
   return (
@@ -23,7 +24,7 @@ export function StatusPill({ status, label, children }: StatusPillProps) {
       role="status"
       aria-label={`Vault status: ${style.label}`}
       className={cx(
-        'inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium uppercase tracking-wider',
+        'inline-flex shrink-0 items-center gap-2 whitespace-nowrap text-xs font-medium uppercase tracking-[0.14em]',
         'transition-colors duration-350 ease-state',
         style.className,
       )}
