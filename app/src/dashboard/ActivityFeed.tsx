@@ -56,7 +56,7 @@ export function ActivityFeed({ activity }: { activity: ActivityEvent[] }) {
           tabIndex={0}
           role="region"
           aria-label="Activity, newest first"
-          className="-mr-3 max-h-96 min-h-0 flex-1 divide-y divide-line-soft overflow-y-auto pr-3 [scrollbar-width:thin] focus-visible:outline-2 focus-visible:outline-chain [mask-image:linear-gradient(to_bottom,black_calc(100%-2.5rem),transparent)] lg:max-h-none"
+          className="-mr-3 max-h-96 min-h-0 flex-1 overflow-y-auto pr-3 [scrollbar-width:thin] focus-visible:outline-2 focus-visible:outline-chain [mask-image:linear-gradient(to_bottom,black_calc(100%-2.5rem),transparent)] lg:max-h-none"
         >
           <AnimatePresence initial={false}>
             {activity.map((event) => (

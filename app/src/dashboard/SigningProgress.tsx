@@ -18,7 +18,7 @@ export function SigningProgress({ busy, step }: { busy: Action | null; step: str
   if (busy === 'deposit' || busy === 'withdraw') {
     const index = stepIndex(step)
     return (
-      <div className="mt-5 grid gap-3 border-t border-line pt-4">
+      <div className="mt-5 grid gap-3 pt-4">
         <SigningSteps current={index} />
         <div className="text-sm" role={index === 2 ? undefined : 'status'}>
           {index === 1 ? <Shiny>{step ?? 'Confirm in Freighter…'}</Shiny> : index === 2 ? <LedgerWait /> : step}
@@ -28,7 +28,7 @@ export function SigningProgress({ busy, step }: { busy: Action | null; step: str
   }
   if (busy === 'settle' || busy === 'shock' || busy === 'start') {
     return (
-      <div className="mt-5 border-t border-line pt-4 text-sm">
+      <div className="mt-5 pt-4 text-sm">
         <LedgerWait label={busy === 'start' ? 'Deploying the vault' : 'Waiting for the ledger'} />
       </div>
     )

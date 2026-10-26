@@ -79,7 +79,7 @@ export function LockScreen({ onUnlock }: { onUnlock(email: string): void }) {
             placeholder="Email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="h-14 w-full rounded-full bg-white/45 px-5 text-center text-base text-ink shadow-[inset_0_0_0_1px_rgba(255,255,255,0.6)] outline-transparent transition-shadow placeholder:text-ink-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-chain"
+            className="h-14 w-full rounded-full bg-white/45 px-5 text-center text-base text-ink outline-transparent transition-shadow placeholder:text-ink-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-chain"
           />
           <div className="relative">
             <label className="sr-only" htmlFor="lock-password">
@@ -93,7 +93,7 @@ export function LockScreen({ onUnlock }: { onUnlock(email: string): void }) {
               value={password}
               autoFocus
               onChange={(e) => setPassword(e.target.value)}
-              className="h-14 w-full rounded-full bg-white/45 pr-16 pl-5 text-center text-base text-ink shadow-[inset_0_0_0_1px_rgba(255,255,255,0.6)] outline-transparent transition-shadow placeholder:text-ink-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-chain"
+              className="h-14 w-full rounded-full bg-white/45 pr-16 pl-5 text-center text-base text-ink outline-transparent transition-shadow placeholder:text-ink-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-chain"
             />
             <motion.button
               type="submit"

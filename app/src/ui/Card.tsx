@@ -19,7 +19,8 @@ interface CardProps {
   tone?: Tone
   /**
    * Star-capable panel (the status panel): always rendered through StarBorder, so lighting the star
-   * never remounts the content (focus, running animations). `star` turns the travelling light on.
+   * never remounts the content (focus, running animations). The travelling light and the border are off:
+   * panels have no contour.
    */
   starCapable?: boolean
   star?: boolean
@@ -33,7 +34,6 @@ export function Card({
   actions,
   tone = 'default',
   starCapable = false,
-  star = false,
   className,
   children,
 }: CardProps) {
@@ -53,7 +53,6 @@ export function Card({
   )
 
   if (starCapable) {
-    const lit = star && tone === 'call'
     return (
       <StarBorder
         as="section"
@@ -61,11 +60,11 @@ export function Card({
         radius={32}
         thickness={1}
         duration={4}
-        glow={lit ? 0.4 : 0}
-        trailLength={lit ? 0.25 : 0}
-        color={lit ? '#c0362b' : 'transparent'}
-        trailColor={lit ? '#c0362b' : 'transparent'}
-        borderColor={tone === 'call' ? 'rgba(192, 54, 43, 0.35)' : 'rgba(255, 255, 255, 0.45)'}
+        glow={0}
+        trailLength={0}
+        color="transparent"
+        trailColor="transparent"
+        borderColor="transparent"
         backgroundColor={tone === 'call' ? 'rgba(255, 235, 233, 0.5)' : 'rgba(255, 255, 255, 0.3)'}
         textColor="#1c1c1e"
         hover="none"

@@ -21,7 +21,7 @@ interface ActionsCardProps {
 }
 
 const inputClass =
-  'h-11 w-full min-w-0 rounded-full bg-white/45 px-5 text-sm tabular-nums text-ink shadow-[inset_0_0_0_1px_rgba(255,255,255,0.6)] ' +
+  'h-11 w-full min-w-0 rounded-full bg-white/45 px-5 text-sm tabular-nums text-ink  ' +
   'placeholder:text-ink-subtle focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-chain disabled:opacity-50'
 
 type Mode = 'deposit' | 'withdraw'

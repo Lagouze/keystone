@@ -35,7 +35,7 @@ export function DetailsModal({
 
   return (
     <Modal open={open} title="Details" onClose={onClose}>
-      <dl className="divide-y divide-line text-sm">
+      <dl className="grid gap-3 text-sm">
         {rows.map(([label, value]) => (
           <div key={label} className="flex justify-between gap-6 py-2.5">
             <dt className="text-ink-subtle">{label}</dt>

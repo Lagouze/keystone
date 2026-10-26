@@ -52,7 +52,7 @@
 
   /* Large, diffuse, never harsh. */
   --shadow-card: 0 2px 6px rgba(28, 28, 30, 0.03), 0 30px 80px -20px rgba(40, 50, 90, 0.18);
-  --shadow-call: 0 0 0 1px rgba(192, 54, 43, 0.12), 0 30px 80px -20px rgba(192, 54, 43, 0.22);
+  --shadow-call: 0 30px 80px -20px rgba(192, 54, 43, 0.28);
 
   --ease-std: cubic-bezier(0.4, 0, 0.2, 1);
   --ease-state: cubic-bezier(0.8, 0.05, 0.2, 0.95);
@@ -109,14 +109,14 @@
   background-color: var(--color-surface);
   -webkit-backdrop-filter: saturate(170%) blur(24px);
   backdrop-filter: saturate(170%) blur(24px);
-  border: 1px solid rgba(255, 255, 255, 0.45);
+  border: 0;
 }
 
 @utility glass-heavy {
   background-color: rgba(255, 255, 255, 0.34);
   -webkit-backdrop-filter: saturate(190%) blur(40px);
   backdrop-filter: saturate(190%) blur(40px);
-  border: 1px solid rgba(255, 255, 255, 0.55);
+  border: 0;
 }
 
 @utility label-caps {
