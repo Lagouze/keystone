@@ -128,7 +128,9 @@ Scenario 2 (default, KBOND) on a fresh C2 vault [`CALYRUMGT3J3P32NHBDTRDWJD3JU2A
 | `settle_default` after the ledger deadline, submitted by the keeper account (no vault role authorizes it) | `Defaulted`; the 300 KBOND locked went to the bank (bank 0 → 300); event `defaulted {amount: 3000000000}` | [`33793f42…112c`](https://stellar.expert/explorer/testnet/tx/33793f423facfa6e2968da335558cc9bba2cc296b6ea6e2133b734829309112c) |
 | Replay, deposit, rate shock, withdraw after the default | refused: `NotInMarginCall`, `Defaulted`, `Defaulted`, `InsufficientAvailable` (no hash) | n/a |
 
-After the default the keeper still shows the last computed requirement (historical) while `vault.requiredUnits` is `0`. Scenario 1 was also replayed on a C2 vault (`CD3MAB27BM57BM5SVGAIM5CTBDJPAVSUHFCKDHNZHBHBMNGI6KX7QAC7`) with all script checks passing; its hashes were not recorded, so that replay is not a proof and the C1-build hashes above remain the reference table. An independent settlement fixture of the contract pole (fictitious KSC1 asset) is in `contracts/keystone_vault/testnet-c2.json`.
+After the default the keeper still shows the last computed requirement (historical) while `vault.requiredUnits` is `0`. The C2 WASM hash above is the one fetched back from Testnet (8 528 bytes). A local rebuild with `stellar contract build` gives a WASM of the same size but another SHA-256 (`4a03f7ff…3ea6`, built 2026-10-26 on the keeper machine): the build is not byte-reproducible across machines (probably toolchain and build metadata embedded in the binary; not investigated further). Nothing was redeployed; the behaviour of the deployed build is what the Testnet runs above exercise, and the contract pole checked the bindings' ABI against it.
+
+Scenario 1 was also replayed on a C2 vault (`CD3MAB27BM57BM5SVGAIM5CTBDJPAVSUHFCKDHNZHBHBMNGI6KX7QAC7`) with all script checks passing; its hashes were not recorded, so that replay is not a proof and the C1-build hashes above remain the reference table. An independent settlement fixture of the contract pole (fictitious KSC1 asset) is in `contracts/keystone_vault/testnet-c2.json`.
 
 ## 7. Repository structure and poles
 
