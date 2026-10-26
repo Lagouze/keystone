@@ -45,10 +45,9 @@ Limites assumées : un seul code partagé par personne (pas de comptes), pas de 
 
 | | Plan | Prix | À retenir |
 | --- | --- | --- | --- |
-| Vercel | Hobby | 0 $ | Usage personnel et non commercial seulement (règle d'usage équitable). 100 déploiements par jour. « Vercel Authentication » (accès réservé aux membres du compte) est disponible pour les previews et la production : à garder activé sur les previews. Un projet d'équipe ou à usage commercial demande Pro (20 $ par personne et par mois) |
+| Vercel | Hobby | 0 $ | Usage personnel et non commercial seulement (règle d'usage équitable). 100 déploiements par jour. « Vercel Authentication » (accès réservé aux membres du compte) est activée par défaut sur les previews : **elle est désactivée sur ce projet** (Settings → Deployment Protection) pour que le site soit public ; le keeper reste protégé par ses codes. Un projet d'équipe ou à usage commercial demande Pro (20 $ par personne et par mois) |
 | Railway | Free | 0 $, 1 $ de crédit par mois | 0,5 Go de RAM, 0,5 Go de volume : à peine suffisant, et le service s'arrête quand le crédit est épuisé |
 | Railway | Hobby | 5 $ par mois, 5 $ d'usage inclus | 5 Go de volume. **Recommandé** : le keeper consomme peu (un processus Node, ~150 Mo) |
-
 | Render | Free | 0 $ | Le service s'endort après 15 min sans requête entrante ; **pas de disque persistant** (la session est perdue à chaque redémarrage ou redéploiement). Convient à un essai ou à une démo courte, avec un moniteur qui l'interroge toutes les 5 min (§5bis) |
 | Render | Payant | non vérifié | Seul le payant permet un disque persistant (montage `/data`) ; un disque interdit les déploiements sans coupure et la duplication du service |
 | UptimeRobot | Free | 0 $, sans carte | 50 moniteurs HTTP(s), intervalle minimal de 5 min |

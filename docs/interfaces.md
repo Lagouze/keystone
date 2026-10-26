@@ -172,7 +172,7 @@ Base URL: `http://localhost:8787/api` in local development; the public URL is se
 | `Unauthorized` | 401 | (v1.4) write route called without a valid access code on a hosted keeper |
 | `PendingTransaction` | 409 | (v1.4) a transaction sent earlier has no known outcome yet; no new write starts until it is confirmed, failed or expired (see below) |
 
-`SIGNER=keeper` is used by the end-to-end script and by the **public demo URL**, because judges cannot sign with the fund key. The front shows a visible notice in that mode.
+`SIGNER=keeper` is used by the end-to-end script and local runs. A hosted keeper refuses it (v1.4): the public live app runs with `SIGNER=freighter` and offers judges the simulated `?demo` mode instead, because they cannot sign with the fund key. The front shows a visible notice in keeper mode.
 
 ### 4.1 Read-only market advisor (v1.3, consuming pole: front)
 
@@ -341,7 +341,7 @@ export interface MarketSnapshot {
 
 | Version | Date | Change |
 | --- | --- | --- |
-| v1.4 | 2026-10-26 | Compatible addition for the hosted keeper (consuming pole: front): optional `backend` and `writeAuth` in `KeystoneConfig`, `Authorization: Bearer` on write routes, error codes `Unauthorized` (401) and `PendingTransaction` (409), reconciliation of unconfirmed transactions by hash, durable session. Local behaviour unchanged. |
+| v1.4 | 2026-10-26 | Compatible addition for the hosted keeper (consuming pole: front): optional `backend` and `writeAuth` in `KeystoneConfig`, `Authorization: Bearer` on write routes, error codes `Unauthorized` (401) and `PendingTransaction` (409), reconciliation of unconfirmed transactions by hash, durable session. Local behaviour unchanged. Wording: the public demo no longer uses `SIGNER=keeper`. |
 | v1.3 | 2026-10-26 | Compatible addition for front: read-only `GET /market-advisor`, diagnostic types in `packages/shared/src/market.ts`, real-source/freshness/cache semantics and explainable class scoring. Existing session/contract types and behaviours unchanged. |
 | v1.0-rc | 2026-10-25 | Initial proposal for the kickoff. |
 | v1.0 | 2026-10-25 | Kickoff amendments (Issue #5): `AssetId` `BOND` → `KBOND`; full constructor signature; state after `settle_default` and no rebalancing after `Defaulted`; deadline rules; SAC balance invariant `>=`; named event data; error precisions; keeper formats, error codes, write-route timing, rate-shock rule (refused after `defaulted`, `margin` frozen), single session; SSE `activity` and `state` events; `ActivityEvent.sessionId`; `ActivityType` mapping; `deployments/testnet.json` written by the keeper. |

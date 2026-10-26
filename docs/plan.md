@@ -1,3 +1,5 @@
+> **Document historique (phase zéro, 25 octobre 2026).** Écrit avant le code ; le plan a évolué. Les références à jour sont `README.md`, `docs/interfaces.md` et `docs/decisions.md`.
+
 # Keystone — Plan de construction du MVP
 
 Ce plan décrit les décisions, l'architecture, le modèle financier, le travail de chaque pôle, le planning et les risques.
