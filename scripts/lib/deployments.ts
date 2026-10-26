@@ -18,7 +18,17 @@ export interface Deployments {
   explorerTxBase: string;
   accounts: { issuer: string | null; fund: string | null; bank: string | null; keeper: string | null };
   assets: Partial<Record<AssetId, DeployedAsset>>;
-  vault: { wasmHash: string | null; testVaultId: string | null }; // provided by the contract pole
+  vault: {
+    wasmHash: string | null;
+    testVaultId: string | null;
+    // proofs provided by the contract pole and the keeper (hashes of confirmed Testnet transactions)
+    uploadTx?: string;
+    deployTx?: string;
+    testDepositTx?: string;
+    // proof of the C2 settlement on an independent fixture, and the immutable C1 deployment kept for history
+    c2?: { settlementFixtureVaultId: string; settlementFixtureSettleTx: string };
+    c1?: { wasmHash: string | null; testVaultId: string | null; uploadTx?: string; deployTx?: string; testDepositTx?: string };
+  };
   updatedAt: string;
 }
 
