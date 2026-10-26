@@ -28,6 +28,7 @@ node_modules/
 dist/
 .next/
 coverage/
+keeper/data/market-cache.local.json
 
 # Local environment variables
 .env

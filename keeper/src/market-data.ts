@@ -1,0 +1,203 @@
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { dirname } from 'node:path';
+import type { AdvisorWeights, MarketMetric, MarketMetricId, MarketSnapshot } from '@keystone/shared';
+import { ECB_URL, parseEcbCsv } from './euribor.ts';
+import { scoreMarket } from './market-scoring.ts';
+
+const DAY = 86_400_000;
+export const MARKET_URLS = {
+  vix: 'https://query1.finance.yahoo.com/v8/finance/chart/%5EVIX?interval=1d&range=5d',
+  sovereign2y: 'https://data-api.ecb.europa.eu/service/data/YC/B.U2.EUR.4F.G_N_A.SV_C_YM.SR_2Y?lastNObservations=30&format=csvdata',
+  euribor3m: ECB_URL,
+  estr: 'https://data-api.ecb.europa.eu/service/data/EST/B.EU000A2X2A25.WT?lastNObservations=1&format=csvdata',
+};
+const meta: Record<MarketMetricId, Pick<MarketMetric, 'name' | 'unit' | 'source' | 'frequency' | 'note'>> = {
+  vix: { name: 'VIX', unit: 'index points', frequency: 'daily close', source: { name: 'Yahoo Finance / Cboe', url: 'https://finance.yahoo.com/quote/%5EVIX/history/', series: '^VIX daily close' }, note: 'Latest completed daily close from Yahoo Finance (^VIX), dated in the exchange timezone. US equity implied volatility; secondary stress context only, not a real-time quote.' },
+  sovereignVol: { name: 'Euro sovereign realized yield volatility (20 changes)', unit: 'bp/day', frequency: 'daily', source: { name: 'ECB / Keystone calculation', url: 'https://data.ecb.europa.eu/data/datasets/YC/YC.B.U2.EUR.4F.G_N_A.SV_C_YM.SR_2Y', series: 'YC.B.U2.EUR.4F.G_N_A.SV_C_YM.SR_2Y' }, note: 'Sample standard deviation of the last 20 daily yield changes × 100. Not MOVE; not annualized or a price volatility.' },
+  euribor3m: { name: 'Euribor 3M (monthly average)', unit: '% p.a.', frequency: 'monthly average', source: { name: 'ECB, underlying Refinitiv / EMMI series', url: 'https://data.ecb.europa.eu/data/datasets/FM/FM.M.U2.EUR.RT.MM.EURIBOR3MD_.HSTA', series: 'FM.M.U2.EUR.RT.MM.EURIBOR3MD_.HSTA' }, note: 'Last published monthly average, not today’s fixing. Reuses the keeper’s ECB series and parser without changing margin inputs.' },
+  sovereign2y: { name: 'Euro sovereign 2Y AAA spot yield', unit: '% p.a.', frequency: 'daily', source: { name: 'ECB', url: 'https://data.ecb.europa.eu/data/datasets/YC/YC.B.U2.EUR.4F.G_N_A.SV_C_YM.SR_2Y', series: 'YC.B.U2.EUR.4F.G_N_A.SV_C_YM.SR_2Y' }, note: 'Fitted AAA sovereign spot curve; continuous compounding. Not a specific bond or the KBOND token yield.' },
+  estr: { name: '€STR overnight', unit: '% p.a.', frequency: 'daily', source: { name: 'ECB', url: 'https://data.ecb.europa.eu/data/datasets/EST/EST.B.EU000A2X2A25.WT', series: 'EST.B.EU000A2X2A25.WT' }, note: 'Published overnight benchmark, not an intraday quote.' },
+};
+
+export interface Observation { date: string; value: number }
+/** Use timestamp-aligned daily closes, never regularMarketPrice or a still-open daily bar. */
+export function parseYahooVix(json: unknown, now: Date): Observation {
+  const payload = json as { chart?: { error?: unknown; result?: {
+    meta?: { symbol?: unknown; dataGranularity?: unknown; exchangeTimezoneName?: unknown;
+      currentTradingPeriod?: { regular?: { start?: unknown; end?: unknown } } };
+    timestamp?: unknown; indicators?: { quote?: { close?: unknown }[] };
+  }[] } } | null;
+  const result = payload?.chart?.result;
+  if (payload?.chart?.error != null || !Array.isArray(result) || result.length !== 1) throw new Error('Yahoo VIX chart unavailable');
+  const data = result[0];
+  const period = data?.meta?.currentTradingPeriod?.regular;
+  const timestamps = data?.timestamp;
+  const closes = data?.indicators?.quote?.[0]?.close;
+  const seconds = (n: unknown): n is number => typeof n === 'number' && Number.isSafeInteger(n) && n >= 0 && n <= 8_640_000_000_000;
+  if (data?.meta?.symbol !== '^VIX' || data.meta.dataGranularity !== '1d' || typeof data.meta.exchangeTimezoneName !== 'string'
+    || !seconds(period?.start) || !seconds(period?.end) || period.end <= period.start
+    || !Array.isArray(timestamps) || !Array.isArray(closes) || timestamps.length !== closes.length) throw new Error('Invalid Yahoo VIX chart');
+  // The exchange can be on a different calendar day from UTC. An invalid/missing timezone fails closed.
+  const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: data.meta.exchangeTimezoneName, year: 'numeric', month: '2-digit', day: '2-digit' });
+  const localDate = (time: number) => {
+    const parts = formatter.formatToParts(new Date(time * 1000));
+    return ['year', 'month', 'day'].map((type) => parts.find((part) => part.type === type)!.value).join('-');
+  };
+  const tradingDate = localDate(period.start);
+  const periodEnd = period.end;
+  const nowSeconds = now.getTime() / 1000;
+  const observations = timestamps.flatMap((time, i) => {
+    const close = closes[i];
+    if (!seconds(time) || time > nowSeconds || typeof close !== 'number' || !Number.isFinite(close) || close < 0) return [];
+    const date = localDate(time);
+    if (!validDay(date) || date > tradingDate || (date === tradingDate && nowSeconds < periodEnd)) return [];
+    return [{ time, date, value: close }];
+  }).sort((a, b) => b.time - a.time);
+  const latest = observations[0];
+  if (!latest) throw new Error('No completed Yahoo VIX daily close');
+  return { date: latest.date, value: latest.value };
+}
+function csvRows(csv: string): string[][] {
+  // SDMX descriptions contain quoted commas and escaped quotes.
+  return csv.replace(/^\uFEFF/, '').trim().split(/\r?\n/).map((line) => {
+    const fields: string[] = []; let text = ''; let quoted = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i]!;
+      if (c === '"') { if (quoted && line[i + 1] === '"') { text += '"'; i++; } else quoted = !quoted; }
+      else if (c === ',' && !quoted) { fields.push(text); text = ''; } else text += c;
+    }
+    if (quoted) throw new Error('Malformed CSV');
+    fields.push(text); return fields;
+  });
+}
+function validDay(date: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(date) && Number.isFinite(Date.parse(date)) && new Date(date).toISOString().slice(0, 10) === date;
+}
+export function parseObservations(csv: string, kind: 'ecb' | 'vix', now: Date): Observation[] {
+  const [header, ...rows] = csvRows(csv);
+  const di = header?.indexOf(kind === 'ecb' ? 'TIME_PERIOD' : 'DATE') ?? -1;
+  const vi = header?.indexOf(kind === 'ecb' ? 'OBS_VALUE' : 'CLOSE') ?? -1;
+  if (di < 0 || vi < 0) throw new Error('Missing market CSV columns');
+  const observations = rows.flatMap((r) => {
+    const rawDate = r[di] ?? ''; const text = r[vi]?.trim() ?? '';
+    const date = kind === 'vix' ? rawDate.replace(/^(\d{2})\/(\d{2})\/(\d{4})$/, '$3-$1-$2') : rawDate;
+    const value = Number(text);
+    if (!text || !Number.isFinite(value) || !validDay(date) || date > now.toISOString().slice(0, 10)) return [];
+    if (kind === 'vix' && value < 0) return [];
+    return [{ date, value }];
+  }).sort((a, b) => a.date.localeCompare(b.date));
+  if (!observations.length || new Set(observations.map((o) => o.date)).size !== observations.length) throw new Error('No valid observations or duplicate dates');
+  return observations;
+}
+/** ECB yield curves are published on TARGET business days. Gregorian Easter computus allows
+ * holiday closures without treating an absent ordinary business day as a daily change. */
+function isTargetBusinessDay(time: number): boolean {
+  const date = new Date(time);
+  if (date.getUTCDay() === 0 || date.getUTCDay() === 6) return false;
+  const monthDay = date.toISOString().slice(5, 10);
+  if (['01-01', '05-01', '12-25', '12-26'].includes(monthDay)) return false;
+  const year = date.getUTCFullYear();
+  const a = year % 19, b = Math.floor(year / 100), c = year % 100;
+  const d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const n = h + l - 7 * m + 114;
+  const easter = Date.UTC(year, Math.floor(n / 31) - 1, n % 31 + 1);
+  return time !== easter - 2 * DAY && time !== easter + DAY;
+}
+export function realizedVolatility(observations: Observation[]): { value: number; start: string; end: string; observations: number } {
+  if (observations.length < 21) throw new Error('Need 21 daily observations for 20 changes');
+  const sample = observations.slice(-21);
+  // Successive published business observations: TARGET closes on Good Friday and Easter Monday,
+  // so a complete Thursday→Tuesday history has a five-day calendar gap. Allow holiday weeks,
+  // reject prolonged gaps rather than mistaking a missing month for daily observations.
+  if (sample.some((o, i) => i > 0 && (Date.parse(o.date) - Date.parse(sample[i - 1]!.date)) / DAY > 7)
+    || (Date.parse(sample.at(-1)!.date) - Date.parse(sample[0]!.date)) / DAY > 45) throw new Error('Gaps in daily history');
+  for (let i = 1; i < sample.length; i++) {
+    for (let day = Date.parse(sample[i - 1]!.date) + DAY; day < Date.parse(sample[i]!.date); day += DAY) {
+      if (isTargetBusinessDay(day)) throw new Error('Missing TARGET business-day yield observation');
+    }
+  }
+  const changes = sample.slice(1).map((o, i) => (o.value - sample[i]!.value) * 100);
+  const mean = changes.reduce((s, x) => s + x, 0) / changes.length;
+  return { value: Math.sqrt(changes.reduce((s, x) => s + (x - mean) ** 2, 0) / (changes.length - 1)), start: sample[0]!.date, end: sample.at(-1)!.date, observations: sample.length };
+}
+function fresh(id: MarketMetricId, date: string | null, now: Date): MarketMetric['freshness'] {
+  if (!date) return 'unknown';
+  let end = date;
+  if (id === 'euribor3m') {
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(date)) return 'unknown';
+    end = new Date(Date.UTC(Number(date.slice(0, 4)), Number(date.slice(5, 7)), 0)).toISOString().slice(0, 10);
+  }
+  if (!validDay(end) || end > now.toISOString().slice(0, 10)) return 'unknown';
+  return now.getTime() - Date.parse(end) <= (id === 'euribor3m' ? 45 : 7) * DAY ? 'current' : 'stale';
+}
+export function unavailableMarket(now = new Date()): MarketSnapshot {
+  const metrics = (Object.keys(meta) as MarketMetricId[]).map((id): MarketMetric => ({ id, ...meta[id], value: null, observedAt: null, retrievedAt: null, delivery: 'unavailable', freshness: 'unknown', note: `${meta[id].note} Market provider unavailable.` }));
+  return { asOf: now.toISOString(), metrics, advice: scoreMarket(metrics) };
+}
+
+export function createMarketProvider(options: {
+  cachePath?: string; fetchFn?: typeof fetch; now?: () => Date; timeoutMs?: number; refreshMs?: number;
+  weights?: AdvisorWeights;
+} = {}): () => Promise<MarketSnapshot> {
+  const fetchFn = options.fetchFn ?? fetch;
+  const now = options.now ?? (() => new Date());
+  let lastAttempt = -Infinity;
+  const cached = new Map<MarketMetricId, MarketMetric>();
+  let loaded = false;
+  let pending: Promise<MarketSnapshot> | null = null;
+  async function download(url: string, accept = 'text/csv') {
+    const response = await fetchFn(url, { headers: { Accept: accept }, signal: AbortSignal.timeout(options.timeoutMs ?? 6000) });
+    if (!response.ok) throw new Error(`Market source HTTP ${response.status}`);
+    const text = await response.text();
+    if (text.length > 2_000_000) throw new Error('Market response too large');
+    return text;
+  }
+  const render = (date: Date, reused: boolean): MarketSnapshot => {
+    const metrics = (Object.keys(meta) as MarketMetricId[]).map((id): MarketMetric => {
+      const m = cached.get(id);
+      if (!m) return { id, ...meta[id], value: null, observedAt: null, retrievedAt: null, freshness: 'unknown', delivery: 'unavailable', note: `${meta[id].note} Source unavailable or invalid; no substitute value.` };
+      return { ...m, freshness: fresh(id, m.observedAt, date), delivery: reused || m.delivery === 'cache' ? 'cache' : 'source' };
+    });
+    return { asOf: date.toISOString(), metrics, advice: scoreMarket(metrics, options.weights) };
+  };
+  async function update(): Promise<MarketSnapshot> {
+    const date = now();
+    if (!loaded) {
+      loaded = true;
+      if (options.cachePath) try {
+        const data = JSON.parse(await readFile(options.cachePath, 'utf8')) as { version?: number; metrics?: MarketMetric[] };
+        if (data.version === 1 && Array.isArray(data.metrics)) for (const m of data.metrics) {
+          if (m && Object.hasOwn(meta, m.id) && typeof m.value === 'string' && m.value.trim() && Number.isFinite(Number(m.value)) && typeof m.observedAt === 'string'
+            && typeof m.retrievedAt === 'string' && Number.isFinite(Date.parse(m.retrievedAt)) && Date.parse(m.retrievedAt) <= date.getTime() && fresh(m.id, m.observedAt, date) !== 'unknown'
+            && (m.id !== 'sovereignVol' || (Number(m.value) >= 0 && m.calculation?.observations === 21))
+            // Do not relabel a previous Cboe CSV cache as a Yahoo observation.
+            && (m.id !== 'vix' || (Number(m.value) >= 0 && m.source?.url === meta.vix.source.url && m.source?.series === meta.vix.source.series))) {
+            cached.set(m.id, { ...m, ...meta[m.id], delivery: 'cache' });
+          }
+        }
+      } catch { /* No cache is a normal first run. */ }
+    }
+    if (date.getTime() - lastAttempt < (options.refreshMs ?? 3_600_000)) return render(date, true);
+    lastAttempt = date.getTime();
+    for (const [id, metric] of cached) cached.set(id, { ...metric, delivery: 'cache' });
+    const set = (id: MarketMetricId, value: number, observedAt: string, calculation?: MarketMetric['calculation']) => {
+      if (!Number.isFinite(value) || fresh(id, observedAt, date) === 'unknown') throw new Error('Invalid market observation');
+      cached.set(id, { id, ...meta[id], value: value.toFixed(id === 'sovereignVol' ? 4 : 6), observedAt, retrievedAt: date.toISOString(), freshness: fresh(id, observedAt, date), delivery: 'source', ...(calculation ? { calculation } : {}) });
+    };
+    await Promise.allSettled([
+      (async () => { const r = parseEcbCsv(await download(MARKET_URLS.euribor3m)); set('euribor3m', r.rateMilli / 1000, r.period); })(),
+      (async () => { const rows = parseObservations(await download(MARKET_URLS.estr), 'ecb', date); const r = rows.at(-1)!; set('estr', r.value, r.date); })(),
+      (async () => { const rows = parseObservations(await download(MARKET_URLS.sovereign2y), 'ecb', date); const r = rows.at(-1)!; set('sovereign2y', r.value, r.date); const vol = realizedVolatility(rows); set('sovereignVol', vol.value, vol.end, { method: 'Sample SD of 20 daily yield changes × 100 (bp/day), not annualized', start: vol.start, end: vol.end, observations: vol.observations }); })(),
+      (async () => { const r = parseYahooVix(JSON.parse(await download(MARKET_URLS.vix, 'application/json')), date); set('vix', r.value, r.date); })(),
+    ]);
+    if (options.cachePath) try {
+      await mkdir(dirname(options.cachePath), { recursive: true });
+      // Cache observations, never an advice result: scoring and freshness are recomputed on each read.
+      await writeFile(options.cachePath, JSON.stringify({ version: 1, metrics: [...cached.values()] }, null, 2) + '\n');
+    } catch { /* Read-only disk must not break the advisor. */ }
+    return render(date, false);
+  }
+  return () => { pending ??= update().finally(() => { pending = null; }); return pending; };
+}

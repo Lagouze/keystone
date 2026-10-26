@@ -1,7 +1,8 @@
 // REST + SSE API of docs/interfaces.md section 4, mounted under /api.
 import cors from "@fastify/cors";
 import Fastify, { type FastifyInstance, type FastifyReply } from "fastify";
-import type { AssetId, KeystoneConfig } from "@keystone/shared";
+import type { AssetId, KeystoneConfig, MarketSnapshot } from "@keystone/shared";
+import { createMarketProvider, unavailableMarket } from './market-data.ts';
 import { KeeperError } from "./errors.ts";
 import type { SessionManager, StreamMessage } from "./session.ts";
 
@@ -23,6 +24,8 @@ const LOCAL_HOST = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
 export const isLocalOrigin = (origin: string): boolean => LOCAL_ORIGIN.test(origin);
 
 export interface ServerOptions {
+  /** Read-only public sources; does not receive a session or any Stellar signer. */
+  market?: () => Promise<MarketSnapshot>;
   /** Which browser origins may call the API. Default: local pages only (`isLocalOrigin`). */
   allowedOrigin?: (origin: string) => boolean;
   /** Which `Host` header values are served. Default: loopback names only, against DNS rebinding. */
@@ -34,6 +37,7 @@ export function buildServer(config: KeystoneConfig, sessions: SessionManager, op
   const allowedHost = options.allowedHost ?? ((h: string) => LOCAL_HOST.test(h));
   const app = Fastify({ logger: false, forceCloseConnections: true });
   const streams = new Set<FastifyReply>();
+  const market = options.market ?? createMarketProvider();
 
   // A page that rebinds its DNS name to 127.0.0.1 is same-origin with the keeper and bypasses CORS:
   // refuse any request whose Host or Origin is not expected.
@@ -68,6 +72,11 @@ export function buildServer(config: KeystoneConfig, sessions: SessionManager, op
 
     api.get("/health", async () => ({ ok: true, network: "testnet" as const }));
     api.get("/config", async () => config);
+    api.get('/market-advisor', async (_req, reply) => {
+      reply.header('Cache-Control', 'no-store');
+      try { return await market(); }
+      catch { return unavailableMarket(); }
+    });
 
     api.post("/session", async (req) => {
       const asset = (req.body as { asset?: unknown } | null)?.asset;

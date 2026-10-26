@@ -7,6 +7,7 @@ import { BlurReveal } from '../ui/BlurReveal.tsx'
 import { CylinderText } from '../ui/CylinderText.tsx'
 import { GhostType } from '../ui/GhostType.tsx'
 import { HowItWorks } from './HowItWorks.tsx'
+import { MarketAdvisor } from './MarketAdvisor.tsx'
 import { Journey } from './Journey.tsx'
 import { VaporText } from '../ui/VaporText.tsx'
 import { usePinned } from '../ui/Chapter.tsx'
@@ -195,7 +196,9 @@ export function Landing({
               <p className={cx('mt-6 min-h-6 text-ink-subtle', !info && 'invisible')}>
                 {info ? `${info.label} · €${formatEur(info.unitPriceEur)} (simulated) · haircut ${info.haircutPct}%` : '·'}
               </p>
-              <Button className="mt-10 !h-14 w-full max-w-sm text-base" variant="primary" busy={busy} onClick={() => onStart(asset)}>
+              {/* Read-only comparison of real market observations: it never selects or starts anything. */}
+              <MarketAdvisor className="mt-8 w-full max-w-sm" />
+              <Button className="mt-3 !h-14 w-full max-w-sm text-base" variant="primary" busy={busy} onClick={() => onStart(asset)}>
                 {busy ? 'Deploying the vault…' : 'Start'}
               </Button>
             </motion.div>
