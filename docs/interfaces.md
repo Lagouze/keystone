@@ -172,7 +172,7 @@ Base URL: `http://localhost:8787/api` in local development; the public URL is se
 | `Unauthorized` | 401 | (v1.4) write route called without a valid access code on a hosted keeper |
 | `PendingTransaction` | 409 | (v1.4) a transaction sent earlier has no known outcome yet; no new write starts until it is confirmed, failed or expired (see below) |
 
-`SIGNER=keeper` is used by the end-to-end script and local runs. A hosted keeper refuses it (v1.4): the public live app runs with `SIGNER=freighter` and offers judges the simulated `?demo` mode instead, because they cannot sign with the fund key. The front shows a visible notice in keeper mode.
+`SIGNER=keeper` is used by the end-to-end script and local runs. A hosted keeper refuses it (v1.4): the public live app runs with `SIGNER=freighter`. Under the explicit jury-demo exception A12, judges can import the shared Testnet fund wallet and use the dedicated access code documented in the README; the independent simulated `?demo` mode remains available without a wallet. This does not change authorization or any API signature. The front shows a visible notice in keeper mode.
 
 ### 4.1 Read-only market advisor (v1.3, consuming pole: front)
 
