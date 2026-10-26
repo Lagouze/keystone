@@ -20,6 +20,8 @@ export function StatusPill({ status, label, children }: StatusPillProps) {
   const style = STYLES[status]
   return (
     <span
+      role="status"
+      aria-label={`Vault status: ${style.label}`}
       className={cx(
         'inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium uppercase tracking-wider',
         'transition-colors duration-350 ease-state',

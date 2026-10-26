@@ -1,4 +1,5 @@
 import type { ActivityEvent } from '@keystone/shared'
+import { RevealHash, TxMark } from './motion.tsx'
 
 interface Proof {
   hash: string
@@ -18,24 +19,27 @@ export function proofOf(event: ActivityEvent): Proof | null {
 /**
  * Right-hand side of an activity entry: the abbreviated hash linking to stellar.expert when the
  * entry has a proof, otherwise its status. The only way the dashboard shows a hash.
+ * `reveal`: the entry was seen pending in this session, so its hash decrypts on confirmation.
  */
-export function ActivityProof({ event }: { event: ActivityEvent }) {
+export function ActivityProof({ event, reveal = false }: { event: ActivityEvent; reveal?: boolean }) {
   if (event.status === 'failed') {
-    return <span className="text-xs font-medium text-danger">Failed</span>
-  }
-  if (event.status === 'pending') {
     return (
-      <span className="inline-flex items-center gap-1.5 text-xs text-ink-muted">
-        <span
-          aria-hidden="true"
-          className="size-3 rounded-full border-2 border-current border-r-transparent motion-safe:animate-spin"
-        />
-        Pending
+      <span className="inline-flex items-center gap-1.5 text-xs font-medium text-danger">
+        <TxMark status="failed" />
+        Failed
       </span>
     )
   }
   if (event.kind === 'sim') {
     return <span className="text-xs text-ink-subtle">No hash</span>
+  }
+  if (event.status === 'pending') {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-xs text-ink-muted">
+        <TxMark status="pending" />
+        Pending
+      </span>
+    )
   }
   const proof = proofOf(event)
   if (!proof) {
@@ -45,16 +49,19 @@ export function ActivityProof({ event }: { event: ActivityEvent }) {
   }
   const short = proof.hash.length > 12 ? `${proof.hash.slice(0, 4)}…${proof.hash.slice(-4)}` : proof.hash
   return (
-    <a
-      href={proof.explorerUrl}
-      target="_blank"
-      rel="noreferrer"
-      title={proof.hash}
-      className="text-xs text-chain underline-offset-2 hover:text-chain-hover hover:underline"
-    >
-      {short}
-      <span aria-hidden="true"> ↗</span>
-      <span className="sr-only"> (opens stellar.expert)</span>
-    </a>
+    <span className="inline-flex items-center gap-1.5">
+      <TxMark status="confirmed" />
+      <a
+        href={proof.explorerUrl}
+        target="_blank"
+        rel="noreferrer"
+        title={proof.hash}
+        className="text-xs text-chain underline-offset-2 hover:text-chain-hover hover:underline"
+      >
+        <RevealHash text={short} animate={reveal} />
+        <span aria-hidden="true"> ↗</span>
+        <span className="sr-only"> (opens stellar.expert)</span>
+      </a>
+    </span>
   )
 }

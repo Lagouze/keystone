@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { cx } from './cx.ts'
 
 type Tone = 'default' | 'chain' | 'warning' | 'danger' | 'success'
@@ -19,8 +20,8 @@ const SIZES: Record<Size, string> = {
 
 interface StatProps {
   label: string
-  /** Already formatted for display (units or EUR). */
-  value: string
+  /** Already formatted for display (units or EUR), or a rolling figure. */
+  value: ReactNode
   unit?: string
   tone?: Tone
   size?: Size

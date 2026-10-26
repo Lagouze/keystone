@@ -238,6 +238,8 @@ Verified so far: both scenarios on the mock keeper; the HTTP and SSE client agai
 
 **Visual direction.** "Salle de compensation", light version, chosen by the team: white and cool greys, navy for text and primary actions, blue reserved for on-chain proof, violet for simulated values, green / amber / red for the vault status. One typeface, Helvetica Neue, with tabular figures; it ships with macOS and iOS, and other systems fall back to Helvetica then Arial (no font is bundled or downloaded). Design tokens live in `app/src/index.css` (Tailwind CSS v4 `@theme`), base components in `app/src/ui/`.
 
+**Motion.** Each confirmed change plays one short sequence instead of everything at once (`app/src/state/useChoreography.ts`): the status flips first (at 400 ms after the confirmation arrives), then the figures roll (at 1 s, or at 400 ms when the status does not change), then a margin-call card lights up (at 1.35 s) and its countdown starts (at 1.55 s); on a default, the locked collateral travels from the vault to the bank in 700 ms. Actions stay disabled while a sequence plays. Market figures (MTM, Euribor) move as soon as they arrive; a hash decrypts when an entry seen pending in this tab confirms. The animations come from [React Bits](https://reactbits.dev) (Counter, SplitFlapText, StatusMark, DecryptedText, LatticeLoader, StarBorder, HoldButton, ShinyText, Stepper, GradualBlur, CountUp, SwipeToast, RippleGrid), copied under `app/src/ui/bits/` with their licence notice, and configured once in `app/src/ui/motion.tsx`. With reduced motion, new values show at once.
+
 ## 10. Demo instructions
 
 *To be written once the end-to-end flow works.* Two scenarios are planned:
@@ -265,7 +267,7 @@ Only the status "verified" counts as done, and only with a proof link.
 | 6 | Deposit, lock and release with verifiable results | Verified (Testnet) | [Deposit](https://stellar.expert/explorer/testnet/tx/eaeeb3da25b832b9e7019099fb74e8396f9d07a3bd6e5b638db152a3757cdec2), [lock](https://stellar.expert/explorer/testnet/tx/d575193f3c49bed24541a0f03dde70129c0242b570305440e6bdb2ca2c75a5f0), [release](https://stellar.expert/explorer/testnet/tx/91527a412eae01b080f3fe7b5b076904649613688cfe3964630034cd385d0dbb), [withdrawal](https://stellar.expert/explorer/testnet/tx/7de52778115187c6ecaadcef3eb4cef294ad045b9713e9b13e63012034bd7c4a) |
 | 7 | Separate default scenario with on-chain transfer to the bank | Verified (Testnet) | [`settle_default`, 300 KBOND to the bank](https://stellar.expert/explorer/testnet/tx/33793f423facfa6e2968da335558cc9bba2cc296b6ea6e2133b734829309112c) |
 | 8 | Real Stellar Testnet transactions shown with proof | In progress | Real hashes flow through the keeper's SSE feed (section 6); the dashboard has not been run against the real keeper yet |
-| 9 | Dashboard showing asset choice, steps and on-chain proof | In progress (dashboard on mocks; real keeper and Freighter not tested yet) | |
+| 9 | Dashboard showing asset choice, steps and on-chain proof | In progress (dashboard on mocks, light direction and motion; real keeper and Freighter not tested yet) | |
 | 10 | End-to-end integration of the three poles | Not started | |
 | 11 | Submission: public repo, README, public URL, video, pitch deck | Not started | |
 | 12 | Continuous quality: review of every PR, tests, README updates | In place from phase zero | This repository's PR history |

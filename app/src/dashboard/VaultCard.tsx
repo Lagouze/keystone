@@ -1,10 +1,19 @@
 import type { AssetInfo, SessionState } from '@keystone/shared'
 import { formatEur, formatUnits, shortAddress } from '../lib/format.ts'
 import { AllocationBar, Card, CoverageRing, Stat, Tile } from '../ui/index.ts'
+import { RollUnits } from '../ui/motion.tsx'
 
-export function VaultCard({ session, asset }: { session: SessionState; asset: AssetInfo }) {
+interface VaultCardProps {
+  session: SessionState
+  asset: AssetInfo
+  /** Seconds the figures take to roll (choreography). */
+  duration: number
+}
+
+export function VaultCard({ session, asset, duration }: VaultCardProps) {
   const { vault, margin } = session
   const fmt = (units: string) => formatUnits(units, asset.decimals)
+  const roll = (units: string) => <RollUnits units={units} decimals={asset.decimals} duration={duration} />
   const historical = vault.status === 'defaulted'
   // Below the MTA the keeper does not post the new requirement: the vault keeps the previous one.
   const notPosted = !historical && margin.requiredUnits !== vault.requiredUnits
@@ -21,11 +30,11 @@ export function VaultCard({ session, asset }: { session: SessionState; asset: As
             </span>
           </div>
           <dl className="grid grid-cols-3 gap-4 sm:gap-6">
-            <Stat label="Available" value={fmt(vault.availableUnits)} />
-            <Stat label="Locked" value={fmt(vault.lockedUnits)} tone="chain" />
+            <Stat label="Available" value={roll(vault.availableUnits)} />
+            <Stat label="Locked" value={roll(vault.lockedUnits)} tone="chain" />
             <Stat
               label="Shortfall"
-              value={fmt(vault.shortfallUnits)}
+              value={roll(vault.shortfallUnits)}
               tone={BigInt(vault.shortfallUnits) > 0n ? 'warning' : 'default'}
             />
           </dl>

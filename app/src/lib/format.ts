@@ -81,3 +81,8 @@ export function valueAfterHaircut(units: string, decimals: number, unitPriceEur:
   const tokens = Number(BigInt(units)) / 10 ** decimals
   return (tokens * Number(unitPriceEur) * (1 - Number(haircutPct) / 100)).toFixed(2)
 }
+
+/** Smallest units → number, for rolling figures and proportions only (never sent to the keeper). */
+export function unitsToFloat(units: string, decimals: number): number {
+  return Number(BigInt(units)) / 10 ** decimals
+}
