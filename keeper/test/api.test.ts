@@ -36,6 +36,29 @@ describe("static routes", () => {
   });
 });
 
+describe("CORS", () => {
+  const preflight = (origin: string) => keeper!.app.inject({
+    method: "OPTIONS", url: "/api/session/deposit",
+    headers: { origin, "access-control-request-method": "POST", "access-control-request-headers": "content-type" },
+  });
+  it("answers local pages and refuses other origins", async () => {
+    start();
+    expect((await preflight("http://localhost:5173")).headers["access-control-allow-origin"]).toBe("http://localhost:5173");
+    expect((await preflight("https://evil.example")).headers["access-control-allow-origin"]).toBeUndefined();
+  });
+});
+
+describe("Host and Origin checks (DNS rebinding)", () => {
+  const call = (headers: Record<string, string>) => keeper!.app.inject({ method: "GET", url: "/api/health", headers });
+  it("serves loopback hosts and refuses other Host or Origin values", async () => {
+    start();
+    expect((await call({ host: "127.0.0.1:8787" })).statusCode).toBe(200);
+    expect((await call({ host: "localhost:8787", origin: "http://localhost:5173" })).statusCode).toBe(200);
+    expect((await call({ host: "attacker.example:8787" })).statusCode).toBe(403);
+    expect((await call({ host: "127.0.0.1:8787", origin: "http://attacker.example:8787" })).statusCode).toBe(403);
+  });
+});
+
 describe("validation", () => {
   it("rejects bad bodies with BadRequest (400)", async () => {
     const k = start();
@@ -267,6 +290,26 @@ describe("scenario 2: default (KBOND)", () => {
     expect(after.margin.requiredUnits).toBe(requiredAt(-100).toString());
     expect(after.vault.requiredUnits).toBe("0");
     expect(feed(k)).toHaveLength(entries);
+  });
+});
+
+describe("defaulted feed entry (what the e2e script asserts)", () => {
+  it("carries the amount of the defaulted event and the hash, and only for the collateral really locked", async () => {
+    for (const deposit of ["3000000000", "1234567890"]) {
+      const k = start();
+      await k.post("/session", { asset: "KBOND" });
+      await k.post("/session/deposit", { units: deposit });
+      await k.post("/session/rate-shock", { bp: -100 });
+      k.clock.seconds += 90n;
+      const done = await k.post("/session/settle-default");
+      const settled = feed(k).filter((e) => e.type === "defaulted" && e.status === "confirmed");
+      expect(settled).toHaveLength(1);
+      const expected = `${(Number(done.body.balances.bankUnits) / 1e7).toFixed(7)} KBOND`; // bank received what was locked
+      expect(settled[0]!.title).toContain(expected);
+      expect(settled[0]!.title).not.toContain(`${(Number(deposit) / 1e7 + 1).toFixed(7)} KBOND`);
+      expect(settled[0]!.txHash).toBeDefined();
+      await k.app.close(); keeper = null;
+    }
   });
 });
 

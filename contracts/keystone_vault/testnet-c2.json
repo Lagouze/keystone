@@ -1,0 +1,68 @@
+{
+  "network": "testnet",
+  "networkPassphrase": "Test SDF Network ; September 2015",
+  "wasmHash": "6ca6314db610635008d8a1a6e6b55f69306dd25bb9488a78adb18ef274195b6b",
+  "upload": {
+    "hash": "1911a4bb1f2b5b6e5199364ecb56cf48577714ff9669a8947898514810cec62f",
+    "status": "SUCCESS",
+    "ledger": 5389425
+  },
+  "integrationVault": {
+    "id": "CARBSCRLX2DJKMGYB3TPJ7WEAWZZ5HSIOE4CXY4PG6ZGR3Y5HZLON226",
+    "deploymentHash": "f3ea93f2166f2ef4674f5773f02fb30c09731c31fa7a56f2db9be37ff0f56bc4",
+    "status": "SUCCESS",
+    "ledger": 5389441,
+    "constructor": {
+      "fund": "GDQ6AWAXZWIOCBHDSFIIKCWV3PQ6ZJE6BBC4VJCWA3SCFB4G7A2TMQOY",
+      "bank": "GAUHK4ZBP2W5VSKLJOTTKKHWUB2MGFXBMHYLSH3EERTVYYMVPWSR7W6C",
+      "keeper": "GDGUJHZGU57RU4RHARM37GU2IDX4KV7V23XVFORDWRYIBWIIQ6U7G4TO",
+      "asset": "CDB2XDXZ4CPE242D5KYIKQ2L2PQKENQCSYTW6PA5ROHOX5QWDBKVEUPF",
+      "max_required": "10000000000",
+      "grace_period_secs": 90
+    },
+    "verifiedState": "Active, amounts/epoch/deadline all zero; roles and KBOND SAC match the project configuration.",
+    "scope": "Deployment and readback verified. Deposit/margin/default with the team's keys not executed here; signatures are held on the keeper machine."
+  },
+  "validationFixture": {
+    "id": "CALNED2G3Y2XLDMGZMFR2KR7RIWSL3FN36QAL4TNC27233AC5BJNLV4H",
+    "scope": "Real Testnet settlement using pre-existing local test identities and their fictitious KSC1 SAC, not the project's KMMF/KBOND accounts.",
+    "asset": {
+      "code": "KSC1",
+      "issuer": "GDUEISWWPXLJDIU4UAH3AFFT6DLJOUVIKN34X464TPFEESI4TUOBX3MZ",
+      "sac": "CD7EIAQ5Z2RY7BLNOOP67H2XOEC6CSVF3JD5OTEMHZQVEK6JD3GQPOCG"
+    },
+    "fund": "GCSLY4AQALFG657K5WHJITP7IXTXKCGTRDMRGFMGQWVMZXTMBJJTVW35",
+    "bank": "GB2W46GBK43HTMNXV7EW2WIRMRA3PZNBA4NXEUW6IDK4ECXPDARQV2CO",
+    "keeper": "GD372X3Z5AVVZPNHZELJSRPF4GAKT2BL5J7AT22TDM5WD4I5INX4KDUH",
+    "settlementCaller": "GDUEISWWPXLJDIU4UAH3AFFT6DLJOUVIKN34X464TPFEESI4TUOBX3MZ",
+    "max_required": "10000000000",
+    "grace_period_secs": 90,
+    "transactions": {
+      "deploy": { "hash": "19d5a5483246e9407312efbae821a01f638d2952cf86497a8ee4f86e910964a7", "status": "SUCCESS", "ledger": 5389429 },
+      "deposit": { "hash": "c9c984f71816685e5109649a7c6ea4c7bce6200e845511f7019bd4a5dfe01657", "status": "SUCCESS", "ledger": 5389433, "amount": "100000000" },
+      "postMargin": { "hash": "7c5268083a0042c20eb402e21bf73dcbe631a124da9a3254b44c7b9f84c08061", "status": "SUCCESS", "ledger": 5389434, "epoch": 1, "required": "150000000", "locked": "100000000", "shortfall": "50000000", "call_deadline": 1792970847 },
+      "settleDefault": { "hash": "cf177f8d65e3e7189e4801afaea948fa20ee3f4b4a75c90d23f1cd821ac79ded", "status": "SUCCESS", "ledger": 5389456, "ledgerTimestamp": 1792970867, "transferred": "100000000", "externalSorobanAuthEntries": 0, "callerSignatureVerified": true }
+    },
+    "verifiedAfter": {
+      "status": "Defaulted",
+      "available": "0",
+      "locked": "0",
+      "required": "0",
+      "shortfall": "0",
+      "call_deadline": 0,
+      "epoch": 1,
+      "fundSacBalance": "6900000000",
+      "bankSacBalance": "100000000",
+      "vaultSacBalance": "0",
+      "keeperHasKsc1Trustline": false,
+      "defaultedEvent": { "amount": "100000000" }
+    },
+    "negativeSimulations": {
+      "beforeDeadline": "GracePeriodRunning (6)",
+      "depositAfterDefault": "Defaulted (8)",
+      "marginAfterDefault": "Defaulted (8)",
+      "replaySettlement": "NotInMarginCall (5)",
+      "withdrawUnavailable": "InsufficientAvailable (2)"
+    }
+  }
+}
