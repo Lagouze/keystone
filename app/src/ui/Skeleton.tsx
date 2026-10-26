@@ -11,7 +11,7 @@ export function Skeleton({ className }: { className?: string }) {
  */
 export function HeroSkeleton() {
   return (
-    <div role="status" aria-label="Loading" className="mx-auto flex min-h-[88vh] max-w-3xl flex-col items-center justify-center gap-7 px-6">
+    <div role="status" aria-label="Loading" className="mx-auto flex h-svh min-h-[34rem] max-w-3xl pt-16 flex-col items-center justify-center gap-7 px-6">
       <div className="glass flex h-12 w-56 items-center gap-3 rounded-full px-4">
         <span className="size-2.5 shrink-0 rounded-full bg-ink/70" aria-hidden="true" />
         <Skeleton className="h-3 flex-1" />

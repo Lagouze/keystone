@@ -126,7 +126,7 @@ export const StatusCard = memo(function StatusCard(props: StatusCardProps) {
             )}
           </div>
         )}
-        <SigningProgress busy={busy} step={props.step} />
+        <SigningProgress busy={busy} step={props.step} corner={!callOpen} />
       </AutoHeight>
     </Card>
   )

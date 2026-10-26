@@ -20,8 +20,8 @@ function Line({ index, count, progress, line }: { index: number; count: number; 
       className="absolute inset-x-0 top-1/2 -mt-24 px-8 [backface-visibility:hidden]"
       style={{ transform, opacity, filter: blur, transformOrigin: '50% 50%' }}
     >
-      <h3 className="text-5xl font-semibold uppercase tracking-tight sm:text-7xl">{line.title}</h3>
-      <p className="mt-3 max-w-md text-lg text-ink-muted">{line.text}</p>
+      <h3 className="title-hero font-semibold uppercase">{line.title}</h3>
+      <p className="text-lead mt-4 max-w-md text-ink-muted">{line.text}</p>
     </motion.div>
   )
 }
@@ -45,7 +45,7 @@ export function CylinderText({ lines, progress }: { lines: readonly CylinderLine
     )
   }
   return (
-    <div className="relative h-80" style={{ perspective: '1100px' }}>
+    <div className="relative h-[min(60svh,30rem)]" style={{ perspective: '1100px' }}>
       <div className="absolute inset-0" style={{ transformStyle: 'preserve-3d' }}>
         {lines.map((line, i) => (
           <Line key={line.title} index={i} count={lines.length} progress={progress} line={line} />

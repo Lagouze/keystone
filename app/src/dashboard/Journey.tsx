@@ -1,4 +1,5 @@
 import { motion, useReducedMotion } from 'motion/react'
+import { Chapter, usePinned } from '../ui/Chapter.tsx'
 
 const CHECK = (
   <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" className="mt-0.5 shrink-0 text-ink">
@@ -27,18 +28,20 @@ const MILESTONES = [
 /** "Here is what you get done in one session": a timeline of three moments and a checklist card under each. */
 export function Journey() {
   const still = useReducedMotion()
+  // Pinned, the chapter itself brings the content in; otherwise each part rises into view.
+  const quiet = still || usePinned()
   return (
-    <section className="px-4 py-24" aria-labelledby="journey-title">
+    <Chapter labelledBy="journey-title">
       <div className="mx-auto max-w-5xl">
         <motion.div
           className="text-center"
-          initial={still ? false : { opacity: 0, y: 24 }}
+          initial={quiet ? false : { opacity: 0, y: 24 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, amount: 0.5 }}
           transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
         >
           <p className="label-caps">One session</p>
-          <h2 id="journey-title" className="mx-auto mt-3 max-w-3xl text-4xl font-medium tracking-tight sm:text-6xl">
+          <h2 id="journey-title" className="title-section mx-auto mt-4 max-w-4xl">
             Here is what a margin call looks like on Stellar.
           </h2>
         </motion.div>
@@ -48,7 +51,7 @@ export function Journey() {
           <div className="absolute inset-x-[16.6%] top-[3.05rem] hidden h-px md:block" aria-hidden="true">
             <motion.div
               className="h-px origin-left bg-ink/25"
-              initial={still ? false : { scaleX: 0 }}
+              initial={quiet ? false : { scaleX: 0 }}
               whileInView={{ scaleX: 1 }}
               viewport={{ once: true, amount: 1 }}
               transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
@@ -58,7 +61,7 @@ export function Journey() {
             <motion.article
               key={m.when}
               className="relative"
-              initial={still ? false : { opacity: 0, y: 36 }}
+              initial={quiet ? false : { opacity: 0, y: 36 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, amount: 0.3 }}
               transition={{ duration: 0.7, delay: i * 0.12, ease: [0.16, 1, 0.3, 1] }}
@@ -83,6 +86,6 @@ export function Journey() {
           ))}
         </div>
       </div>
-    </section>
+    </Chapter>
   )
 }

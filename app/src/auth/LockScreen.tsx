@@ -66,7 +66,8 @@ export function LockScreen({ onUnlock }: { onUnlock(email: string): void }) {
       exit={{ opacity: 0, scale: 1.04, filter: 'blur(12px)' }}
       transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
     >
-      <div className="glass-heavy gpu my-auto w-full max-w-md rounded-[2.5rem] px-8 pt-12 pb-9 shadow-card sm:px-12">
+      {/* No panel: the mark, the name and the fields float on the aura, large, like an arrival page. */}
+      <div className="my-auto flex w-full max-w-lg flex-col items-center">
         <motion.div
           key={mode}
           initial={{ opacity: 0, y: 10, scale: 0.96 }}
@@ -74,8 +75,8 @@ export function LockScreen({ onUnlock }: { onUnlock(email: string): void }) {
           transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
           className="flex flex-col items-center"
         >
-          <Logo size={120} />
-          <h1 className="mt-6 text-3xl font-light tracking-tight text-ink">
+          <Logo size={88} className="size-[clamp(4.5rem,11svh,7rem)]" />
+          <h1 className="mt-[clamp(1rem,3svh,2rem)] text-[clamp(3rem,7.5vw,6rem)] leading-none font-light tracking-[-0.035em] text-ink">
             <BlurReveal key={mode} text={mode === 'signin' ? 'Keystone' : 'Create an account'} />
           </h1>
         </motion.div>
@@ -84,7 +85,7 @@ export function LockScreen({ onUnlock }: { onUnlock(email: string): void }) {
           <LockSkeleton />
         ) : (
           <>
-        <motion.form animate={shake} onSubmit={submit} className="mt-8 grid w-full gap-3" noValidate>
+        <motion.form animate={shake} onSubmit={submit} className="mt-[clamp(2rem,6svh,3.5rem)] grid w-full gap-4" noValidate>
           <label className="sr-only" htmlFor="lock-email">
             Email
           </label>
@@ -95,7 +96,7 @@ export function LockScreen({ onUnlock }: { onUnlock(email: string): void }) {
             placeholder="Email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="h-14 w-full rounded-full bg-white/45 px-5 text-center text-base text-ink outline-transparent transition-shadow placeholder:text-ink-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-chain"
+            className="glass h-16 w-full rounded-full px-6 text-center text-lg shadow-card text-ink outline-transparent transition-shadow placeholder:text-ink-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-chain"
           />
           <div className="relative">
             <label className="sr-only" htmlFor="lock-password">
@@ -109,14 +110,14 @@ export function LockScreen({ onUnlock }: { onUnlock(email: string): void }) {
               value={password}
               autoFocus
               onChange={(e) => setPassword(e.target.value)}
-              className="h-14 w-full rounded-full bg-white/45 pr-16 pl-5 text-center text-base text-ink outline-transparent transition-shadow placeholder:text-ink-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-chain"
+              className="glass h-16 w-full rounded-full pr-20 pl-6 text-center text-lg shadow-card text-ink outline-transparent transition-shadow placeholder:text-ink-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-chain"
             />
             <motion.button
               type="submit"
               aria-label={mode === 'signin' ? 'Sign in' : 'Create account'}
               disabled={pending || !password}
               whileTap={{ scale: 0.92 }}
-              className="absolute top-2 right-2 flex size-10 items-center justify-center rounded-full bg-ink text-white transition-opacity disabled:opacity-30"
+              className="absolute top-2.5 right-2.5 flex size-11 items-center justify-center rounded-full bg-ink text-white transition-opacity disabled:opacity-30"
             >
               {pending ? (
                 <span aria-hidden="true" className="flex gap-0.5">
@@ -137,7 +138,7 @@ export function LockScreen({ onUnlock }: { onUnlock(email: string): void }) {
           {error}
         </p>
 
-        <div className="mt-2 flex flex-col items-center gap-2 text-sm">
+        <div className="mt-2 flex flex-col items-center gap-2.5 text-[0.9375rem]">
           {mode === 'signin' && (
             <button type="button" onClick={() => setForgot(true)} className="text-ink-muted hover:text-ink">
               Forgot password?
@@ -163,9 +164,9 @@ export function LockScreen({ onUnlock }: { onUnlock(email: string): void }) {
 /** Same footprint as the form, so nothing moves when the database is ready. */
 function LockSkeleton() {
   return (
-    <div role="status" aria-label="Opening the local database" className="mt-8 grid w-full gap-3">
-      <Skeleton className="h-14 w-full" />
-      <Skeleton className="h-14 w-full" />
+    <div role="status" aria-label="Opening the local database" className="mt-[clamp(2rem,6svh,3.5rem)] grid w-full gap-4">
+      <Skeleton className="h-16 w-full rounded-full" />
+      <Skeleton className="h-16 w-full rounded-full" />
       <div className="mt-6 grid justify-items-center gap-3">
         <Skeleton className="h-3 w-32" />
         <Skeleton className="h-3 w-28" />

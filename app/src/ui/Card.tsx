@@ -70,7 +70,7 @@ export function Card({
         hover="none"
         clickPulse={false}
         className={cx(
-          '!block !w-full !items-stretch !p-7 !text-left !leading-normal !font-normal backdrop-blur-2xl backdrop-saturate-[1.7] transition-shadow duration-200 sm:!p-8',
+          '!block !w-full !items-stretch !overflow-hidden !p-7 !text-left !leading-normal !font-normal backdrop-blur-2xl backdrop-saturate-[1.7] transition-shadow duration-200 sm:!p-8',
           tone === 'call' ? 'shadow-call' : 'shadow-card',
           className,
         )}

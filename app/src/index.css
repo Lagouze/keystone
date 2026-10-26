@@ -78,9 +78,11 @@
     font-variant-numeric: tabular-nums;
     background: transparent;
     min-height: 100vh;
+    /* Entrances that slide in sideways never widen the page (clip keeps sticky sections working). */
+    overflow-x: clip;
   }
   /* The page is always at least a screen tall and never shifts when the scrollbar appears. */
-  html { scrollbar-gutter: stable; }
+  html { scrollbar-gutter: stable; overflow-x: clip; }
 }
 
 /* Behind everything, including the lock screen: three slow, soft auras. The softness is drawn by
@@ -103,7 +105,7 @@
 }
 .aura > span:nth-child(1) { width: 58vmax; height: 58vmax; left: -15vmax; top: -19vmax; background: radial-gradient(closest-side, rgba(110, 140, 235, 0.56), rgba(110, 140, 235, 0.45) 25%, rgba(110, 140, 235, 0.27) 50%, rgba(110, 140, 235, 0.11) 72%, rgba(110, 140, 235, 0.03) 88%, transparent); animation: var(--animate-aura-a); }
 .aura > span:nth-child(2) { width: 54vmax; height: 54vmax; right: -17vmax; top: 3vmax; background: radial-gradient(closest-side, rgba(190, 140, 235, 0.45), rgba(190, 140, 235, 0.36) 25%, rgba(190, 140, 235, 0.21) 50%, rgba(190, 140, 235, 0.09) 72%, rgba(190, 140, 235, 0.02) 88%, transparent); animation: var(--animate-aura-b); }
-.aura > span:nth-child(3) { width: 62vmax; height: 62vmax; left: 15vmax; bottom: -29vmax; background: radial-gradient(closest-side, rgba(100, 210, 185, 0.43), rgba(100, 210, 185, 0.34) 25%, rgba(100, 210, 185, 0.21) 50%, rgba(100, 210, 185, 0.08) 72%, rgba(100, 210, 185, 0.02) 88%, transparent); animation: var(--animate-aura-c); }
+.aura > span:nth-child(3) { width: 62vmax; height: 62vmax; left: 15vmax; bottom: -29vmax; background: radial-gradient(closest-side, rgba(100, 210, 185, 0.38), rgba(100, 210, 185, 0.30) 25%, rgba(100, 210, 185, 0.18) 50%, rgba(100, 210, 185, 0.07) 72%, rgba(100, 210, 185, 0.02) 88%, transparent); animation: var(--animate-aura-c); }
 html[data-scrolling] .aura > span { animation-play-state: paused; }
 @media (prefers-reduced-motion: reduce) { .aura > span { animation: none; } }
 
@@ -115,10 +117,13 @@ html[data-scrolling] .aura > span { animation-play-state: paused; }
 }
 
 /* A glass control inside a glass panel: the panel already frosts what is behind, a second blur
-   there would cost a full extra pass for no visible difference. */
-:is(.glass, .glass-heavy, .backdrop-blur-2xl) :is(.glass, .glass-heavy) {
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
+   there would cost a full extra pass for no visible difference. In the utilities layer, so a
+   blur utility set on purpose still wins. */
+@layer utilities {
+  :is(.glass, .glass-heavy, .backdrop-blur-2xl) :is(.glass, .glass-heavy) {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
 }
 
 @utility glass-heavy {
@@ -126,6 +131,25 @@ html[data-scrolling] .aura > span { animation-play-state: paused; }
   -webkit-backdrop-filter: saturate(190%) blur(40px);
   backdrop-filter: saturate(190%) blur(40px);
   border: 0;
+}
+
+/* One type scale for the whole site, fluid with the window so every screen keeps its proportions
+   whatever its size or zoom. */
+@utility title-hero {
+  font-size: clamp(3.25rem, 8.4vw, 8.5rem);
+  line-height: 1;
+  letter-spacing: -0.035em;
+  font-weight: 500;
+}
+@utility title-section {
+  font-size: clamp(2.5rem, 5.4vw, 5.25rem);
+  line-height: 1.04;
+  letter-spacing: -0.03em;
+  font-weight: 500;
+}
+@utility text-lead {
+  font-size: clamp(1.0625rem, 1.35vw, 1.375rem);
+  line-height: 1.5;
 }
 
 @utility label-caps {

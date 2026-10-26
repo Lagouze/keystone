@@ -18,7 +18,8 @@ export const VaultCard = memo(function VaultCard({ session, asset, duration }: V
   const fmt = (units: string) => formatUnits(units, asset.decimals)
   const roll = (units: string) => <RollUnits units={units} decimals={asset.decimals} duration={duration} />
   // Below the MTA the keeper does not post the new requirement: the vault keeps the previous one.
-  // A larger gap is a posting still on its way to the ledger, not a requirement left unposted.
+  // A larger gap is a posting on its way to the ledger (or one that failed, which the error banner
+  // reports), not a requirement left unposted on purpose.
   const { margin } = session
   const gap = BigInt(margin.requiredUnits) - BigInt(vault.requiredUnits)
   const gapEur = Number(valueAfterHaircut((gap < 0n ? -gap : gap).toString(), asset.decimals, margin.unitPriceEur, margin.haircutPct))
