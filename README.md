@@ -130,6 +130,22 @@ Scenario 2 (default, KBOND) on a fresh C2 vault [`CALYRUMGT3J3P32NHBDTRDWJD3JU2A
 
 After the default the keeper still shows the last computed requirement (historical) while `vault.requiredUnits` is `0`. The C2 WASM hash above is the one fetched back from Testnet (8 528 bytes). A local rebuild with `stellar contract build` gives a WASM of the same size but another SHA-256 (`4a03f7ff…3ea6`, built 2026-10-26 on the keeper machine): the build is not byte-reproducible across machines (probably toolchain and build metadata embedded in the binary; not investigated further). Nothing was redeployed; the behaviour of the deployed build is what the Testnet runs above exercise, and the contract pole checked the bindings' ABI against it.
 
+Scenario 1 played **from the browser** (2026-10-26): the Liquid Glass dashboard (`VITE_USE_MOCKS=false`) against the keeper on the C2 build (`KEEPER_BACKEND=testnet SIGNER=keeper`), on vault [`CBL4SMJN…IERD`](https://stellar.expert/explorer/testnet/contract/CBL4SMJNYNXAFWGBKXMNA5U23PBSAFZ2OUDRD2EALCSCA5Y3GG4GIERD). The steps were driven by clicks on the real dashboard (scripted through the browser console); the API was only used to read the state. All nine transactions were read back from the RPC as `SUCCESS` (ledgers 5391654 to 5391678), the dashboard showed them with the **On-chain** badge and a stellar.expert link, and the fund went from 999 to 999 KMMF.
+
+| # | Action in the dashboard | Transaction | Result |
+| --- | --- | --- | --- |
+| 1 | Vault deployed (KMMF) by *Start* | [`0e7604e2…3f2d`](https://stellar.expert/explorer/testnet/tx/0e7604e28c10da0a4ec3e2ea138a968a00ca805a71cef2fafefb414c45ef3f2d) | `Active` |
+| 2 | Deposit 300 KMMF | [`e00a4b80…5286`](https://stellar.expert/explorer/testnet/tx/e00a4b80d5de4e6d6dc08baa06bc9e1c3fdb4fded1bdfb209a32e280c2a15286) | available 300, fund 699 |
+| 3 | Rate shock −50 bp (`post_margin`, epoch 1) | [`be228a00…308b`](https://stellar.expert/explorer/testnet/tx/be228a0067dfeaee5cee803df1d281141aa5570bbab3f4340584ff7447f9308b) | locked 243.7615, free 56.2385 |
+| 4 | Rate shock −30 bp (epoch 2) | [`0c960db6…33a0`](https://stellar.expert/explorer/testnet/tx/0c960db6f7f392babcb92a572f171cbfb8b82bace55a585d2d121a780e5c33a0) | required 391.5791, **margin call** (shortfall 91.5791) |
+| 5 | Deposit 100 KMMF, 9 s after the call opened | [`b651b662…723b`](https://stellar.expert/explorer/testnet/tx/b651b662f4200556cb26975b2243628db34305fe02908911a3969ca5e418723b) | **cured**, locked 391.5791, free 8.4209 |
+| 6 | Rate shock +60 bp (epoch 3) | [`a20b4830…940c`](https://stellar.expert/explorer/testnet/tx/a20b483014c5a00c13815da08918ecc108b55e847844ae2dbf2d524349fe940c) | required 98.1948, 293.3843 released |
+| 7 | Withdrawal of 301.8052 | [`f3bfc2a1…4016`](https://stellar.expert/explorer/testnet/tx/f3bfc2a1828b618eeabc5b772cee74220587bd7f94a3431e231b0efe937b4016) | fund 900.8052 |
+| 8 | Rate shock +60 bp again (epoch 4) | [`27ad4b36…5a6c`](https://stellar.expert/explorer/testnet/tx/27ad4b360b6456d229a16e539e6910f2555cf7142913dbd30cbd5ba540e65a6c) | required 0, 98.1948 released |
+| 9 | Withdrawal of 98.1948 | [`0c49c0b2…ac78`](https://stellar.expert/explorer/testnet/tx/0c49c0b2d596ca69aafa7201a60b574e13dbc71728d665cb1bf967b48960ac78) | vault empty, fund back to 999 KMMF |
+
+**Deviation from the planned scenario:** the dashboard has no +30 bp button, so step 8 repeats +60 bp (float rate 3.035 %) instead of +30 bp; the effect is the same (requirement back to 0, remaining collateral released). The margin call was covered 9 s after it opened, well inside the 90 s grace period; no `settle_default` was sent. Freighter signing and the default scenario from the browser were not run.
+
 Scenario 1 was also replayed on a C2 vault (`CD3MAB27BM57BM5SVGAIM5CTBDJPAVSUHFCKDHNZHBHBMNGI6KX7QAC7`) with all script checks passing; its hashes were not recorded, so that replay is not a proof and the C1-build hashes above remain the reference table. An independent settlement fixture of the contract pole (fictitious KSC1 asset) is in `contracts/keystone_vault/testnet-c2.json`.
 
 ## 7. Repository structure and poles
@@ -206,7 +222,7 @@ Only commands that have been run successfully are listed. Run them from the repo
 
 The keeper builds `packages/vault-client` (generated bindings, `dist/` not versioned) before `start`, `test` and `typecheck`.
 
-Still to come, once they work: the dashboard on the real keeper, a single e2e script chaining both scenarios, and the public deployment (decision A8).
+Still to come, once they work: scenario 2 and Freighter signing from the browser, a single e2e script chaining both scenarios, and the public deployment (decision A8).
 
 **Keeper model** (`keeper/src/margin.ts`, parameters in `keeper/scenarios/default.json`): flat curve, 20 quarterly periods, `Q = ceil(V / (P × (1 − h)))` in the token's smallest unit, requirement posted only when it moved by at least the MTA (50 000 EUR). The starting rate is the last ECB Euribor 3M observation (`keeper/data/euribor-cache.json` is the versioned fallback seed, shown as `cache`; it is rewritten only when the ECB value changes, so a run may modify it). Reference values for 0, −50 and −80 bp (computed outside the code, in Python with 50-digit decimals) are checked in `keeper/test/margin.test.ts`.
 
@@ -270,9 +286,9 @@ Only the status "verified" counts as done, and only with a proof link.
 | 5 | Keeper: exposure and margin computation, posting to the vault | Verified (both scenarios, Testnet) | `post_margin` hashes in section 6 |
 | 6 | Deposit, lock and release with verifiable results | Verified (Testnet) | [Deposit](https://stellar.expert/explorer/testnet/tx/eaeeb3da25b832b9e7019099fb74e8396f9d07a3bd6e5b638db152a3757cdec2), [lock](https://stellar.expert/explorer/testnet/tx/d575193f3c49bed24541a0f03dde70129c0242b570305440e6bdb2ca2c75a5f0), [release](https://stellar.expert/explorer/testnet/tx/91527a412eae01b080f3fe7b5b076904649613688cfe3964630034cd385d0dbb), [withdrawal](https://stellar.expert/explorer/testnet/tx/7de52778115187c6ecaadcef3eb4cef294ad045b9713e9b13e63012034bd7c4a) |
 | 7 | Separate default scenario with on-chain transfer to the bank | Verified (Testnet) | [`settle_default`, 300 KBOND to the bank](https://stellar.expert/explorer/testnet/tx/33793f423facfa6e2968da335558cc9bba2cc296b6ea6e2133b734829309112c) |
-| 8 | Real Stellar Testnet transactions shown with proof | In progress | Real hashes flow through the keeper's SSE feed (section 6); the dashboard has not been run against the real keeper yet |
-| 9 | Dashboard showing asset choice, steps and on-chain proof | In progress (dashboard on mocks, light direction and motion; real keeper and Freighter not tested yet) | |
-| 10 | End-to-end integration of the three poles | Not started | |
+| 8 | Real Stellar Testnet transactions shown with proof | Verified (scenario 1 from the browser; scenario 2 by script) | Nine transactions with On-chain badges and Explorer links in section 6 |
+| 9 | Dashboard showing asset choice, steps and on-chain proof | Verified on the real keeper for scenario 1 (Liquid Glass UI in a browser); Freighter and scenario 2 in the browser not tested | [Deposit](https://stellar.expert/explorer/testnet/tx/e00a4b80d5de4e6d6dc08baa06bc9e1c3fdb4fded1bdfb209a32e280c2a15286), [margin call](https://stellar.expert/explorer/testnet/tx/0c960db6f7f392babcb92a572f171cbfb8b82bace55a585d2d121a780e5c33a0), [cure](https://stellar.expert/explorer/testnet/tx/b651b662f4200556cb26975b2243628db34305fe02908911a3969ca5e418723b) |
+| 10 | End-to-end integration of the three poles | In progress | Browser → keeper → C2 vault proven for scenario 1; scenario 2 from the browser, Freighter and the public URL pending |
 | 11 | Submission: public repo, README, public URL, video, pitch deck | Not started | |
 | 12 | Continuous quality: review of every PR, tests, README updates | In place from phase zero | This repository's PR history |
 
