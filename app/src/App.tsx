@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import type { AssetId, KeystoneConfig, VaultStatus } from '@keystone/shared'
 import { KEEPER_URL } from './config.ts'
@@ -19,11 +20,14 @@ import { cx } from './ui/cx.ts'
 
 type KeystoneHook = ReturnType<typeof useKeystone>
 
-/** Page-level transition: content fades and sharpens in, Apple style. */
+/**
+ * Page-level transition: content fades and rises in, Apple style. No filter here: a filter left on
+ * the page would become the containing block of everything `fixed` inside it.
+ */
 const PAGE = {
-  initial: { opacity: 0, y: 12, filter: 'blur(6px)' },
-  animate: { opacity: 1, y: 0, filter: 'blur(0px)' },
-  exit: { opacity: 0, y: -8, filter: 'blur(6px)' },
+  initial: { opacity: 0, y: 12 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: -8 },
   transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] as const },
 }
 
@@ -50,7 +54,8 @@ export default function App() {
           <Banner tone="danger" live>
             <div className="flex items-start justify-between gap-4">
               <span>
-                Keeper unreachable. {k.loadError.message}
+                {k.loadError.code === 'KeeperUnreachable' ? 'Keeper unreachable.' : `Keeper error (${k.loadError.code}).`}{' '}
+                {k.loadError.message}
                 {!mocks && <> ({KEEPER_URL})</>}
               </span>
               <button
@@ -68,7 +73,9 @@ export default function App() {
             <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}>
               <Banner tone="danger" live>
                 <div className="flex items-start justify-between gap-4">
-                  <span>{k.error.message}</span>
+                  <span>
+                    {k.error.message} <span className="text-xs opacity-70">({k.error.code})</span>
+                  </span>
                   <button
                     type="button"
                     className="shrink-0 text-xs font-medium underline-offset-2 hover:underline"
@@ -83,7 +90,7 @@ export default function App() {
         </AnimatePresence>
       </div>
 
-      <AnimatePresence mode="wait">
+      <AnimatePresence mode="wait" onExitComplete={() => window.scrollTo(0, 0)}>
         {!k.config ? (
           !k.loadError && (
             <motion.p key="loading" {...PAGE} className="mt-24 text-center text-sm text-ink-subtle">
@@ -125,8 +132,7 @@ function TopBar({
       <div className="mx-auto flex min-h-14 max-w-6xl flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-2 sm:px-6">
         <div className="flex flex-wrap items-center gap-2.5">
           <h1 className="mr-2 text-[1.0625rem] font-medium tracking-tight">Keystone</h1>
-          <Chip>Testnet</Chip>
-          {mocks && <Chip>Demo data</Chip>}
+          {mocks ? <Chip>Demo data · nothing sent to Stellar</Chip> : <Chip>Testnet</Chip>}
           {/* §4: the public demo (SIGNER=keeper) must say that the keeper signs for the fund. */}
           {k.config?.signerMode === 'keeper' && <Chip>Public demo · keeper signs</Chip>}
         </div>
@@ -139,7 +145,9 @@ function TopBar({
                 k.loadError ? 'bg-danger' : k.connection === 'open' ? 'bg-success' : 'bg-ink-subtle',
               )}
             />
-            <span className="sr-only">{k.loadError ? 'Keeper unreachable' : `Keeper ${k.connection}`}</span>
+            <span className={cx(!mocks && !k.loadError && k.connection !== 'open' ? 'text-xs' : 'sr-only')}>
+              {k.loadError ? 'Keeper unreachable' : mocks ? 'Mock keeper' : k.connection === 'open' ? 'Live' : 'Reconnecting…'}
+            </span>
           </span>
           {onDetails && (
             <Button variant="sim" className="!h-9 !px-4" onClick={onDetails}>
@@ -256,7 +264,8 @@ function Dashboard({ k, stage, config, now, mocks }: DashboardProps) {
           <ActivityFeed activity={k.activity} />
         </Reveal>
       </aside>
-      {toast && (
+      {toast &&
+        createPortal(
         <SwipeToast
           key={toast}
           title={TOAST[toast].title}
@@ -266,8 +275,9 @@ function Dashboard({ k, stage, config, now, mocks }: DashboardProps) {
           fuseColor={toast === 'active' ? '#1d7f3a' : '#c9372c'}
           duration={5000}
           onClose={() => setToast(null)}
-        />
-      )}
+        />,
+          document.body,
+        )}
     </div>
   )
 }
@@ -299,6 +309,7 @@ function NewSession({ config, busy, disabled, onStart }: NewSessionProps) {
         <Button
           className="mt-6 w-full"
           variant="primary"
+          disabled={busy || disabled}
           onClick={() => {
             setOpen(false)
             onStart(asset)

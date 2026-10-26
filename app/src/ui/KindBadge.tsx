@@ -7,7 +7,7 @@ export function KindBadge({ kind }: { kind: ActivityEvent['kind'] }) {
     <span
       className={cx(
         'inline-flex items-center rounded-full px-2 py-0.5 text-[0.625rem] font-medium tracking-wide',
-        kind === 'chain' ? 'bg-chain-soft text-chain' : 'bg-surface-muted text-ink-subtle',
+        kind === 'chain' ? 'bg-chain-soft text-chain' : 'bg-surface-muted text-ink-muted',
       )}
     >
       {kind === 'chain' ? 'On-chain' : 'Sim'}

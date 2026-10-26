@@ -58,6 +58,7 @@ export function ActivityFeed({ activity }: { activity: ActivityEvent[] }) {
         ) : undefined
       }
     >
+      <p className="-mt-1 mb-1 text-xs text-ink-subtle">Sim = computation · On-chain = Testnet transaction</p>
       {activity.length === 0 ? (
         <p className="text-sm text-ink-subtle">Nothing yet.</p>
       ) : (

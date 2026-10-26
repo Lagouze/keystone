@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { motion, useScroll, useTransform, type MotionValue } from 'motion/react'
+import { motion, useReducedMotion, useScroll, useTransform, type MotionValue } from 'motion/react'
 import type { AssetId, KeystoneConfig } from '@keystone/shared'
 import { formatEur } from '../lib/format.ts'
 import { Button, Card, SegmentedControl } from '../ui/index.ts'
@@ -11,14 +11,14 @@ const STEPS = [
 ] as const
 
 /** One step of the pinned section: fades and rises in over its slice of the scroll. */
-function Step({ index, progress }: { index: number; progress: MotionValue<number> }) {
+function Step({ index, progress, still }: { index: number; progress: MotionValue<number>; still: boolean }) {
   const start = index / STEPS.length
   const end = start + 1 / STEPS.length
   const opacity = useTransform(progress, [start, start + 0.12, end - 0.05, end], [0.15, 1, 1, index === STEPS.length - 1 ? 1 : 0.35])
   const y = useTransform(progress, [start, start + 0.12], [24, 0])
   const step = STEPS[index]!
   return (
-    <motion.div style={{ opacity, y }} className="flex gap-5">
+    <motion.div style={still ? undefined : { opacity, y }} className="flex gap-5">
       <span className="mt-1.5 flex size-9 shrink-0 items-center justify-center rounded-full bg-ink text-sm font-medium text-white">
         {index + 1}
       </span>
@@ -41,6 +41,9 @@ export function Landing({
   onStart(asset: AssetId): void
 }) {
   const [asset, setAsset] = useState<AssetId>(config.assets[0]?.id ?? 'KMMF')
+  // Scroll-linked styles ignore MotionConfig: with reduced motion, everything stays put.
+  const still = useReducedMotion() ?? false
+  const start = useRef<HTMLElement>(null)
   const info = config.assets.find((a) => a.id === asset)
 
   const hero = useRef<HTMLElement>(null)
@@ -51,12 +54,11 @@ export function Landing({
 
   const story = useRef<HTMLElement>(null)
   const { scrollYProgress: storyProgress } = useScroll({ target: story, offset: ['start start', 'end end'] })
-  const ring = useTransform(storyProgress, [0, 1], [0, 1])
 
   return (
     <div>
       <section ref={hero} className="relative flex min-h-[88vh] items-center justify-center px-4">
-        <motion.div style={{ scale: heroScale, opacity: heroOpacity, filter: heroBlur }} className="text-center">
+        <motion.div style={still ? undefined : { scale: heroScale, opacity: heroOpacity, filter: heroBlur }} className="text-center">
           <motion.h1
             className="text-6xl font-medium tracking-tight sm:text-8xl"
             initial={{ opacity: 0, y: 24 }}
@@ -75,26 +77,33 @@ export function Landing({
           >
             Margin calls, covered by the assets a fund already holds. On Stellar.
           </motion.p>
-          <motion.div
-            aria-hidden="true"
-            className="mx-auto mt-14 flex size-9 items-center justify-center rounded-full glass text-ink-subtle"
-            animate={{ y: [0, 6, 0] }}
-            transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
+          <motion.button
+            type="button"
+            className="mx-auto mt-14 flex h-11 items-center gap-2 rounded-full glass px-5 text-sm font-medium text-ink"
+            whileTap={{ scale: 0.96 }}
+            onClick={() => start.current?.scrollIntoView({ behavior: still ? 'auto' : 'smooth' })}
           >
-            ↓
-          </motion.div>
+            Skip to start
+            <motion.span
+              aria-hidden="true"
+              animate={still ? undefined : { y: [0, 3, 0] }}
+              transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
+            >
+              ↓
+            </motion.span>
+          </motion.button>
         </motion.div>
       </section>
 
-      <section ref={story} className="relative h-[260vh]">
+      <section ref={story} className="relative h-[200vh] md:h-[260vh]">
         <div className="sticky top-0 flex min-h-screen items-center px-4">
           <div className="mx-auto grid w-full max-w-5xl items-center gap-12 md:grid-cols-[minmax(0,1fr)_280px]">
             <div className="grid gap-10">
               {STEPS.map((_, i) => (
-                <Step key={i} index={i} progress={storyProgress} />
+                <Step key={i} index={i} progress={storyProgress} still={still} />
               ))}
             </div>
-            <div className="glass mx-auto flex size-64 items-center justify-center rounded-full shadow-card" aria-hidden="true">
+            <div className="glass mx-auto hidden size-64 items-center md:flex justify-center rounded-full shadow-card" aria-hidden="true">
               <svg width="200" height="200" viewBox="0 0 200 200">
                 <circle cx="100" cy="100" r="86" fill="none" strokeWidth="12" className="stroke-surface-muted" />
                 <motion.circle
@@ -106,7 +115,7 @@ export function Landing({
                   strokeLinecap="round"
                   className="stroke-ink"
                   transform="rotate(-90 100 100)"
-                  style={{ pathLength: ring }}
+                  style={{ pathLength: still ? 1 : storyProgress }}
                 />
               </svg>
             </div>
@@ -114,7 +123,7 @@ export function Landing({
         </div>
       </section>
 
-      <section className="px-4 pb-24">
+      <section ref={start} className="scroll-mt-20 px-4 pb-24">
         <motion.div
           className="mx-auto max-w-xl"
           initial={{ opacity: 0, y: 32 }}

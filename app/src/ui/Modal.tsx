@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'motion/react'
 
 interface ModalProps {
@@ -8,30 +9,50 @@ interface ModalProps {
   children: ReactNode
 }
 
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"])'
+
 /**
  * Glass sheet for the dense details hidden behind a button. Fades and scales in (Apple sheet),
- * closes with Escape or a click outside, returns the focus to what opened it.
+ * closes with Escape or a click outside, keeps Tab inside, returns the focus to what opened it.
+ * Rendered in document.body: a glass (backdrop-filter) ancestor would otherwise trap `fixed`.
  */
 export function Modal({ open, title, onClose, children }: ModalProps) {
   const titleId = useId()
   const panel = useRef<HTMLDivElement>(null)
-  const opener = useRef<Element | null>(null)
+  // The parent re-renders every 250 ms with a new onClose: the effect must not depend on it.
+  const close = useRef(onClose)
+  close.current = onClose
 
   useEffect(() => {
     if (!open) return
-    opener.current = document.activeElement
-    panel.current?.focus()
+    const opener = document.activeElement
+    panel.current?.focus({ preventScroll: true })
+    const overflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
+      if (event.key === 'Escape') close.current()
+      if (event.key !== 'Tab' || !panel.current) return
+      const items = [...panel.current.querySelectorAll<HTMLElement>(FOCUSABLE)]
+      const first = items[0]
+      const last = items[items.length - 1]
+      if (!first || !last) return
+      if (event.shiftKey && (document.activeElement === first || document.activeElement === panel.current)) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => {
       window.removeEventListener('keydown', onKey)
-      if (opener.current instanceof HTMLElement) opener.current.focus()
+      document.body.style.overflow = overflow
+      if (opener instanceof HTMLElement) opener.focus({ preventScroll: true })
     }
-  }, [open, onClose])
+  }, [open])
 
-  return (
+  return createPortal(
     <AnimatePresence>
       {open && (
         <motion.div
@@ -40,7 +61,7 @@ export function Modal({ open, title, onClose, children }: ModalProps) {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
-          onClick={onClose}
+          onClick={() => close.current()}
         >
           <motion.div
             ref={panel}
@@ -74,6 +95,7 @@ export function Modal({ open, title, onClose, children }: ModalProps) {
           </motion.div>
         </motion.div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   )
 }

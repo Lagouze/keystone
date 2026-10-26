@@ -28,7 +28,7 @@ export function MarketCard({ session, asset, opening }: { session: SessionState;
             {gapBp !== 0 && (
               <span className="ml-2 text-sm text-ink-subtle">
                 {gapBp > 0 ? '+' : '−'}
-                {Math.abs(gapBp)} bp
+                {Math.abs(gapBp)} bp vs fixed
               </span>
             )}
           </dd>

@@ -15,6 +15,8 @@ export function VaultCard({ session, asset, duration }: VaultCardProps) {
   const { vault, balances } = session
   const fmt = (units: string) => formatUnits(units, asset.decimals)
   const roll = (units: string) => <RollUnits units={units} decimals={asset.decimals} duration={duration} />
+  // Below the MTA the keeper does not post the new requirement: the vault keeps the previous one.
+  const notPosted = vault.status !== 'defaulted' && session.margin.requiredUnits !== vault.requiredUnits
 
   return (
     <Card title={`Vault · ${asset.code}`}>
@@ -52,6 +54,11 @@ export function VaultCard({ session, asset, duration }: VaultCardProps) {
           </dd>
         </div>
       </dl>
+      {notPosted && (
+        <p className="mt-3 text-xs text-ink-subtle">
+          New requirement {fmt(session.margin.requiredUnits)} {asset.code} is under the minimum transfer: not posted.
+        </p>
+      )}
     </Card>
   )
 }

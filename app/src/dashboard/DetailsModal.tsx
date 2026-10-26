@@ -15,18 +15,19 @@ export function DetailsModal({
   asset: AssetInfo
 }) {
   const { swap, margin, vault } = session
+  const historical = vault.status === 'defaulted' ? ' (historical)' : ''
   const SOURCE = { ecb: 'ECB', cache: 'ECB (cached)', scenario: 'scenario' } as const
   const rows: Array<[string, string]> = [
     ['Swap', `€${formatEur(swap.notionalEur).replace(/\.00$/, '')} · ${swap.tenorYears} years`],
     ['Fund pays', `${swap.fixedRatePct}% fixed`],
     ['Fund receives', `Euribor 3M · ${swap.floatRatePct}% (${SOURCE[swap.floatRateSource]}, simulated)`],
-    ['Required value', `€${formatEur(margin.requiredValueEur)}`],
+    ['Required value', `€${formatEur(margin.requiredValueEur)} (simulated)${historical}`],
     [`${asset.code} price`, `€${formatEur(margin.unitPriceEur)} (simulated)`],
     ['Haircut', `${margin.haircutPct}%`],
     ['Threshold', `€${formatEur(margin.thresholdEur)}`],
     ['Min. transfer', `€${formatEur(margin.mtaEur)}`],
     ['Required on-chain', `${formatUnits(vault.requiredUnits, asset.decimals)} ${asset.code}`],
-    ['Last computed', `${formatUnits(margin.requiredUnits, asset.decimals)} ${asset.code}`],
+    ['Last computed', `${formatUnits(margin.requiredUnits, asset.decimals)} ${asset.code}${historical}`],
     ['Vault contract', shortAddress(session.vaultId)],
     ['Epoch', String(vault.epoch)],
     ['As of', `${formatUtcTime(session.updatedAt)} UTC`],
