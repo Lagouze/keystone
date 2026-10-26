@@ -6,6 +6,8 @@ import { Button, Card, Magnetic, SegmentedControl } from '../ui/index.ts'
 import { BlurReveal } from '../ui/BlurReveal.tsx'
 import { CylinderText } from '../ui/CylinderText.tsx'
 import { GhostType } from '../ui/GhostType.tsx'
+import { HowItWorks } from './HowItWorks.tsx'
+import { Journey } from './Journey.tsx'
 import { VaporText } from '../ui/VaporText.tsx'
 
 // A module constant: VaporText restarts when its `words` prop changes identity.
@@ -108,6 +110,9 @@ export function Landing({
           </div>
         </div>
       </section>
+
+      <Journey />
+      <HowItWorks onStart={() => start.current?.scrollIntoView({ behavior: still ? 'auto' : 'smooth' })} />
 
       <section ref={start} className="scroll-mt-20 px-4 pt-[20vh] pb-32">
         <motion.div
