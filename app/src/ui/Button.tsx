@@ -1,4 +1,5 @@
 import type { ButtonHTMLAttributes, MouseEvent } from 'react'
+import { motion } from 'motion/react'
 import { cx } from './cx.ts'
 
 type Variant = 'primary' | 'secondary' | 'sim' | 'danger'
@@ -10,10 +11,10 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const VARIANTS: Record<Variant, string> = {
-  // Navy primary like a bank; blue stays reserved for on-chain proof, violet for simulation.
+  // Black primary, Apple style; blue stays reserved for on-chain proof.
   primary: 'bg-ink text-white enabled:hover:bg-ink-hover',
-  secondary: 'border border-line-strong bg-surface text-ink enabled:hover:bg-surface-subtle',
-  sim: 'border border-sim/35 bg-surface text-ink enabled:hover:bg-sim-soft',
+  secondary: 'glass text-ink enabled:hover:bg-white',
+  sim: 'bg-surface-muted text-ink enabled:hover:bg-black/10',
   danger: 'bg-danger text-white enabled:hover:bg-danger-hover',
 }
 
@@ -26,9 +27,12 @@ export function Button({
   ...rest
 }: ButtonProps) {
   return (
-    <button
+    <motion.button
       type="button"
-      {...rest}
+      {...(rest as Record<string, unknown>)}
+      // Micro-interaction: every press gives way slightly.
+      whileTap={rest.disabled || busy ? undefined : { scale: 0.96 }}
+      transition={{ type: 'spring', stiffness: 500, damping: 30 }}
       aria-disabled={busy || undefined}
       aria-busy={busy || undefined}
       onClick={(event: MouseEvent<HTMLButtonElement>) => {
@@ -37,7 +41,7 @@ export function Button({
         else onClick?.(event)
       }}
       className={cx(
-        'inline-flex h-10 items-center justify-center gap-2 rounded-full px-5 text-sm font-medium transition-colors duration-120 ease-std',
+        'inline-flex h-11 items-center justify-center gap-2 rounded-full px-5 text-sm font-medium transition-colors duration-120 ease-std',
         'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-chain',
         'disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:cursor-progress',
         VARIANTS[variant],
@@ -51,6 +55,6 @@ export function Button({
         />
       )}
       {children}
-    </button>
+    </motion.button>
   )
 }

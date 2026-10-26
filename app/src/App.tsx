@@ -1,24 +1,35 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { motion } from 'motion/react'
+import { createPortal } from 'react-dom'
+import { AnimatePresence, motion } from 'motion/react'
 import type { AssetId, KeystoneConfig, VaultStatus } from '@keystone/shared'
 import { KEEPER_URL } from './config.ts'
 import { ActionsCard } from './dashboard/ActionsCard.tsx'
 import { ActivityFeed } from './dashboard/ActivityFeed.tsx'
 import { assetOf } from './dashboard/assets.ts'
-import { BalancesCard } from './dashboard/BalancesCard.tsx'
-import { KpiStrip } from './dashboard/KpiStrip.tsx'
-import { SettlementCard } from './dashboard/SettlementCard.tsx'
+import { DetailsModal } from './dashboard/DetailsModal.tsx'
+import { Landing } from './dashboard/Landing.tsx'
+import { MarketCard } from './dashboard/MarketCard.tsx'
 import { StatusCard } from './dashboard/StatusCard.tsx'
 import { VaultCard } from './dashboard/VaultCard.tsx'
-import { formatEur, shortAddress } from './lib/format.ts'
 import { CHOREO, useChoreography, type Stage } from './state/useChoreography.ts'
 import { useKeystone, useNow } from './state/useKeystone.ts'
-import RippleGrid from './ui/bits/RippleGrid.tsx'
 import SwipeToast from './ui/bits/SwipeToast.tsx'
-import { Banner, Button, Card, SegmentedControl, SimulatedTag } from './ui/index.ts'
+import { Banner, Button, SegmentedControl } from './ui/index.ts'
+import { Modal } from './ui/Modal.tsx'
 import { cx } from './ui/cx.ts'
 
 type KeystoneHook = ReturnType<typeof useKeystone>
+
+/**
+ * Page-level transition: content fades and rises in, Apple style. No filter here: a filter left on
+ * the page would become the containing block of everything `fixed` inside it.
+ */
+const PAGE = {
+  initial: { opacity: 0, y: 12 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: -8 },
+  transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] as const },
+}
 
 export default function App() {
   const k = useKeystone()
@@ -32,111 +43,123 @@ export default function App() {
   }
   const mocks = k.source === 'mocks'
   const asset = k.config && k.session ? assetOf(k.config, k.session) : null
+  const [details, setDetails] = useState(false)
 
   return (
     <>
-      <TopBar k={k} mocks={mocks} />
-      {stage && asset && (
-        <KpiStrip session={stage.shown} asset={asset} opening={stage.opening} duration={stage.figuresDuration} />
-      )}
+      <TopBar k={k} mocks={mocks} onDetails={stage && asset ? () => setDetails(true) : undefined} onStart={startSession} />
 
-      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
-        <div className="grid gap-3 empty:hidden">
-          {mocks && (
-            <Banner tone="warning">
-              Mock data: nothing is sent to Stellar. Hashes and addresses starting with MOCK are fake.
-            </Banner>
-          )}
-          {k.config?.signerMode === 'keeper' && (
-            <Banner tone="info">
-              Public demo mode: the keeper signs deposits and withdrawals with the demo fund key. The video shows the
-              same flow signed by the fund in Freighter.
-            </Banner>
-          )}
-          {k.loadError && (
-            <Banner tone="danger" live>
-              <div className="flex items-start justify-between gap-4">
-                <span>
-                  Could not load the dashboard ({k.loadError.code}). {k.loadError.message}
-                  {!mocks && <> Keeper URL: {KEEPER_URL}</>}
-                </span>
-                <button
-                  type="button"
-                  className="shrink-0 text-xs font-medium underline-offset-2 hover:underline"
-                  onClick={() => window.location.reload()}
-                >
-                  Retry
-                </button>
-              </div>
-            </Banner>
-          )}
+      <div className="mx-auto grid max-w-6xl gap-3 px-4 pt-4 empty:hidden sm:px-6">
+        {k.loadError && (
+          <Banner tone="danger" live>
+            <div className="flex items-start justify-between gap-4">
+              <span>
+                {k.loadError.code === 'KeeperUnreachable' ? 'Keeper unreachable.' : `Keeper error (${k.loadError.code}).`}{' '}
+                {k.loadError.message}
+                {!mocks && <> ({KEEPER_URL})</>}
+              </span>
+              <button
+                type="button"
+                className="shrink-0 text-xs font-medium underline-offset-2 hover:underline"
+                onClick={() => window.location.reload()}
+              >
+                Retry
+              </button>
+            </div>
+          </Banner>
+        )}
+        <AnimatePresence>
           {k.error && (
-            <Banner tone="danger" live>
-              <div className="flex items-start justify-between gap-4">
-                <span>
-                  {k.error.message} <span className="text-xs opacity-80">({k.error.code})</span>
-                </span>
-                <button
-                  type="button"
-                  className="shrink-0 text-xs font-medium underline-offset-2 hover:underline"
-                  onClick={k.dismissError}
-                >
-                  Dismiss
-                </button>
-              </div>
-            </Banner>
+            <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}>
+              <Banner tone="danger" live>
+                <div className="flex items-start justify-between gap-4">
+                  <span>
+                    {k.error.message} <span className="text-xs opacity-70">({k.error.code})</span>
+                  </span>
+                  <button
+                    type="button"
+                    className="shrink-0 text-xs font-medium underline-offset-2 hover:underline"
+                    onClick={k.dismissError}
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </Banner>
+            </motion.div>
           )}
-        </div>
+        </AnimatePresence>
+      </div>
 
-        <div className="mt-6">
-          {!k.config ? (
-            !k.loadError && <p className="text-sm text-ink-muted">Loading…</p>
-          ) : !stage || !asset ? (
-            <StartSession config={k.config} busy={k.busy === 'start'} onStart={startSession} />
-          ) : (
-            // Keyed by session: a new session remounts the cards (stagger) and resets the toast state.
-            <Dashboard key={stage.shown.sessionId} k={k} stage={stage} config={k.config} now={now} mocks={mocks} />
-          )}
-        </div>
-      </main>
+      <AnimatePresence mode="wait" onExitComplete={() => window.scrollTo(0, 0)}>
+        {!k.config ? (
+          !k.loadError && (
+            <motion.p key="loading" {...PAGE} className="mt-24 text-center text-sm text-ink-subtle">
+              Loading…
+            </motion.p>
+          )
+        ) : !stage || !asset ? (
+          <motion.main key="landing" {...PAGE}>
+            <Landing config={k.config} busy={k.busy === 'start'} onStart={startSession} />
+          </motion.main>
+        ) : (
+          <motion.main key={`session-${stage.shown.sessionId}`} {...PAGE} className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+            <Dashboard k={k} stage={stage} config={k.config} now={now} mocks={mocks} />
+            <DetailsModal open={details} onClose={() => setDetails(false)} session={stage.shown} asset={asset} />
+          </motion.main>
+        )}
+      </AnimatePresence>
     </>
   )
 }
 
-function TopBar({ k, mocks }: { k: KeystoneHook; mocks: boolean }) {
-  const swap = k.session?.swap
+function Chip({ children }: { children: ReactNode }) {
+  return <span className="rounded-full bg-surface-muted px-2.5 py-1 text-[0.6875rem] font-medium text-ink-muted">{children}</span>
+}
+
+function TopBar({
+  k,
+  mocks,
+  onDetails,
+  onStart,
+}: {
+  k: KeystoneHook
+  mocks: boolean
+  onDetails?: () => void
+  onStart(asset: AssetId): void
+}) {
   return (
-    <header className="border-b border-line bg-surface">
-      <div className="mx-auto flex min-h-16 max-w-7xl flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-3 sm:px-6">
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
-          <h1 className="text-lg font-medium tracking-tight">Keystone</h1>
-          <span className="rounded-full border border-line-strong px-2.5 py-1 text-[0.6875rem] font-medium tracking-wider text-ink-muted">
-            STELLAR TESTNET
-          </span>
-          {swap && (
-            <span className="text-sm text-ink-muted">
-              Fund ↔ Bank · EUR {formatEur(swap.notionalEur).replace(/\.00$/, '')} swap · fund pays {swap.fixedRatePct}% fixed, receives Euribor 3M · {swap.tenorYears}Y
-            </span>
-          )}
+    <header className="glass sticky top-0 z-40 border-x-0 border-t-0 !bg-white/60">
+      <div className="mx-auto flex min-h-14 max-w-6xl flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-2 sm:px-6">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <h1 className="mr-2 text-[1.0625rem] font-medium tracking-tight">Keystone</h1>
+          {mocks ? <Chip>Demo data · nothing sent to Stellar</Chip> : <Chip>Testnet</Chip>}
+          {/* §4: the public demo (SIGNER=keeper) must say that the keeper signs for the fund. */}
+          {k.config?.signerMode === 'keeper' && <Chip>Public demo · keeper signs</Chip>}
         </div>
-        <div className="flex flex-wrap items-center gap-4 text-sm text-ink-muted">
-          <span className="flex items-center gap-2">
+        <div className="flex items-center gap-2 text-sm text-ink-muted">
+          <span className="mr-2 flex items-center gap-2" title={mocks ? 'Mock keeper' : `Keeper ${k.connection}`}>
             <span
               aria-hidden="true"
               className={cx(
                 'size-2 rounded-full',
-                k.loadError ? 'bg-danger' : k.connection === 'open' ? 'bg-success' : 'bg-warning',
+                k.loadError ? 'bg-danger' : k.connection === 'open' ? 'bg-success' : 'bg-ink-subtle',
               )}
             />
-            {mocks ? 'Mock keeper' : k.loadError ? 'Keeper unreachable' : `Keeper ${k.connection === 'open' ? 'live' : k.connection}`}
+            <span className={cx(!mocks && !k.loadError && k.connection !== 'open' ? 'text-xs' : 'sr-only')}>
+              {k.loadError ? 'Keeper unreachable' : mocks ? 'Mock keeper' : k.connection === 'open' ? 'Live' : 'Reconnecting…'}
+            </span>
           </span>
-          {k.config && <span title={k.config.accounts.fund}>Fund {shortAddress(k.config.accounts.fund)}</span>}
+          {onDetails && (
+            <Button variant="sim" className="!h-9 !px-4" onClick={onDetails}>
+              Details
+            </Button>
+          )}
           {k.session && k.config && (
             <NewSession
               config={k.config}
               busy={k.busy === 'start'}
               disabled={k.busy !== null && k.busy !== 'start'}
-              onStart={k.startSession}
+              onStart={onStart}
             />
           )}
         </div>
@@ -154,19 +177,19 @@ interface DashboardProps {
 }
 
 const TOAST: Record<VaultStatus, { title: string; description: string }> = {
-  active: { title: 'Covered', description: 'The vault holds what the margin requires.' },
-  margin_call: { title: 'Margin call', description: 'Collateral is missing. The grace period has started.' },
-  defaulted: { title: 'Default settled', description: 'The locked collateral was transferred to the bank.' },
+  active: { title: 'Covered', description: 'The vault holds what the margin needs.' },
+  margin_call: { title: 'Margin call', description: 'Collateral is missing. The clock is running.' },
+  defaulted: { title: 'Default settled', description: 'The locked tokens went to the bank.' },
 }
 
-/** Cards fade in once, 60 ms apart, when a session opens (the only stagger of the product). */
+/** Panels rise in once, 60 ms apart, when a session opens. */
 function Reveal({ index, opening, children }: { index: number; opening: boolean; children: ReactNode }) {
   return (
     <motion.div
       className="min-w-0"
-      initial={opening ? { opacity: 0, y: 8 } : false}
+      initial={opening ? { opacity: 0, y: 12 } : false}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.2, delay: opening ? (index * CHOREO.openingStaggerMs) / 1000 : 0, ease: [0.4, 0, 0.2, 1] }}
+      transition={{ duration: 0.35, delay: opening ? (index * CHOREO.openingStaggerMs) / 1000 : 0, ease: [0.16, 1, 0.3, 1] }}
     >
       {children}
     </motion.div>
@@ -177,7 +200,7 @@ function Dashboard({ k, stage, config, now, mocks }: DashboardProps) {
   const session = stage.shown
   const asset = assetOf(config, session)
 
-  // A status change is announced by a toast only when the status card is off screen (no duplicate).
+  // A status change is announced by a toast only when the status panel is off screen (no duplicate).
   const statusRef = useRef<HTMLDivElement>(null)
   // null until the first observation: nothing is announced while visibility is unknown.
   const [statusVisible, setStatusVisible] = useState<boolean | null>(null)
@@ -199,8 +222,8 @@ function Dashboard({ k, stage, config, now, mocks }: DashboardProps) {
   }, [stage.status, statusVisible])
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_400px]">
-      <div className="grid min-w-0 content-start gap-6">
+    <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="grid min-w-0 content-start gap-5">
         <Reveal index={0} opening={stage.opening}>
           <div ref={statusRef}>
             <StatusCard
@@ -233,99 +256,68 @@ function Dashboard({ k, stage, config, now, mocks }: DashboardProps) {
           />
         </Reveal>
       </div>
-      <aside className="grid min-w-0 content-start gap-6">
+      <aside className="grid min-w-0 content-start gap-5">
         <Reveal index={3} opening={stage.opening}>
-          <SettlementCard session={session} asset={asset} transfer={stage.transfer} transferUnits={stage.transferUnits} />
+          <MarketCard session={session} asset={asset} opening={stage.opening} />
         </Reveal>
         <Reveal index={4} opening={stage.opening}>
           <ActivityFeed activity={k.activity} />
         </Reveal>
-        <Reveal index={5} opening={stage.opening}>
-          <BalancesCard session={session} asset={asset} duration={stage.figuresDuration} />
-        </Reveal>
       </aside>
-      {toast && (
+      {toast &&
+        createPortal(
         <SwipeToast
           key={toast}
           title={TOAST[toast].title}
           description={TOAST[toast].description}
-          background="#ffffff"
-          color="#0b1f33"
-          fuseColor={toast === 'margin_call' ? '#b86e00' : toast === 'defaulted' ? '#b42318' : '#0f7b3f'}
+          background="rgba(255, 255, 255, 0.85)"
+          color="#1d1d1f"
+          fuseColor={toast === 'active' ? '#1d7f3a' : '#c9372c'}
           duration={5000}
           onClose={() => setToast(null)}
-        />
-      )}
+        />,
+          document.body,
+        )}
     </div>
   )
 }
 
-interface StartProps {
+interface NewSessionProps {
   config: KeystoneConfig
   busy: boolean
   disabled?: boolean
   onStart(asset: AssetId): void
 }
 
-function StartSession({ config, busy, onStart }: StartProps) {
-  const [asset, setAsset] = useState<AssetId>(config.assets[0]?.id ?? 'KMMF')
-  const info = config.assets.find((a) => a.id === asset)
-  return (
-    <div className="relative">
-      {/* Morpho-style blueprint grid with a slow ripple: only on this screen. */}
-      <div className="pointer-events-none absolute inset-x-0 -top-6 h-[28rem] [mask-image:linear-gradient(to_bottom,black,transparent)]" aria-hidden="true">
-        <RippleGrid lightMode color="#0b1f33" opacity={0.18} cellSize={48} glow={0} rippleStrength={0.6} rippleSpeed={0.5} rippleInterval={4} mouseInteraction={false} clickRipple={false} />
-      </div>
-      <div className="relative mx-auto max-w-2xl py-10">
-        <p className="label-caps">Programmable collateral · Stellar Testnet</p>
-        <h1 className="mt-3 text-5xl font-light tracking-tight">Post tokens, not cash.</h1>
-        <p className="mt-4 text-lg leading-relaxed text-ink-muted">
-          A fund and its bank have signed an interest rate swap. Instead of keeping cash aside for margin calls, the fund
-          posts tokenized assets it already holds; a Soroban vault locks, releases or settles them by the rules.
-        </p>
-        <Card className="mt-8" title="Choose the collateral" description="Both assets are fictitious tokens issued by the team on Stellar Testnet.">
-          <SegmentedControl
-            label="Collateral asset"
-            value={asset}
-            onChange={setAsset}
-            options={config.assets.map((a) => ({ value: a.id, label: a.code }))}
-          />
-          {info && (
-            <p className="mt-4 text-sm text-ink-muted">
-              {info.label} · unit price {formatEur(info.unitPriceEur)} EUR
-              <SimulatedTag /> · haircut {info.haircutPct}%
-            </p>
-          )}
-          <Button className="mt-6" variant="primary" busy={busy} onClick={() => onStart(asset)}>
-            {busy ? 'Deploying the vault…' : 'Start session'}
-          </Button>
-        </Card>
-      </div>
-    </div>
-  )
-}
-
-function NewSession({ config, busy, disabled, onStart }: StartProps) {
+/** "New session" opens a small sheet to pick the asset: no selector cluttering the header. */
+function NewSession({ config, busy, disabled, onStart }: NewSessionProps) {
+  const [open, setOpen] = useState(false)
   const [asset, setAsset] = useState<AssetId>(config.assets[0]?.id ?? 'KMMF')
   return (
-    <span className="flex items-center gap-2">
-      <SegmentedControl
-        label="Asset for a new session"
-        value={asset}
-        onChange={setAsset}
-        options={config.assets.map((a) => ({ value: a.id, label: a.code }))}
-      />
-      <Button
-        busy={busy}
-        disabled={disabled}
-        onClick={() => {
-          if (window.confirm('Start a new session? A new vault is deployed and the activity feed is cleared.')) {
-            onStart(asset)
-          }
-        }}
-      >
+    <>
+      <Button className="!h-9 !px-4" busy={busy} disabled={disabled} onClick={() => setOpen(true)}>
         New session
       </Button>
-    </span>
+      <Modal open={open} title="New session" onClose={() => setOpen(false)}>
+        <p className="mb-4 text-sm text-ink-muted">A new vault is deployed and the activity is cleared.</p>
+        <SegmentedControl
+          label="Collateral asset"
+          value={asset}
+          onChange={setAsset}
+          options={config.assets.map((a) => ({ value: a.id, label: a.code }))}
+        />
+        <Button
+          className="mt-6 w-full"
+          variant="primary"
+          disabled={busy || disabled}
+          onClick={() => {
+            setOpen(false)
+            onStart(asset)
+          }}
+        >
+          Start
+        </Button>
+      </Modal>
+    </>
   )
 }

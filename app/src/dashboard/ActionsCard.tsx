@@ -20,7 +20,7 @@ interface ActionsCardProps {
 }
 
 const inputClass =
-  'h-10 w-28 rounded-control border border-line-strong bg-surface px-3 text-sm tabular-nums ' +
+  'h-11 w-28 rounded-full bg-surface-muted px-4 text-sm tabular-nums ' +
   'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-chain disabled:bg-surface-subtle'
 
 export function ActionsCard(props: ActionsCardProps) {
@@ -36,10 +36,10 @@ export function ActionsCard(props: ActionsCardProps) {
 
   const signing =
     props.signerMode === 'keeper'
-      ? 'Signed by the keeper with the demo fund key (public demo mode).'
+      ? 'Signed by the keeper (public demo).'
       : props.mocks
-        ? 'Freighter signature simulated (mocks).'
-        : 'Signed by the fund in Freighter.'
+        ? 'Signature simulated (demo data).'
+        : 'Signed in Freighter.'
 
   const submit = (handler: (input: string) => void, input: string) => (event: FormEvent) => {
     event.preventDefault()
@@ -51,10 +51,8 @@ export function ActionsCard(props: ActionsCardProps) {
       <div className="grid gap-6">
         <section aria-label="Rate shocks" className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h3 className="label-caps text-sim">Rate shock · simulated</h3>
-            <p className="mt-1 text-sm text-ink-muted">
-              Moves Euribor; the keeper reprices the swap and posts the new requirement on-chain.
-            </p>
+            <h3 className="text-[0.9375rem] font-medium">Move rates</h3>
+            <p className="mt-0.5 text-sm text-ink-subtle">Simulated Euribor shock</p>
           </div>
           <div className="flex flex-wrap gap-2">
             {SHOCKS.map((bp) => (

@@ -1,6 +1,7 @@
+import { motion } from 'motion/react'
 import type { AssetInfo, KeystoneConfig, VaultStatus } from '@keystone/shared'
-import { formatEur, formatUnits, formatUtcTime } from '../lib/format.ts'
-import type { Stage } from '../state/useChoreography.ts'
+import { formatUnits, formatUtcTime } from '../lib/format.ts'
+import { CHOREO, type Stage } from '../state/useChoreography.ts'
 import type { Action } from '../state/useKeystone.ts'
 import { Button, Card, StatusPill } from '../ui/index.ts'
 import { Countdown, FlapLabel, HoldToSettle } from '../ui/motion.tsx'
@@ -24,14 +25,13 @@ const STATUS_WORD: Record<VaultStatus, string> = {
 }
 
 /**
- * Flighty-style status: what is happening, by how much, and until when. Driven by the
- * choreography stage: the pill flips first, the text and figures follow, then the card lights
- * up and the countdown starts.
+ * The one sentence that matters: what is happening, by how much, until when. A status pill only
+ * appears when something is wrong (margin call, default).
  */
 export function StatusCard(props: StatusCardProps) {
   const { stage, asset, busy, now } = props
   const session = stage.shown
-  const { vault, margin } = session
+  const { vault } = session
   const fmt = (units: string) => formatUnits(units, asset.decimals)
   const code = asset.code
   const remainingMs = vault.callDeadline ? Date.parse(vault.callDeadline) - now : null
@@ -43,23 +43,19 @@ export function StatusCard(props: StatusCardProps) {
   let headline: string
   let detail: string
   if (vault.status === 'margin_call') {
-    headline = `${fmt(vault.shortfallUnits)} ${code} missing. Cover before ${
-      vault.callDeadline ? formatUtcTime(vault.callDeadline) : '—'
-    } UTC, or the ${fmt(vault.lockedUnits)} locked ${code} go to the bank.`
-    detail = `Rates moved against the fund: the requirement posted on-chain is ${fmt(vault.requiredUnits)} ${code} (latest computation: ${formatEur(
-      margin.requiredValueEur,
-    )} EUR, ${margin.haircutPct}% haircut). The vault already locks all it holds.`
+    headline = `${fmt(vault.shortfallUnits)} ${code} missing`
+    detail = `Cover before ${vault.callDeadline ? formatUtcTime(vault.callDeadline) : '—'} UTC, or the ${fmt(
+      vault.lockedUnits,
+    )} locked ${code} go to the bank.`
   } else if (vault.status === 'defaulted') {
-    headline = `Defaulted. The locked collateral was transferred to the bank.`
-    detail = `Exactly the locked amount, enforced by the Soroban vault. The bank now holds ${fmt(
-      session.balances.bankUnits,
-    )} ${code}; ${fmt(vault.availableUnits)} ${code} remain withdrawable by the fund.`
+    headline = 'Collateral sent to the bank'
+    detail = `The bank now holds ${fmt(session.balances.bankUnits)} ${code}. Enforced by the vault.`
   } else if (BigInt(vault.requiredUnits) === 0n) {
-    headline = 'No margin required yet.'
-    detail = 'Deposit collateral, then move rates: the keeper reprices the swap and posts the requirement on-chain.'
+    headline = 'No margin required'
+    detail = 'Deposit collateral, then move rates.'
   } else {
-    headline = `Covered. ${fmt(vault.availableUnits)} ${code} free to withdraw.`
-    detail = `The vault locks ${fmt(vault.lockedUnits)} ${code}, the requirement posted on-chain. No cash set aside: the fund pays the fixed rate and receives Euribor, so it owes the bank collateral when rates fall.`
+    headline = 'Fully covered'
+    detail = `${fmt(vault.lockedUnits)} ${code} locked · ${fmt(vault.availableUnits)} ${code} free · no cash set aside.`
   }
 
   const tone = stage.halo ? 'call' : stage.settled ? 'default-settled' : 'default'
@@ -68,20 +64,43 @@ export function StatusCard(props: StatusCardProps) {
   return (
     <Card tone={tone} starCapable star={stage.halo}>
       <div className="grid items-start gap-6 sm:grid-cols-[minmax(0,1fr)_auto]">
-        <div className="flex max-w-2xl flex-col items-start gap-3">
-          <StatusPill status={stage.status} label={<FlapLabel text={STATUS_WORD[stage.status]} />} />
-          <h2 className="text-2xl leading-snug tracking-tight sm:text-[1.75rem]">{headline}</h2>
-          <p className="text-[0.9375rem] leading-relaxed text-ink-muted">{detail}</p>
+        <div className="flex flex-col items-start gap-2.5">
+          {stage.status !== 'active' && (
+            <StatusPill status={stage.status} label={<FlapLabel text={STATUS_WORD[stage.status]} />} />
+          )}
+          <h2 className="text-3xl font-medium tracking-tight sm:text-4xl">{headline}</h2>
+          <p className="text-[0.9375rem] text-ink-muted">{detail}</p>
         </div>
         {callOpen && stage.countdown && (
-          <div className="flex flex-col items-end gap-1">
-            <span className="label-caps">Grace period</span>
+          <motion.div
+            className="flex flex-col items-end gap-1"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.2 }}
+          >
+            <span className="label-caps">Time left</span>
             <span className="text-5xl font-light leading-none text-warning-ink">
               <Countdown seconds={secondsLeft} />
             </span>
-          </div>
+          </motion.div>
         )}
       </div>
+
+      {stage.transfer && stage.transferUnits && (
+        <div className="relative mt-6 flex h-11 items-center justify-between text-sm" aria-hidden="true">
+          <span className="rounded-full bg-surface-muted px-3.5 py-1.5">Vault</span>
+          <span className="absolute inset-x-24 top-1/2 border-t border-dashed border-line-strong" />
+          <span className="rounded-full bg-surface-muted px-3.5 py-1.5">Bank</span>
+          <motion.span
+            className="absolute top-2 whitespace-nowrap rounded-full bg-danger px-3 py-1 text-xs font-medium text-white"
+            initial={{ left: '4.5rem', opacity: 0 }}
+            animate={{ left: 'calc(100% - 10rem)', opacity: 1 }}
+            transition={{ duration: CHOREO.transferMs / 1000, ease: [0.8, 0.05, 0.2, 0.95] }}
+          >
+            {fmt(stage.transferUnits)} {code}
+          </motion.span>
+        </div>
+      )}
 
       {callOpen && (
         <div className="mt-6 flex flex-wrap items-center gap-3">
@@ -96,13 +115,10 @@ export function StatusCard(props: StatusCardProps) {
           {deadlinePassed ? (
             <HoldToSettle disabled={otherBusy('settle') || busy === 'settle'} onHold={props.onSettle} />
           ) : (
-            <Button variant="danger" disabled>
-              Settle default · after deadline
+            <Button variant="sim" disabled>
+              Settle after deadline
             </Button>
           )}
-          <span className="text-sm text-ink-subtle">
-            {props.signerMode === 'keeper' ? 'Signed by the keeper (public demo)' : 'Signed by the fund in Freighter'}
-          </span>
         </div>
       )}
       <SigningProgress busy={busy} step={props.step} />

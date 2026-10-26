@@ -1,11 +1,41 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import type { ActivityEvent } from '@keystone/shared'
 import { formatTime } from '../lib/format.ts'
-import GradualBlur from '../ui/bits/GradualBlur.tsx'
 import { ActivityProof, Card, KindBadge } from '../ui/index.ts'
+import { Modal } from '../ui/Modal.tsx'
 
+const VISIBLE = 4
+
+function Row({ event, reveal, detail }: { event: ActivityEvent; reveal: boolean; detail: boolean }) {
+  return (
+    <motion.li
+      layout
+      initial={{ opacity: 0, y: -6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+      className="grid grid-cols-[1fr_auto] items-start gap-x-3 gap-y-1 py-3"
+    >
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <KindBadge kind={event.kind} />
+        <span className="text-sm text-ink">{event.title}</span>
+      </div>
+      <div className="pt-0.5 text-right">
+        <ActivityProof event={event} reveal={reveal} />
+      </div>
+      {detail && (
+        <p className="col-span-2 text-xs text-ink-subtle">
+          <time dateTime={event.ts}>{formatTime(event.ts)}</time>
+          {event.detail && <> · {event.detail}</>}
+        </p>
+      )}
+    </motion.li>
+  )
+}
+
+/** The last few entries; the full history, with details, sits behind "See all". */
 export function ActivityFeed({ activity }: { activity: ActivityEvent[] }) {
+  const [open, setOpen] = useState(false)
   // Entries seen pending in this browser session: their hash decrypts when they confirm. Entries
   // replayed already confirmed (reload, reconnection) show their hash plainly.
   const seenPending = useRef(new Set<string>())
@@ -16,46 +46,37 @@ export function ActivityFeed({ activity }: { activity: ActivityEvent[] }) {
   return (
     <Card
       title="Activity"
-      description="SIM entries are computations. Every token movement is a Stellar Testnet transaction with its proof."
+      actions={
+        activity.length > VISIBLE ? (
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            className="rounded-full bg-surface-muted px-3 py-1 text-xs font-medium text-ink-muted transition-colors hover:bg-black/10 focus-visible:outline-2 focus-visible:outline-chain"
+          >
+            See all {activity.length}
+          </button>
+        ) : undefined
+      }
     >
+      <p className="-mt-1 mb-1 text-xs text-ink-subtle">Sim = computation · On-chain = Testnet transaction</p>
       {activity.length === 0 ? (
         <p className="text-sm text-ink-subtle">Nothing yet.</p>
       ) : (
-        <div className="relative">
-          <ul
-            className="max-h-[28rem] divide-y divide-line-soft overflow-y-auto pb-6 focus-visible:outline-2 focus-visible:outline-chain"
-            aria-live="polite"
-            aria-label="Activity feed"
-            tabIndex={0}
-          >
-            <AnimatePresence initial={false}>
-              {activity.map((event) => (
-                <motion.li
-                  key={event.id}
-                  layout
-                  initial={{ opacity: 0, y: -6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
-                  className="grid grid-cols-[1fr_auto] items-start gap-x-3 gap-y-1 py-3"
-                >
-                  <div className="flex min-w-0 flex-wrap items-center gap-2">
-                    <KindBadge kind={event.kind} />
-                    <span className="text-sm text-ink">{event.title}</span>
-                  </div>
-                  <div className="pt-0.5 text-right">
-                    <ActivityProof event={event} reveal={seenPending.current.has(event.id)} />
-                  </div>
-                  <p className="col-span-2 text-xs text-ink-subtle">
-                    <time dateTime={event.ts}>{formatTime(event.ts)}</time>
-                    {event.detail && <> · {event.detail}</>}
-                  </p>
-                </motion.li>
-              ))}
-            </AnimatePresence>
-          </ul>
-          <GradualBlur position="bottom" target="parent" height="3rem" strength={1.5} layers={6} zIndex={1} />
-        </div>
+        <ul className="divide-y divide-line-soft" aria-live="polite">
+          <AnimatePresence initial={false}>
+            {activity.slice(0, VISIBLE).map((event) => (
+              <Row key={event.id} event={event} reveal={seenPending.current.has(event.id)} detail={false} />
+            ))}
+          </AnimatePresence>
+        </ul>
       )}
+      <Modal open={open} title="Activity" onClose={() => setOpen(false)}>
+        <ul className="divide-y divide-line-soft">
+          {activity.map((event) => (
+            <Row key={event.id} event={event} reveal={false} detail />
+          ))}
+        </ul>
+      </Modal>
     </Card>
   )
 }
