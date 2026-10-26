@@ -1,0 +1,45 @@
+{
+  "network": "testnet",
+  "networkPassphrase": "Test SDF Network ; September 2015",
+  "rpcUrl": "https://soroban-testnet.stellar.org",
+  "horizonUrl": "https://horizon-testnet.stellar.org",
+  "explorerTxBase": "https://stellar.expert/explorer/testnet/tx/",
+  "accounts": {
+    "issuer": "GDWMFOSV4L2O66PDZ4BL4K5HEJJLGMGXXWLHUJNJ4N4ZICSUSBGTGNGX",
+    "fund": "GDQ6AWAXZWIOCBHDSFIIKCWV3PQ6ZJE6BBC4VJCWA3SCFB4G7A2TMQOY",
+    "bank": "GAUHK4ZBP2W5VSKLJOTTKKHWUB2MGFXBMHYLSH3EERTVYYMVPWSR7W6C",
+    "keeper": "GDGUJHZGU57RU4RHARM37GU2IDX4KV7V23XVFORDWRYIBWIIQ6U7G4TO"
+  },
+  "assets": {
+    "KMMF": {
+      "code": "KMMF",
+      "issuer": "GDWMFOSV4L2O66PDZ4BL4K5HEJJLGMGXXWLHUJNJ4N4ZICSUSBGTGNGX",
+      "sac": "CDB3KHRGMFXFRXEVVJUNUCDVPIR5RPKSSCTP5JUBK32F2ZMOZQVLMIA5",
+      "sacDeployTx": "bc7d9d9a2a15473b5bae6b81461cac9a68003235dea60056605c8b2631df0e11"
+    },
+    "KBOND": {
+      "code": "KBOND",
+      "issuer": "GDWMFOSV4L2O66PDZ4BL4K5HEJJLGMGXXWLHUJNJ4N4ZICSUSBGTGNGX",
+      "sac": "CDB2XDXZ4CPE242D5KYIKQ2L2PQKENQCSYTW6PA5ROHOX5QWDBKVEUPF",
+      "sacDeployTx": "08089cde2ab558289d0a18c8f85817e18297bb40b41c6506c2d109462b47dcd3"
+    }
+  },
+  "vault": {
+    "wasmHash": "6ca6314db610635008d8a1a6e6b55f69306dd25bb9488a78adb18ef274195b6b",
+    "testVaultId": "CARBSCRLX2DJKMGYB3TPJ7WEAWZZ5HSIOE4CXY4PG6ZGR3Y5HZLON226",
+    "uploadTx": "1911a4bb1f2b5b6e5199364ecb56cf48577714ff9669a8947898514810cec62f",
+    "deployTx": "f3ea93f2166f2ef4674f5773f02fb30c09731c31fa7a56f2db9be37ff0f56bc4",
+    "c2": {
+      "settlementFixtureVaultId": "CALNED2G3Y2XLDMGZMFR2KR7RIWSL3FN36QAL4TNC27233AC5BJNLV4H",
+      "settlementFixtureSettleTx": "cf177f8d65e3e7189e4801afaea948fa20ee3f4b4a75c90d23f1cd821ac79ded"
+    },
+    "c1": {
+      "wasmHash": "173fc4aa48b40a051862a720fa3d4827efd03ad25f4e7549b3314c4cba3f8516",
+      "testVaultId": "CCLE3RBDYNMRMBVTAPXLQ5JRWQOGR3RHOQYCMH43N6VYY6T2OGSZCB2N",
+      "uploadTx": "cf9812534038af3f17741140dcb5963ceae8ef6b6c3645cfe1a1bff2bc35431d",
+      "deployTx": "66af48946f18f1a16673c78eb37a76ace759c1ba0b9ab35ec825df65c9ecbdec",
+      "testDepositTx": "178689208be148899ac567ac6c68da6526e040b39962d313d9594a4eeca07202"
+    }
+  },
+  "updatedAt": "2026-10-26T00:50:00.000Z"
+}

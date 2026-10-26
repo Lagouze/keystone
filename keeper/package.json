@@ -1,0 +1,30 @@
+{
+  "name": "@keystone/keeper",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Keystone keeper: margin model, scenarios and REST + SSE API (docs/interfaces.md section 4)",
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "build:bindings": "npm run build -w vault-client",
+    "prestart": "npm run build:bindings",
+    "pretypecheck": "npm run build:bindings",
+    "pretest": "npm run build:bindings",
+    "integration:c1": "npm run build:bindings && tsx scripts/integration-c1.ts",
+    "e2e:scenario2": "npm run build:bindings && tsx scripts/e2e-scenario2.ts"
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.0.0",
+    "@keystone/shared": "^1.0.0",
+    "fastify": "^5.0.0",
+    "vault-client": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.5"
+  }
+}
