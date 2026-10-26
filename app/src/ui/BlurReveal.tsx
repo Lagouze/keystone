@@ -5,7 +5,9 @@ export function BlurReveal({ text, className, delay = 0 }: { text: string; class
   const still = useReducedMotion()
   const words = text.split(' ')
   return (
-    <span className={className} aria-label={text}>
+    <span className={className}>
+      {/* The words are split for the animation; screen readers get the sentence once. */}
+      <span className="sr-only">{text}</span>
       {words.map((word, i) => (
         <motion.span
           key={`${word}-${i}`}

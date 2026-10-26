@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { motion, useAnimationControls } from 'motion/react'
 import { BlurReveal } from '../ui/BlurReveal.tsx'
-import { Logo } from '../ui/Logo.tsx'
+import { Logo, Wordmark } from '../ui/Logo.tsx'
 import { Skeleton } from '../ui/Skeleton.tsx'
 import { DEMO_ACCOUNT, signIn, signUp, warmUp } from './db.ts'
 
@@ -75,10 +75,13 @@ export function LockScreen({ onUnlock }: { onUnlock(email: string): void }) {
           transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
           className="flex flex-col items-center"
         >
-          <Logo size={88} className="size-[clamp(4.5rem,11svh,7rem)]" />
-          <h1 className="mt-[clamp(1rem,3svh,2rem)] text-[clamp(3rem,7.5vw,6rem)] leading-none font-light tracking-[-0.035em] text-ink">
-            <BlurReveal key={mode} text={mode === 'signin' ? 'Keystone' : 'Create an account'} />
+          <Logo height={120} className="h-[clamp(5rem,15svh,8.5rem)] w-auto" />
+          <h1 className="mt-[clamp(1.25rem,4svh,2.5rem)] text-[clamp(2rem,4.6vw,3.5rem)] leading-none text-ink">
+            <Wordmark />
           </h1>
+          <p className="text-lead mt-4 min-h-[1.5em] text-ink-muted">
+            {mode === 'signin' ? 'Margin calls, covered by tokens.' : <BlurReveal text="Create an account" />}
+          </p>
         </motion.div>
 
         {!ready ? (

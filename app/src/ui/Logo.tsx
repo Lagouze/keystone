@@ -1,18 +1,32 @@
 /**
- * The keystone: an arch drawn in one line whose two ends meet a solid wedge set at its crown.
- * Ink only. The line is finer when the mark is large (lock screen) and firmer when it is small
- * (header, favicon), so it reads the same at every size. The favicon in index.html is this drawing.
+ * The Keystone mark, redrawn from the team's logo: an arch in two parallel lines, open at its
+ * crown, where a faceted keystone sits point down. Line art in ink. The line is drawn firmer when
+ * the mark is small, so it keeps its weight in the header. The view box leaves room below the
+ * keystone's mitred point. The favicon in index.html is a simplified version (heavier line, no top
+ * facets) that stays legible at 16 px.
  */
-export function Logo({ size = 96, className }: { size?: number; className?: string }) {
+export function Logo({ height = 96, className }: { height?: number; className?: string }) {
+  const stroke = height < 48 ? 20 : 14
   return (
-    <svg width={size} height={size} viewBox="0 0 48 48" fill="none" aria-hidden="true" className={className}>
-      <path
-        d="M8 44V28A16 16 0 0 1 18.3 13.05M29.7 13.05A16 16 0 0 1 40 28v16"
-        stroke="#1c1c1e"
-        strokeWidth={size >= 64 ? 2 : 3}
-        strokeLinecap="round"
-      />
-      <path d="M18 7h12l-3 12h-6z" fill="#1c1c1e" />
+    <svg
+      width={(height * 520) / 350}
+      height={height}
+      viewBox="380 380 520 350"
+      fill="none"
+      aria-hidden="true"
+      className={className}
+    >
+      <g stroke="#1c1c1e" strokeWidth={stroke} strokeLinejoin="miter">
+        <path d="M540 458.5A243 243 0 0 0 397 680H456A184 184 0 0 1 552 518.4" />
+        <path d="M740 458.5A243 243 0 0 1 883 680H824A184 184 0 0 0 728 518.4" />
+        <path d="M544 394.5H736L640 694Z" />
+        <path d="M556 404L640 452L724 404M640 452V672" />
+      </g>
     </svg>
   )
+}
+
+/** The name as set in the logo: capitals, widely spaced (the last letter's spacing is trimmed). */
+export function Wordmark({ className }: { className?: string }) {
+  return <span className={`mr-[-0.34em] font-medium tracking-[0.34em] uppercase ${className ?? ''}`}>Keystone</span>
 }

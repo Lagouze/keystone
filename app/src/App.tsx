@@ -16,7 +16,7 @@ import { VaultCard } from './dashboard/VaultCard.tsx'
 import { CHOREO, useChoreography, type Stage } from './state/useChoreography.ts'
 import { useKeystone } from './state/useKeystone.ts'
 import SwipeToast from './ui/bits/SwipeToast.tsx'
-import { Banner, Button, HeroSkeleton, Logo, SegmentedControl } from './ui/index.ts'
+import { Banner, Button, HeroSkeleton, Logo, SegmentedControl, Wordmark } from './ui/index.ts'
 import { Modal } from './ui/Modal.tsx'
 import { cx } from './ui/cx.ts'
 
@@ -201,8 +201,10 @@ function TopBar({
     <header className="sticky top-3 z-40 px-3 sm:px-6">
       <div className="glass mx-auto flex min-h-14 max-w-6xl flex-wrap items-center justify-between gap-x-6 gap-y-2 rounded-[2rem] px-5 py-2 shadow-card sm:rounded-full sm:px-6">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <Logo size={26} />
-          <h1 className="text-[1.0625rem] font-medium tracking-tight">Keystone</h1>
+          <Logo height={22} />
+          <h1 className="text-[0.9375rem]">
+            <Wordmark />
+          </h1>
           {mocks ? <Chip>Demo data · nothing sent to Stellar</Chip> : <Chip>Testnet</Chip>}
           {/* §4: the public demo (SIGNER=keeper) must say that the keeper signs for the fund. */}
           {k.config?.signerMode === 'keeper' && <Chip>Public demo · keeper signs</Chip>}
