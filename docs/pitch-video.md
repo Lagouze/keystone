@@ -2,6 +2,8 @@
 
 > **Document de production, autonome.** Il est écrit pour être lu par l'équipe **et par un autre agent Claude** qui a accès au dépôt `https://github.com/Lagouze/keystone` (branche `main`). Il contient : le texte à dire, mot à mot et minuté ; les schémas animés à produire (décrits à la seconde près) ; le déroulé exact de la démo sur la vraie plateforme ; la préparation, le montage, les plans de secours.
 >
+> **Mise à jour (fin de vidéo) :** à partir de **1:25**, le minutage et le texte de `docs/pitch-handoff.md` §4 **remplacent** ceux de ce document, et une scène **S7 « accès jury »** est ajoutée (`docs/pitch-handoff.md` §5). Lire d'abord `docs/pitch-handoff.md`.
+>
 > Narration en **anglais** (jury HackMeridian international, README en anglais). Chaque bloc a une *ligne d'aide en français* pour que l'équipe sache ce qu'elle dit. Les instructions de production sont en français.
 
 ---
