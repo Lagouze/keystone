@@ -29,6 +29,10 @@ export function AccessCodeModal({ open, onSave, onClose }: { open: boolean; onSa
           onChange={(event) => setCode(event.target.value)}
           className="glass h-12 w-full rounded-full px-5 text-sm text-ink outline-none placeholder:text-ink-subtle focus-visible:outline-2 focus-visible:outline-chain"
         />
+        <p className="text-xs text-ink-subtle">
+          No code? <a className="underline underline-offset-2" href="?demo">Explore the simulated demo</a>: the full flow on
+          simulated data, nothing is sent to Stellar.
+        </p>
         <div className="flex justify-end gap-2">
           <Button type="button" variant="secondary" onClick={onClose}>
             Not now
