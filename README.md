@@ -296,7 +296,7 @@ Verified in a browser (integration branch, 2026-10-26): both scenarios on the mo
 
 ### Collateral Market Advisor
 
-On Landing, **Compare market conditions** opens a read-only assistant. It shows five indicator slots, observation/retrieval dates, source links, availability, publication frequency, cache/freshness labels, indicative class scores and assumptions. Closing it leaves the manual collateral selection unchanged. Only the separate Start button creates a vault. No wallet is needed for the assistant, and its only request is `GET /api/market-advisor`; it never calls a Stellar write route. With `VITE_USE_MOCKS=true`, session scenarios remain mocked while the advisor still requests real market observations from the configured keeper (or shows insufficient data if it is unavailable).
+On Landing, **Compare market conditions** opens a read-only assistant; once a session is running, the **Market** button in the dashboard's top bar opens the same assistant, so it can be shown at any time without ending the session. It shows five indicator slots, observation/retrieval dates, source links, availability, publication frequency, cache/freshness labels, indicative class scores and assumptions. Closing it leaves the manual collateral selection unchanged. Only the separate Start button creates a vault. No wallet is needed for the assistant, and its only request is `GET /api/market-advisor`; it never calls a Stellar write route. With `VITE_USE_MOCKS=true`, session scenarios remain mocked while the advisor still requests real market observations from the configured keeper (or shows insufficient data if it is unavailable).
 
 | Indicator | Actual source / interpretation |
 | --- | --- |
