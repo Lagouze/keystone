@@ -5,41 +5,25 @@ export function Skeleton({ className }: { className?: string }) {
   return <div aria-hidden="true" className={cx('skeleton rounded-full', className)} />
 }
 
-/** The dashboard's shape, shown while the keeper's configuration loads. */
-export function DashboardSkeleton() {
+/**
+ * The landing's shape (a chip, two headline bars, a thin line, two buttons), shown while the
+ * keeper's configuration loads. Same footprint as the real hero, so nothing jumps.
+ */
+export function HeroSkeleton() {
   return (
-    <div role="status" aria-label="Loading" className="mx-auto grid max-w-6xl gap-4 px-4 py-5 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-      <div className="grid content-start gap-4">
-        <div className="glass min-h-44 rounded-card p-7 shadow-card">
-          <Skeleton className="h-9 w-2/3" />
-          <Skeleton className="mt-4 h-4 w-1/2" />
-          <Skeleton className="mt-8 h-11 w-44" />
-        </div>
-        <div className="glass min-h-72 rounded-card p-7 shadow-card">
-          <Skeleton className="h-4 w-28" />
-          <div className="mt-8 grid grid-cols-3 gap-6">
-            <Skeleton className="h-10" />
-            <Skeleton className="h-10" />
-            <Skeleton className="h-10" />
-          </div>
-          <Skeleton className="mt-10 h-2 w-full" />
-        </div>
-        <div className="glass min-h-44 rounded-card p-7 shadow-card">
-          <Skeleton className="h-4 w-24" />
-          <Skeleton className="mt-6 h-11 w-full" />
-        </div>
+    <div role="status" aria-label="Loading" className="mx-auto flex min-h-[88vh] max-w-3xl flex-col items-center justify-center gap-7 px-6">
+      <div className="glass flex h-12 w-56 items-center gap-3 rounded-full px-4">
+        <span className="size-2.5 shrink-0 rounded-full bg-ink/70" aria-hidden="true" />
+        <Skeleton className="h-3 flex-1" />
       </div>
-      <div className="grid content-start gap-4">
-        <div className="glass min-h-56 rounded-card p-7 shadow-card">
-          <Skeleton className="h-4 w-20" />
-          <Skeleton className="mt-6 h-8 w-3/4" />
-          <Skeleton className="mt-4 h-8 w-1/2" />
-        </div>
-        <div className="glass min-h-64 rounded-card p-7 shadow-card">
-          <Skeleton className="h-4 w-24" />
-          <Skeleton className="mt-6 h-5 w-full" />
-          <Skeleton className="mt-4 h-5 w-5/6" />
-        </div>
+      <div className="grid w-full justify-items-center gap-5">
+        <Skeleton className="h-10 w-full sm:h-14" />
+        <Skeleton className="h-10 w-2/3 sm:h-14" />
+      </div>
+      <Skeleton className="h-3.5 w-5/6" />
+      <div className="mt-2 flex gap-4">
+        <div className="h-14 w-44 rounded-full bg-ink/85" aria-hidden="true" />
+        <div className="glass h-14 w-44 rounded-full" aria-hidden="true" />
       </div>
     </div>
   )

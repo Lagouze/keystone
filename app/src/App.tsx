@@ -16,7 +16,7 @@ import { VaultCard } from './dashboard/VaultCard.tsx'
 import { CHOREO, useChoreography, type Stage } from './state/useChoreography.ts'
 import { useKeystone } from './state/useKeystone.ts'
 import SwipeToast from './ui/bits/SwipeToast.tsx'
-import { Banner, Button, DashboardSkeleton, Logo, SegmentedControl } from './ui/index.ts'
+import { Banner, Button, HeroSkeleton, Logo, SegmentedControl } from './ui/index.ts'
 import { Modal } from './ui/Modal.tsx'
 import { cx } from './ui/cx.ts'
 
@@ -140,7 +140,7 @@ function Main({ user, onLock }: { user: string; onLock(): void }) {
         {!k.config ? (
           !k.loadError && (
             <motion.div key="loading" {...PAGE}>
-              <DashboardSkeleton />
+              <HeroSkeleton />
             </motion.div>
           )
         ) : !stage || !asset ? (

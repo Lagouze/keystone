@@ -74,8 +74,11 @@ function db(): Promise<PGlite> {
 }
 
 /** Starts loading the database early (the lock screen calls it on mount). */
-export function warmUp(): void {
-  void db().catch(() => undefined)
+export function warmUp(): Promise<void> {
+  return db().then(
+    () => undefined,
+    () => undefined,
+  )
 }
 
 export function normalizeEmail(email: string): string {

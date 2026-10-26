@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { motion, useAnimationControls } from 'motion/react'
 import { BlurReveal } from '../ui/BlurReveal.tsx'
 import { Logo } from '../ui/Logo.tsx'
+import { Skeleton } from '../ui/Skeleton.tsx'
 import { DEMO_ACCOUNT, signIn, signUp, warmUp } from './db.ts'
 
 type Mode = 'signin' | 'signup'
@@ -15,7 +16,18 @@ export function LockScreen({ onUnlock }: { onUnlock(email: string): void }) {
   const [forgot, setForgot] = useState(false)
   const shake = useAnimationControls()
 
-  useEffect(() => warmUp(), [])
+  // The form shows a shimmering skeleton while the local database (PGlite) loads, never a spinner.
+  const [ready, setReady] = useState(false)
+  useEffect(() => {
+    let alive = true
+    const started = Date.now()
+    void warmUp().then(() => {
+      window.setTimeout(() => alive && setReady(true), Math.max(0, 450 - (Date.now() - started)))
+    })
+    return () => {
+      alive = false
+    }
+  }, [])
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
@@ -68,6 +80,10 @@ export function LockScreen({ onUnlock }: { onUnlock(email: string): void }) {
           </h1>
         </motion.div>
 
+        {!ready ? (
+          <LockSkeleton />
+        ) : (
+          <>
         <motion.form animate={shake} onSubmit={submit} className="mt-8 grid w-full gap-3" noValidate>
           <label className="sr-only" htmlFor="lock-email">
             Email
@@ -137,7 +153,24 @@ export function LockScreen({ onUnlock }: { onUnlock(email: string): void }) {
             Demo: {DEMO_ACCOUNT.email} · {DEMO_ACCOUNT.password}
           </p>
         </div>
+          </>
+        )}
       </div>
     </motion.div>
+  )
+}
+
+/** Same footprint as the form, so nothing moves when the database is ready. */
+function LockSkeleton() {
+  return (
+    <div role="status" aria-label="Opening the local database" className="mt-8 grid w-full gap-3">
+      <Skeleton className="h-14 w-full" />
+      <Skeleton className="h-14 w-full" />
+      <div className="mt-6 grid justify-items-center gap-3">
+        <Skeleton className="h-3 w-32" />
+        <Skeleton className="h-3 w-28" />
+        <Skeleton className="mt-3 h-3 w-44" />
+      </div>
+    </div>
   )
 }
