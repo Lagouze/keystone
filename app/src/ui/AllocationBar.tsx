@@ -11,8 +11,8 @@ interface AllocationBarProps {
 
 const SEGMENTS = [
   { key: 'locked', label: 'Locked', className: 'bg-chain' },
-  { key: 'available', label: 'Available', className: 'bg-chain-light' },
-  { key: 'shortfall', label: 'Shortfall', className: 'bg-warning' },
+  { key: 'available', label: 'Free', className: 'bg-chain-light' },
+  { key: 'shortfall', label: 'Missing', className: 'bg-warning' },
 ] as const
 
 /** Share of `part` in `total` as a percentage, computed in BigInt (0.01 % precision). */
@@ -25,7 +25,7 @@ export function AllocationBar(props: AllocationBarProps) {
   return (
     <div>
       <div
-        className="flex h-2.5 gap-0.5 overflow-hidden rounded-full bg-surface-muted"
+        className="flex h-2 gap-0.5 overflow-hidden rounded-full bg-surface-muted"
         role="img"
         aria-label={props.label}
       >
@@ -33,7 +33,8 @@ export function AllocationBar(props: AllocationBarProps) {
           <motion.div
             key={s.key}
             className={s.className}
-            initial={false}
+            // The gauge fills from empty when it appears, then follows every change.
+            initial={{ width: '0%' }}
             animate={{ width: `${share(props[s.key], total)}%` }}
             transition={{ type: 'spring', stiffness: 120, damping: 20 }}
           />

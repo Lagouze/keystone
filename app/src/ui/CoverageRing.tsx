@@ -46,7 +46,8 @@ export function CoverageRing({ locked, required, size = 168 }: CoverageRingProps
           className="stroke-chain"
           strokeDasharray={c}
           transform={`rotate(-90 ${center} ${center})`}
-          initial={false}
+          // Draws itself when it appears, then follows every change.
+          initial={{ strokeDashoffset: c }}
           animate={{ strokeDashoffset: c * (1 - ratio) }}
           transition={{ type: 'spring', stiffness: 120, damping: 20 }}
         />
