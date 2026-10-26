@@ -39,13 +39,15 @@ export function Landing({
   const { scrollYProgress: heroProgress } = useScroll({ target: hero, offset: ['start start', 'end start'] })
   const heroScale = useTransform(heroProgress, [0, 1], [1, 0.86])
   const heroOpacity = useTransform(heroProgress, [0, 0.8], [1, 0])
-  const heroBlur = useTransform(heroProgress, [0, 1], ['blur(0px)', 'blur(8px)'])
+  // 'none' at rest: blur(0px) would still run a filter pass on every frame.
+  const heroBlur = useTransform(heroProgress, (p) => (p < 0.02 ? 'none' : `blur(${(p * 8).toFixed(1)}px)`))
 
   // "Choose the collateral" arrives like a cloud: it grows, clears and sharpens as it is scrolled into view.
   const { scrollYProgress: cloudProgress } = useScroll({ target: start, offset: ['start 95%', 'start 70%'] })
   const cloudScale = useTransform(cloudProgress, [0, 1], [0.8, 1])
   const cloudOpacity = useTransform(cloudProgress, [0, 0.7], [0, 1])
-  const cloudBlur = useTransform(cloudProgress, [0, 0.98, 1], ['blur(14px)', 'blur(0px)', 'none'])
+  // No filter while invisible (start) or sharp (end): only the visible part of the arrival blurs.
+  const cloudBlur = useTransform(cloudProgress, (p) => (p < 0.04 || p > 0.97 ? 'none' : `blur(${(14 * (1 - p)).toFixed(1)}px)`))
 
   const story = useRef<HTMLElement>(null)
   const { scrollYProgress: storyProgress } = useScroll({ target: story, offset: ['start start', 'end end'] })

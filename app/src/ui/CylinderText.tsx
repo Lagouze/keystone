@@ -14,7 +14,7 @@ function Line({ index, count, progress, line }: { index: number; count: number; 
   const angle = useTransform(t, (v) => (index - v) * ANGLE)
   const transform = useTransform(angle, (a) => `rotateX(${-a}deg) translateZ(${RADIUS}px)`)
   const opacity = useTransform(angle, (a) => Math.max(0, 1 - Math.abs(a) / 62))
-  const blur = useTransform(angle, (a) => `blur(${Math.min(6, Math.abs(a) / 12)}px)`)
+  const blur = useTransform(angle, (a) => (Math.abs(a) < 3 ? 'none' : `blur(${Math.min(6, Math.abs(a) / 12).toFixed(1)}px)`))
   return (
     <motion.div
       className="absolute inset-x-0 top-1/2 -mt-24 px-8 [backface-visibility:hidden]"

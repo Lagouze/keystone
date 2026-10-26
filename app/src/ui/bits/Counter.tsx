@@ -91,7 +91,8 @@ const SIZER = 'invisible';
 const WINDOW =
   'pointer-events-none absolute top-[calc(var(--counter-fade,0em)*-1)] right-0 bottom-[calc(var(--counter-fade,0em)*-1)] left-0 overflow-hidden';
 const STRIP = 'absolute inset-0';
-const NUMERAL = 'absolute inset-0 flex items-center justify-center will-change-transform';
+// No will-change: ten numerals per digit would each become a compositor layer (180 on the dashboard).
+const NUMERAL = 'absolute inset-0 flex items-center justify-center';
 const SYMBOL =
   'relative inline-flex justify-center mx-[calc(var(--counter-gap,0px)/2*var(--counter-shown,1))] opacity-[var(--counter-shown,1)] [clip-path:inset(-0.5em_0)]';
 const SYMBOL_TEXT = 'inline-block whitespace-pre';

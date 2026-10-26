@@ -8,5 +8,6 @@ Keystone changes:
 
 - `SplitFlapText.tsx`: type-only imports (`verbatimModuleSyntax`).
 - `Stepper.tsx`, `SwipeToast.tsx`: hugeicons glyphs replaced by the inline SVGs in `icons.tsx`, so no `@hugeicons/*` dependency.
+- `Counter.tsx`: no `will-change-transform` on the numerals (ten per digit, about 180 compositor layers on the dashboard at rest).
 
 Everything else is unchanged; configure the components through their props rather than editing them.

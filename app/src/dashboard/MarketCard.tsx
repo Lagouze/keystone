@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, memo } from 'react'
 import type { AssetInfo, SessionState } from '@keystone/shared'
 import { valueAfterHaircut } from '../lib/format.ts'
 import { Card } from '../ui/index.ts'
@@ -7,7 +7,7 @@ import { cx } from '../ui/cx.ts'
 import { Figure, KeyFigure } from '../ui/motion.tsx'
 
 /** The three market figures, all simulated: the fund's loss, the rate, the cash kept invested. */
-export function MarketCard({ session, asset, opening }: { session: SessionState; asset: AssetInfo; opening: boolean }) {
+export const MarketCard = memo(function MarketCard({ session, asset, opening }: { session: SessionState; asset: AssetInfo; opening: boolean }) {
   const { swap, margin, vault } = session
   const mtm = Number(margin.mtmFundEur)
   const gapBp = Math.round((Number(swap.floatRatePct) - Number(swap.fixedRatePct)) * 100)
@@ -59,4 +59,4 @@ export function MarketCard({ session, asset, opening }: { session: SessionState;
       </dl>
     </Card>
   )
-}
+})

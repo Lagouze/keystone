@@ -10,9 +10,10 @@ export function BlurReveal({ text, className, delay = 0 }: { text: string; class
         <motion.span
           key={`${word}-${i}`}
           aria-hidden="true"
-          className="inline-block will-change-[filter,transform,opacity]"
+          className="inline-block"
           initial={still ? false : { opacity: 0, y: 14, filter: 'blur(10px)' }}
-          animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+          // The filter is removed once sharp: a leftover blur(0px) still costs a filter pass.
+          animate={{ opacity: 1, y: 0, filter: 'blur(0px)', transitionEnd: { filter: 'none' } }}
           transition={{ duration: 0.7, delay: delay + i * 0.09, ease: [0.16, 1, 0.3, 1] }}
         >
           {word}

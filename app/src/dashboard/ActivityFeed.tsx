@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useRef, memo } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import type { ActivityEvent } from '@keystone/shared'
 import { formatTime } from '../lib/format.ts'
@@ -34,7 +34,7 @@ function Row({ event, reveal, detail }: { event: ActivityEvent; reveal: boolean;
 }
 
 /** Every entry, newest first, in a list that scrolls inside the card so the column keeps its height. */
-export function ActivityFeed({ activity }: { activity: ActivityEvent[] }) {
+export const ActivityFeed = memo(function ActivityFeed({ activity }: { activity: ActivityEvent[] }) {
   // Entries seen pending in this browser session: their hash decrypts when they confirm. Entries
   // replayed already confirmed (reload, reconnection) show their hash plainly.
   const seenPending = useRef(new Set<string>())
@@ -67,4 +67,4 @@ export function ActivityFeed({ activity }: { activity: ActivityEvent[] }) {
       )}
     </Card>
   )
-}
+})

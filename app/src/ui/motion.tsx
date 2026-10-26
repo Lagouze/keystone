@@ -1,6 +1,6 @@
 // Keystone presets for the React Bits components: tokens, durations and the single typeface are
 // set here once, so the dashboard never configures the raw components itself.
-import { useEffect, useState } from 'react'
+import { useEffect, useState, memo } from 'react'
 import { useReducedMotion } from 'motion/react'
 import { formatUnits } from '../lib/format.ts'
 import Counter from './bits/Counter.tsx'
@@ -20,7 +20,7 @@ const CHAIN = '#1f5fbf'
 const DANGER = '#b42318'
 
 /** A number that rolls to its new value (Counter, odometer style). Display only. */
-export function Figure({
+export const Figure = memo(function Figure({
   value,
   decimals = 0,
   duration = CHOREO.figuresMs / 1000,
@@ -47,7 +47,7 @@ export function Figure({
       tabular
     />
   )
-}
+})
 
 /** Number of decimals to show for a token amount: whole units stay whole. */
 export function unitDecimals(value: number): number {
@@ -58,12 +58,12 @@ export function unitDecimals(value: number): number {
  * A token amount that rolls. Built from formatUnits (floored to 2 decimals, never shows a non-zero
  * amount as 0), so the rolling figure always agrees with the text elsewhere on the screen.
  */
-export function RollUnits({ units, decimals, duration }: { units: string; decimals: number; duration?: number }) {
+export const RollUnits = memo(function RollUnits({ units, decimals, duration }: { units: string; decimals: number; duration?: number }) {
   const text = formatUnits(units, decimals)
   if (text.includes('<')) return <>{text}</>
   const value = Number(text.replace(/,/g, '').replace('−', '-'))
   return <Figure value={value} decimals={unitDecimals(value)} duration={duration} />
-}
+})
 
 /** The key figure counts up once when a session opens (CountUp), then rolls like the others. */
 export function KeyFigure({ value, intro }: { value: number; intro: boolean }) {

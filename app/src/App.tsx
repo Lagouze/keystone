@@ -60,8 +60,27 @@ export default function App() {
   )
 }
 
-/** The page's background: three slow blurred auras behind every screen (see .aura in index.css). */
+/** The page's background: three slow soft auras behind every screen (see .aura in index.css). */
 function Aura() {
+  // While the page scrolls, the drift pauses: the glass panels then frost a still background.
+  useEffect(() => {
+    const root = document.documentElement
+    let timer = 0
+    const onScroll = () => {
+      if (!timer) root.dataset.scrolling = ''
+      window.clearTimeout(timer)
+      timer = window.setTimeout(() => {
+        delete root.dataset.scrolling
+        timer = 0
+      }, 180)
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      window.removeEventListener('scroll', onScroll)
+      window.clearTimeout(timer)
+      delete root.dataset.scrolling
+    }
+  }, [])
   return (
     <div className="aura" aria-hidden="true">
       <span />
@@ -249,7 +268,7 @@ const TOAST: Record<VaultStatus, { title: string; description: string }> = {
 function Reveal({ index, opening, children, className }: { index: number; opening: boolean; children: ReactNode; className?: string }) {
   return (
     <motion.div
-      className={cx('gpu min-w-0', className)}
+      className={cx('min-w-0', className)}
       initial={opening ? { opacity: 0, y: 12 } : false}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, delay: opening ? (index * CHOREO.openingStaggerMs) / 1000 : 0, ease: [0.16, 1, 0.3, 1] }}

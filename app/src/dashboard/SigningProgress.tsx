@@ -27,8 +27,10 @@ export function SigningProgress({ busy, step }: { busy: Action | null; step: str
     )
   }
   if (busy === 'settle' || busy === 'shock' || busy === 'start') {
+    // A short wait: from sm up it sits in the panel's corner instead of pushing the panel taller
+    // for a second, so a rate shock does not make the page bounce.
     return (
-      <div className="mt-5 pt-4 text-sm">
+      <div className="mt-5 pt-4 text-sm sm:absolute sm:right-8 sm:bottom-7 sm:mt-0 sm:pt-0">
         <LedgerWait label={busy === 'start' ? 'Deploying the vault' : 'Waiting for the ledger'} />
       </div>
     )

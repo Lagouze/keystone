@@ -94,23 +94,28 @@ export function useKeystone() {
     [acceptState],
   )
 
-  const toUnits = useCallback(
-    (input: string): string => {
-      const asset = config?.assets.find((a) => a.id === session?.asset)
-      try {
-        return parseUnits(input, asset?.decimals ?? 7)
-      } catch (e) {
-        throw new KeystoneError('InvalidInput', e instanceof Error ? e.message : String(e))
-      }
-    },
-    [config, session],
-  )
+  // Read through refs: the actions stay the same functions from one state to the next, so the
+  // panels that receive them are not re-rendered by every SSE update.
+  const configRef = useRef(config)
+  configRef.current = config
+  const sessionRef = useRef(session)
+  sessionRef.current = session
+
+  const toUnits = useCallback((input: string): string => {
+    const asset = configRef.current?.assets.find((a) => a.id === sessionRef.current?.asset)
+    try {
+      return parseUnits(input, asset?.decimals ?? 7)
+    } catch (e) {
+      throw new KeystoneError('InvalidInput', e instanceof Error ? e.message : String(e))
+    }
+  }, [])
 
   /** Deposit or withdrawal: signed in Freighter, or by the keeper in SIGNER=keeper mode. */
   const moveFunds = useCallback(
     (kind: 'deposit' | 'withdraw', input: string) =>
       run(kind, async ({ client, signer }) => {
         const units = toUnits(input)
+        const config = configRef.current
         if (!config) throw new KeystoneError('NotReady', 'Configuration not loaded.')
         if (config.signerMode === 'keeper') {
           setStep('Submitting…')
@@ -123,7 +128,7 @@ export function useKeystone() {
         setStep('Submitting…')
         return client.submit(signed)
       }),
-    [config, run, toUnits],
+    [run, toUnits],
   )
 
   const actions = useMemo(
@@ -139,9 +144,10 @@ export function useKeystone() {
   )
 
   // docs/interfaces.md section 4: ignore entries whose sessionId is not the current session.
+  const sessionId = session?.sessionId
   const activity = useMemo(
-    () => (session ? events.filter((e) => e.sessionId === session.sessionId).reverse() : []),
-    [events, session],
+    () => (sessionId ? events.filter((e) => e.sessionId === sessionId).reverse() : []),
+    [events, sessionId],
   )
 
   return {

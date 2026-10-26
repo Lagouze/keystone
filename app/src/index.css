@@ -83,26 +83,28 @@
   html { scrollbar-gutter: stable; }
 }
 
-/* Behind everything, including the lock screen: three slow blurred auras. Transform-only
-   animation on its own layer, so it costs no layout or paint. */
+/* Behind everything, including the lock screen: three slow, soft auras. The softness is drawn by
+   the gradients themselves (no `filter: blur`, which re-blurs millions of pixels on every frame).
+   Transform-only animation, paused while the page scrolls (the drift is too slow to notice), so the
+   glass panels above do not re-blur a moving background during a scroll. */
 .aura {
   position: fixed;
   inset: 0;
   z-index: -1;
   overflow: hidden;
+  contain: strict;
   background: linear-gradient(160deg, #f4f5f9 0%, #e9ecf3 55%, #eef0f5 100%);
   pointer-events: none;
 }
 .aura > span {
   position: absolute;
   border-radius: 9999px;
-  filter: blur(90px);
   will-change: transform;
-  transform: translateZ(0);
 }
-.aura > span:nth-child(1) { width: 52vmax; height: 52vmax; left: -12vmax; top: -16vmax; background: radial-gradient(circle, rgba(110, 140, 235, 0.8), transparent 65%); animation: var(--animate-aura-a); }
-.aura > span:nth-child(2) { width: 48vmax; height: 48vmax; right: -14vmax; top: 6vmax; background: radial-gradient(circle, rgba(190, 140, 235, 0.62), transparent 65%); animation: var(--animate-aura-b); }
-.aura > span:nth-child(3) { width: 56vmax; height: 56vmax; left: 18vmax; bottom: -26vmax; background: radial-gradient(circle, rgba(100, 210, 185, 0.6), transparent 65%); animation: var(--animate-aura-c); }
+.aura > span:nth-child(1) { width: 58vmax; height: 58vmax; left: -15vmax; top: -19vmax; background: radial-gradient(closest-side, rgba(110, 140, 235, 0.56), rgba(110, 140, 235, 0.45) 25%, rgba(110, 140, 235, 0.27) 50%, rgba(110, 140, 235, 0.11) 72%, rgba(110, 140, 235, 0.03) 88%, transparent); animation: var(--animate-aura-a); }
+.aura > span:nth-child(2) { width: 54vmax; height: 54vmax; right: -17vmax; top: 3vmax; background: radial-gradient(closest-side, rgba(190, 140, 235, 0.45), rgba(190, 140, 235, 0.36) 25%, rgba(190, 140, 235, 0.21) 50%, rgba(190, 140, 235, 0.09) 72%, rgba(190, 140, 235, 0.02) 88%, transparent); animation: var(--animate-aura-b); }
+.aura > span:nth-child(3) { width: 62vmax; height: 62vmax; left: 15vmax; bottom: -29vmax; background: radial-gradient(closest-side, rgba(100, 210, 185, 0.43), rgba(100, 210, 185, 0.34) 25%, rgba(100, 210, 185, 0.21) 50%, rgba(100, 210, 185, 0.08) 72%, rgba(100, 210, 185, 0.02) 88%, transparent); animation: var(--animate-aura-c); }
+html[data-scrolling] .aura > span { animation-play-state: paused; }
 @media (prefers-reduced-motion: reduce) { .aura > span { animation: none; } }
 
 @utility glass {
@@ -110,6 +112,13 @@
   -webkit-backdrop-filter: saturate(170%) blur(24px);
   backdrop-filter: saturate(170%) blur(24px);
   border: 0;
+}
+
+/* A glass control inside a glass panel: the panel already frosts what is behind, a second blur
+   there would cost a full extra pass for no visible difference. */
+:is(.glass, .glass-heavy, .backdrop-blur-2xl) :is(.glass, .glass-heavy) {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
 @utility glass-heavy {
@@ -146,5 +155,5 @@
 /* Hardware-accelerated layer for what animates. */
 @utility gpu {
   transform: translateZ(0);
-  will-change: transform, opacity;
+  will-change: transform;
 }

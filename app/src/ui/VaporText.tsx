@@ -89,6 +89,8 @@ export function VaporText({ words, fontWeight = 500, fontSize = 72, color = '#1c
       return out
     }
 
+    const LEVELS = 16
+    const buckets: number[][] = Array.from({ length: LEVELS }, () => [])
     let index = 0
     let particles = sample(words[0]!)
     let started = performance.now()
@@ -110,6 +112,9 @@ export function VaporText({ words, fontWeight = 500, fontSize = 72, color = '#1c
       const total = IN_MS + holdMs + OUT_MS
       ctx.clearRect(0, 0, width, height)
       ctx.fillStyle = color
+      // Particles are grouped by opacity (16 levels) and drawn level by level: 16 globalAlpha
+      // changes per frame instead of one per particle.
+      for (const path of buckets) path.length = 0
       for (const p of particles) {
         let x: number
         let y: number
@@ -131,8 +136,13 @@ export function VaporText({ words, fontWeight = 500, fontSize = 72, color = '#1c
           alpha = 1 - k
         }
         if (alpha <= 0.02) continue
-        ctx.globalAlpha = alpha
-        ctx.fillRect(x, y, p.size, p.size)
+        buckets[Math.min(LEVELS - 1, Math.floor(alpha * LEVELS))]!.push(x, y, p.size)
+      }
+      for (let level = 0; level < LEVELS; level++) {
+        const rects = buckets[level]!
+        if (!rects.length) continue
+        ctx.globalAlpha = (level + 1) / LEVELS
+        for (let i = 0; i < rects.length; i += 3) ctx.fillRect(rects[i]!, rects[i + 1]!, rects[i + 2]!, rects[i + 2]!)
       }
       ctx.globalAlpha = 1
       if (t >= total) {
