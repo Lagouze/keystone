@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, rmdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -323,9 +323,15 @@ describe("hosted start-up rules", () => {
   });
 
   it("refuses a data directory it cannot write", () => {
-    expect(() => new SessionStore("/proc/definitely/not/writable").assertWritable()).toThrow();
     const dir = mkdtempSync(join(tmpdir(), "keystone-probe-"));
-    expect(() => new SessionStore(dir).assertWritable()).not.toThrow();
-    rmSync(dir, { recursive: true, force: true });
+    const blocker = join(dir, "file-not-directory");
+    try {
+      writeFileSync(blocker, "not a directory");
+      expect(() => new SessionStore(join(blocker, "session-data")).assertWritable()).toThrow();
+      expect(() => new SessionStore(dir).assertWritable()).not.toThrow();
+    } finally {
+      rmSync(blocker, { force: true });
+      rmdirSync(dir);
+    }
   });
 });
