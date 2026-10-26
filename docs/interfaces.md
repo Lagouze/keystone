@@ -1,6 +1,6 @@
 # Keystone — Shared interfaces
 
-**Version: v1.1** (v1.0 frozen at the end of the kickoff; later changes follow section 6).
+**Version: v1.2** (v1.0 frozen at the end of the kickoff; later changes follow section 6).
 
 This file is the single source of truth for everything exchanged between the three poles: the Soroban contract, the keeper API and the shared TypeScript types. `README.md` and `AGENTS.md` refer to it. When they disagree, this file wins.
 
@@ -113,6 +113,8 @@ Each event has a single topic: a symbol carrying the exact event name below. Dat
 
 - The keeper is trusted for the value of the requirement. It cannot move any token, but an inflated requirement (below `max_required`) can trigger a margin call. In production this value would come from a signed source or be agreed by both parties.
 - Tokens sent directly to the vault's address, outside `deposit`, are not credited and stay in the vault (see 3.4).
+- `settle_default` and `withdraw` move tokens through the asset's SAC. If the receiving account (the bank, or the fund) has no trustline, is not authorized, or is frozen by the issuer, or the asset's authorization flags are otherwise incompatible, the transfer is refused and the whole call fails: no settlement succeeds, the vault state is unchanged (a pending margin call stays open, the collateral stays locked). The failure is not one of the eight vault codes (see 3.6). The bootstrap creates the trustlines, and the issuer must not set `auth_required` (section 2).
+- The vault's instance TTL is extended by every write (`deposit`, `withdraw`, `post_margin`, `settle_default`), but not by the read-only `get_state()`. After a long inactivity the instance can expire; a long-lived deployment needs a TTL extension strategy (a periodic write or an explicit extension), not provided in the MVP.
 
 ## 4. Keeper API
 
@@ -284,3 +286,4 @@ Mapping to `ActivityType`:
 | v1.0-rc | 2026-10-25 | Initial proposal for the kickoff. |
 | v1.0 | 2026-10-25 | Kickoff amendments (Issue #5): `AssetId` `BOND` → `KBOND`; full constructor signature; state after `settle_default` and no rebalancing after `Defaulted`; deadline rules; SAC balance invariant `>=`; named event data; error precisions; keeper formats, error codes, write-route timing, rate-shock rule (refused after `defaulted`, `margin` frozen), single session; SSE `activity` and `state` events; `ActivityEvent.sessionId`; `ActivityType` mapping; `deployments/testnet.json` written by the keeper. |
 | v1.1 | 2026-10-25 | Wording only (compatible): section 4 now lists every non-string value (`decimals`, `ok`, `callDeadline` when `null`). No type change. |
+| v1.2 | 2026-10-26 | Documentation only (compatible): section 3.7 documents the SAC trustline/authorization/freeze limit for `withdraw` and `settle_default` and the instance TTL limit. No type, signature or behaviour change. |
