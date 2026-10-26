@@ -36,6 +36,29 @@ describe("static routes", () => {
   });
 });
 
+describe("CORS", () => {
+  const preflight = (origin: string) => keeper!.app.inject({
+    method: "OPTIONS", url: "/api/session/deposit",
+    headers: { origin, "access-control-request-method": "POST", "access-control-request-headers": "content-type" },
+  });
+  it("answers local pages and refuses other origins", async () => {
+    start();
+    expect((await preflight("http://localhost:5173")).headers["access-control-allow-origin"]).toBe("http://localhost:5173");
+    expect((await preflight("https://evil.example")).headers["access-control-allow-origin"]).toBeUndefined();
+  });
+});
+
+describe("Host and Origin checks (DNS rebinding)", () => {
+  const call = (headers: Record<string, string>) => keeper!.app.inject({ method: "GET", url: "/api/health", headers });
+  it("serves loopback hosts and refuses other Host or Origin values", async () => {
+    start();
+    expect((await call({ host: "127.0.0.1:8787" })).statusCode).toBe(200);
+    expect((await call({ host: "localhost:8787", origin: "http://localhost:5173" })).statusCode).toBe(200);
+    expect((await call({ host: "attacker.example:8787" })).statusCode).toBe(403);
+    expect((await call({ host: "127.0.0.1:8787", origin: "http://attacker.example:8787" })).statusCode).toBe(403);
+  });
+});
+
 describe("validation", () => {
   it("rejects bad bodies with BadRequest (400)", async () => {
     const k = start();
