@@ -43,6 +43,15 @@ describe('verifiable data and realized yield volatility', () => {
     expect((await provider()).metrics.find((m) => m.id === 'estr')?.delivery).toBe('cache');
     expect(fetchFn).toHaveBeenCalledTimes(3);
   });
+  it('accepts the complete TARGET Easter holiday gap between published business observations', () => {
+    const days = Array.from({ length: 50 }, (_, i) => new Date(Date.UTC(2026, 2, i + 1)))
+      .filter((d) => d.getUTCDay() !== 0 && d.getUTCDay() !== 6)
+      .map((d) => d.toISOString().slice(0, 10)).filter((d) => d !== '2026-04-03' && d !== '2026-04-06');
+    const end = days.indexOf('2026-04-07');
+    const observations = days.slice(end - 20, end + 1).map((date) => ({ date, value: 2 }));
+    expect(observations).toHaveLength(21);
+    expect(realizedVolatility(observations).value).toBe(0);
+  });
   it('optionally parses the official VIX CSV and never relabels realized volatility MOVE', async () => {
     const data = await createMarketProvider({ fetchFn, now: () => now, vixEnabled: true })();
     expect(data.metrics.find((m) => m.id === 'vix')).toMatchObject({ value: '20.000000', observedAt: '2026-10-23' });
@@ -100,6 +109,7 @@ describe('deterministic, symmetric class comparison', () => {
     const a = scoreMarket(metrics()).scores!; const b = scoreMarket(data).scores!;
     expect(Math.abs((a.KMMF - a.KBOND) - (b.KMMF - b.KBOND))).toBeLessThanOrEqual(0.5);
     expect(() => scoreMarket(data, { ...DEFAULT_WEIGHTS, duration: -1 })).toThrow();
+    expect(() => scoreMarket(data, { ...DEFAULT_WEIGHTS, duration: Number.MAX_VALUE, yield: Number.MAX_VALUE })).toThrow();
     expect(() => scoreMarket(data, Object.fromEntries(Object.keys(DEFAULT_WEIGHTS).map((k) => [k, 0])) as AdvisorWeights)).toThrow();
     expect(scoreMarket(metrics({ sovereign2y: 3 }), { ...DEFAULT_WEIGHTS, yield: 100 }).outcome).toBe('KBOND potentially preferable');
   });

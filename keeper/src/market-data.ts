@@ -55,8 +55,11 @@ export function parseObservations(csv: string, kind: 'ecb' | 'vix', now: Date): 
 export function realizedVolatility(observations: Observation[]): { value: number; start: string; end: string; observations: number } {
   if (observations.length < 21) throw new Error('Need 21 daily observations for 20 changes');
   const sample = observations.slice(-21);
-  // Missing weeks must not masquerade as daily changes (weekends/holidays up to four days allowed).
-  if (sample.some((o, i) => i > 0 && (Date.parse(o.date) - Date.parse(sample[i - 1]!.date)) / DAY > 4)) throw new Error('Gaps in daily history');
+  // Successive published business observations: TARGET closes on Good Friday and Easter Monday,
+  // so a complete Thursday→Tuesday history has a five-day calendar gap. Allow holiday weeks,
+  // reject prolonged gaps rather than mistaking a missing month for daily observations.
+  if (sample.some((o, i) => i > 0 && (Date.parse(o.date) - Date.parse(sample[i - 1]!.date)) / DAY > 7)
+    || (Date.parse(sample.at(-1)!.date) - Date.parse(sample[0]!.date)) / DAY > 45) throw new Error('Gaps in daily history');
   const changes = sample.slice(1).map((o, i) => (o.value - sample[i]!.value) * 100);
   const mean = changes.reduce((s, x) => s + x, 0) / changes.length;
   return { value: Math.sqrt(changes.reduce((s, x) => s + (x - mean) ** 2, 0) / (changes.length - 1)), start: sample[0]!.date, end: sample.at(-1)!.date, observations: sample.length };

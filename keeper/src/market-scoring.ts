@@ -13,7 +13,8 @@ export const ADVISOR_LIMITS = [
 
 export function scoreMarket(metrics: MarketMetric[], weights: AdvisorWeights = DEFAULT_WEIGHTS): MarketAdvice {
   const keys = Object.keys(DEFAULT_WEIGHTS) as AdvisorCriterion[];
-  if (keys.some((k) => !Number.isFinite(weights[k]) || weights[k] < 0) || keys.reduce((s, k) => s + weights[k], 0) <= 0) {
+  const totalWeight = keys.reduce((s, k) => s + weights[k], 0);
+  if (keys.some((k) => !Number.isFinite(weights[k]) || weights[k] < 0) || !Number.isFinite(totalWeight) || totalWeight <= 0) {
     throw new Error('Advisor weights must be finite, nonnegative and have a positive total');
   }
   const usable = (id: MarketMetricId) => metrics.find((m) => m.id === id && m.freshness === 'current'
@@ -35,8 +36,7 @@ export function scoreMarket(metrics: MarketMetric[], weights: AdvisorWeights = D
     { id: 'yield', label: 'Yield environment', weight: weights.yield, KMMF: round(50 - 50 * yieldTilt), KBOND: round(50 + 50 * yieldTilt), explanation: `AAA two-year yield minus the mean of Euribor 3M and €STR: ${spread.toFixed(3)} percentage points. The tilt saturates at ±0.75 pp; it is not a token yield.`, metrics: ['sovereign2y', 'euribor3m', 'estr'] },
     { id: 'valuation', label: 'Collateral valuation uncertainty', weight: weights.valuation, KMMF: round(50 - 5 * equityStress), KBOND: round(50 - 20 * stress - 10 * equityStress), explanation: vix ? 'Rate volatility and a small secondary equity stress penalty; VIX can change the final score gap by at most 0.5 points at default weights.' : 'Only the sovereign rate proxy is used. VIX is unavailable and has no contribution; legal, custody and token-specific risks remain unknown.', metrics: vix ? ['sovereignVol', 'vix'] : ['sovereignVol'] },
   ];
-  const sum = keys.reduce((s, k) => s + weights[k], 0);
-  const scores = { KMMF: round(criteria.reduce((s, c) => s + c.KMMF * c.weight, 0) / sum), KBOND: round(criteria.reduce((s, c) => s + c.KBOND * c.weight, 0) / sum) };
+  const scores = { KMMF: round(criteria.reduce((s, c) => s + c.KMMF * (c.weight / totalWeight), 0)), KBOND: round(criteria.reduce((s, c) => s + c.KBOND * (c.weight / totalWeight), 0)) };
   const gap = scores.KMMF - scores.KBOND;
   const outcome = Math.abs(gap) < 8 ? 'No clear preference' : gap > 0 ? 'KMMF potentially preferable' : 'KBOND potentially preferable';
   return { outcome, explanation: outcome === 'No clear preference' ? 'The weighted score gap is below 8 points. Available evidence does not support a clear class preference.'
