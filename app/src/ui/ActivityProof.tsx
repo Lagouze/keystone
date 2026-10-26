@@ -1,20 +1,6 @@
 import type { ActivityEvent } from '@keystone/shared'
+import { entryKind, proofOf } from '../lib/proof.ts'
 import { RevealHash, TxMark } from './motion.tsx'
-
-interface Proof {
-  hash: string
-  explorerUrl: string
-}
-
-/**
- * Proof of a Testnet transaction, following docs/interfaces.md section 5: only a confirmed
- * chain entry carrying both a hash and an explorer link has one. A sim entry never does.
- */
-export function proofOf(event: ActivityEvent): Proof | null {
-  if (event.kind !== 'chain' || event.status !== 'confirmed') return null
-  if (!event.txHash || !event.explorerUrl) return null
-  return { hash: event.txHash, explorerUrl: event.explorerUrl }
-}
 
 /**
  * Right-hand side of an activity entry: the abbreviated hash linking to stellar.expert when the
@@ -38,6 +24,15 @@ export function ActivityProof({ event, reveal = false }: { event: ActivityEvent;
       <span className="inline-flex items-center gap-1.5 text-xs text-ink-muted">
         <TxMark status="pending" />
         Pending
+      </span>
+    )
+  }
+  if (entryKind(event) === 'demo') {
+    // Mock or in-memory keeper: the hash is invented, nothing was sent to Stellar. No link.
+    const shown = event.txHash && event.txHash.length > 12 ? `${event.txHash.slice(0, 4)}…${event.txHash.slice(-4)}` : (event.txHash ?? '')
+    return (
+      <span className="text-xs text-ink-subtle" title="Simulated transaction: nothing was sent to Stellar">
+        Demo · <RevealHash text={shown} animate={reveal} />
       </span>
     )
   }
