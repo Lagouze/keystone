@@ -40,15 +40,17 @@ export class SessionStore {
     return null;
   }
 
-  save(data: Omit<PersistedState, "version">): void {
+  /** Returns false (after logging) when the file could not be written. */
+  save(data: Omit<PersistedState, "version">): boolean {
     try {
       const tmp = `${this.file}.tmp`;
       writeFileSync(tmp, JSON.stringify({ version: VERSION, ...data }, replacer), { mode: 0o600 });
       renameSync(tmp, this.file);
       chmodSync(this.file, 0o600);
+      return true;
     } catch (e) {
-      // Never break an operation because the disk is unavailable, but never stay silent about it.
       console.error(`Keeper could not save its session: ${e instanceof Error ? e.message : String(e)}`);
+      return false;
     }
   }
 

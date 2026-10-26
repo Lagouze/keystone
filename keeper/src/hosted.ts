@@ -17,6 +17,10 @@ export function readExposure(env: Record<string, string | undefined>, signer: st
     if (accessTokens.length === 0) throw new Error("A hosted keeper needs KEEPER_ACCESS_TOKENS: its write routes cost fees and move collateral");
     if (!env.KEEPER_ALLOWED_ORIGINS) throw new Error("A hosted keeper needs KEEPER_ALLOWED_ORIGINS (the exact origin of the web app)");
     if (!env.KEEPER_PUBLIC_HOSTS) throw new Error("A hosted keeper needs KEEPER_PUBLIC_HOSTS (its own public host name)");
+    const local = /^https?:\/\/(localhost|127\.|\[::1\])/i;
+    if ((env.KEEPER_ALLOWED_ORIGINS ?? "").split(",").some((o) => local.test(o.trim()))) {
+      throw new Error("KEEPER_ALLOWED_ORIGINS must not list localhost on a hosted keeper: any page on a visitor's machine could then call it");
+    }
     if (env.FUND_SECRET) throw new Error("FUND_SECRET must not be set on a hosted keeper");
   }
   return { host, hosted, accessTokens };

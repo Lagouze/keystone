@@ -207,7 +207,7 @@ describe("durable session and uncertain transactions", () => {
       during = b.sessions.deposit(1_000_000n).catch((e: KeeperError) => e.code);
       throw new Error("process died");
     };
-    await expect(a.sessions.deposit(1_000_000n)).rejects.toThrow("process died");
+    await expect(a.sessions.deposit(1_000_000n)).rejects.toMatchObject({ code: "RpcUnavailable" });
     await expect(during).resolves.toBe("PendingTransaction");
   });
 
@@ -250,6 +250,42 @@ describe("durable session and uncertain transactions", () => {
     client.deposit = FakeVaultClient.prototype.deposit.bind(client);
     await expect(sessions.deposit(1_000_000n)).resolves.toBeTruthy();
   });
+
+  it("keeps the guard whatever error follows a recorded hash (TxFailed or plain), and releases it on a definite one", async () => {
+    for (const thrown of [() => new KeeperError("TxFailed", "Request failed with status code 500"), () => new Error("socket closed")]) {
+      const { client, sessions } = make();
+      await sessions.start("KMMF");
+      const hook = client.onSigned;
+      client.deposit = async () => { hook?.("77".repeat(32)); throw thrown(); };
+      await expect(sessions.deposit(1n)).rejects.toMatchObject({ code: "RpcUnavailable" });
+      client.deposit = FakeVaultClient.prototype.deposit.bind(client);
+      await expect(sessions.deposit(1n)).rejects.toMatchObject({ code: "PendingTransaction" });
+    }
+    // failed on-chain, refused by the network, or rejected as a bad request: nothing in flight
+    for (const mark of [(e: KeeperError) => { e.onChain = true; }, (e: KeeperError) => { e.notSent = true; }, () => undefined]) {
+      const { client, sessions } = make();
+      await sessions.start("KMMF");
+      const hook = client.onSigned;
+      client.deposit = async () => { hook?.("88".repeat(32)); const e = new KeeperError(mark.length === 0 ? "BadRequest" : "TxFailed", "definite"); mark(e); throw e; };
+      await expect(sessions.deposit(1n)).rejects.toMatchObject({ message: "definite" });
+      client.deposit = FakeVaultClient.prototype.deposit.bind(client);
+      await expect(sessions.deposit(1n)).resolves.toBeTruthy();
+    }
+  });
+
+  it("sends nothing when the hash cannot be saved first", async () => {
+    const { client, sessions } = make();
+    await sessions.start("KMMF");
+    let sent = false;
+    const hook = client.onSigned;
+    const store = (sessions as unknown as { deps: { store: SessionStore } }).deps.store;
+    client.deposit = async () => { hook?.("99".repeat(32)); sent = true; return FakeVaultClient.prototype.deposit.call(client, "x", 1n); };
+    const realSave = store.save.bind(store);
+    store.save = () => false;
+    await expect(sessions.deposit(1n)).rejects.toMatchObject({ code: "InternalError" });
+    store.save = realSave;
+    expect(sent).toBe(false);
+  });
 });
 
 describe("hosted start-up rules", () => {
@@ -271,6 +307,12 @@ describe("hosted start-up rules", () => {
     expect(() => readExposure({ ...ok, KEEPER_ALLOWED_ORIGINS: "" }, "freighter")).toThrow(/KEEPER_ALLOWED_ORIGINS/);
     expect(() => readExposure({ ...ok, KEEPER_PUBLIC_HOSTS: "" }, "freighter")).toThrow(/KEEPER_PUBLIC_HOSTS/);
     expect(() => readExposure({ ...ok, FUND_SECRET: "S" }, "freighter")).toThrow(/FUND_SECRET/);
+  });
+
+  it("refuses localhost among the allowed origins of a public keeper", () => {
+    for (const o of ["http://localhost:5173", "http://127.0.0.1:5173", `${WEB},http://[::1]:5173`]) {
+      expect(() => readExposure({ ...ok, KEEPER_ALLOWED_ORIGINS: o }, "freighter")).toThrow(/localhost/);
+    }
   });
 
   it("refuses a data directory it cannot write", () => {

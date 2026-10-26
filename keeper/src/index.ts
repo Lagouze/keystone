@@ -1,6 +1,6 @@
 // Keeper entry point. KEEPER_BACKEND=testnet uses the real vault on Stellar Testnet,
 // KEEPER_BACKEND=fake an in-memory vault (fake hashes, no transaction).
-import { existsSync, readFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Keypair } from "vault-client";
@@ -70,6 +70,12 @@ const matchesOrigin = originMatcher(extraOrigins);
 const publicHosts = list("KEEPER_PUBLIC_HOSTS");
 // Where the keeper keeps what must survive a restart: on a host, a mounted volume (KEEPER_DATA_DIR=/data).
 const dataDir = process.env.KEEPER_DATA_DIR || join(keeperDir, "data");
+// A fresh data directory starts from the versioned Euribor seed, as a local run does.
+const seed = join(keeperDir, "data", "euribor-cache.json");
+if (dataDir !== join(keeperDir, "data") && existsSync(seed) && !existsSync(join(dataDir, "euribor-cache.json"))) {
+  mkdirSync(dataDir, { recursive: true });
+  copyFileSync(seed, join(dataDir, "euribor-cache.json"));
+}
 const store = backend === "testnet" ? new SessionStore(dataDir) : undefined;
 // A keeper that cannot save its session would forget a funded vault on the next restart: refuse to run.
 if (store && hosted) store.assertWritable();
@@ -80,7 +86,8 @@ const sessions = new SessionManager({
   euribor: () => getEuribor({ cachePath: join(dataDir, "euribor-cache.json") }),
   store,
 });
-await sessions.restore();
+// The saved session is read at once; the on-chain checks that follow must not hold up the listening socket.
+void sessions.restore().catch((e: Error) => console.error(`Could not restore the saved session: ${e.message}`));
 sessions.startReconciler();
 const app = buildServer(config, sessions, {
   market: createMarketProvider({

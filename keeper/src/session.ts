@@ -145,11 +145,12 @@ export class SessionManager {
     return () => clearInterval(timer);
   }
 
-  private persist(): void {
+  /** Saves the session; false when a store is configured and the write failed. */
+  private persist(): boolean {
     const strip = (s: Session | null) => (s ? { ...s, lastState: null } : null);
-    this.deps.store?.save({
+    return this.deps.store?.save({
       seq: this.seq, session: strip(this.session), pendingDeploy: strip(this.pendingDeploy), unresolved: this.unresolved,
-    });
+    }) ?? true;
   }
 
   /**
@@ -403,27 +404,27 @@ export class SessionManager {
       ...(track?.preHash ? { txHash: track.preHash, explorerUrl: `${this.deps.config.explorerTxBase}${track.preHash}` } : {}),
     });
     this.active = track ? { entry, track } : null;
-    // A hash known before sending (wallet-signed) is recorded before the network can lose track of the transaction.
-    if (track?.preHash) this.markInFlight(entry, track, track.preHash);
     let result: T;
     try {
+      // A hash known before sending (wallet-signed) is recorded before the network can lose track of the transaction.
+      if (track?.preHash) this.markInFlight(entry, track, track.preHash);
       result = await run();
     } catch (e) {
-      // Pending only when something may be in flight: a hash is known. Without one, nothing was signed or sent.
-      if (e instanceof KeeperError && e.code === "RpcUnavailable" && !e.notSent && (e.txHash || this.unresolved)) {
-        const hash = e.txHash ?? this.unresolved?.hash;
-        this.update(entry, {
-          detail: `No confirmation yet: ${e.message}`,
-          ...(hash ? { txHash: hash, explorerUrl: `${this.deps.config.explorerTxBase}${hash}` } : {}),
-        });
-        // The transaction may still land: it stays recorded so that nothing else is sent before its outcome is known.
-        if (hash && track && !this.unresolved) this.markInFlight(entry, track, hash, e.vaultId);
-      } else {
-        // A definite outcome (rejected, failed on-chain, or refused by the network): nothing is in flight.
+      const known = e instanceof KeeperError ? e : undefined;
+      if (!this.unresolved && known?.txHash && track && !known.notSent) this.markInFlight(entry, track, known.txHash, known.vaultId);
+      // Definite outcomes only: refused by the network, failed on-chain, or rejected before anything was sent.
+      const definite = !this.unresolved || known?.notSent || known?.onChain || known?.code === "BadRequest";
+      if (definite) {
         this.unresolved = null;
         this.update(entry, { status: "failed", detail: e instanceof Error ? e.message : String(e) });
+        throw e;
       }
-      throw e;
+      // Anything else after the hash was recorded leaves the transaction possibly in flight: it stays pending and
+      // guarded until looked up by hash, whatever the error looks like.
+      const hash = this.unresolved!.hash;
+      const message = e instanceof Error ? e.message : String(e);
+      this.update(entry, { detail: `No confirmation yet: ${message}`, txHash: hash, explorerUrl: `${this.deps.config.explorerTxBase}${hash}` });
+      throw known?.code === "RpcUnavailable" ? e : new KeeperError("RpcUnavailable", `No confirmation yet: ${message}`.slice(0, 300));
     } finally {
       this.active = null;
     }
@@ -451,7 +452,11 @@ export class SessionManager {
       hash, entryId: entry.id, kind: track.kind ?? "write", notAfter: this.now().getTime() + EXPIRY_MS,
       doneTitle: track.doneTitle, doneDetail: track.doneDetail, vaultId, postedValueCents: track.postedValueCents,
     };
-    this.persist();
+    // The record must be durable before the transaction leaves: otherwise a restart would forget it.
+    if (!this.persist()) {
+      this.unresolved = null;
+      throw new KeeperError("InternalError", "The keeper cannot save its state: nothing was sent");
+    }
   }
 
   /** The client signed a transaction and is about to send it: record its hash first. */
