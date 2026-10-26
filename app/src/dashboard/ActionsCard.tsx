@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { motion } from 'motion/react'
 import type { AssetInfo, KeystoneConfig, SessionState } from '@keystone/shared'
 import type { Action } from '../state/useKeystone.ts'
 import { Button, Card, SegmentedControl } from '../ui/index.ts'
@@ -56,22 +57,58 @@ export function ActionsCard(props: ActionsCardProps) {
       <div className="grid gap-8">
         <section aria-label="Rate shocks" className="grid gap-3">
           <p className="text-sm text-ink-subtle">Move rates · simulated Euribor shock</p>
-          <div className="flex flex-wrap gap-2">
-            {SHOCKS.map((bp) => (
-              <Button
-                key={bp}
-                variant="sim"
-                busy={busy === 'shock' && lastShock === bp}
-                disabled={defaulted || props.sequencing || (busy !== null && !(busy === 'shock' && lastShock === bp))}
-                onClick={() => {
-                  setLastShock(bp)
-                  props.onShock(bp)
-                }}
-              >
-                {bp > 0 ? '+' : '−'}
-                {Math.abs(bp)} bp
-              </Button>
-            ))}
+          <div className="grid grid-cols-4 gap-2 sm:gap-3">
+            {SHOCKS.map((bp, i) => {
+              const mine = busy === 'shock' && lastShock === bp
+              const off = defaulted || props.sequencing || (busy !== null && !mine)
+              return (
+                <motion.button
+                  key={bp}
+                  type="button"
+                  disabled={off}
+                  aria-busy={mine || undefined}
+                  onClick={() => {
+                    setLastShock(bp)
+                    props.onShock(bp)
+                  }}
+                  // Icon tiles of the references: a soft glass tile, a trend arrow, the shock under it.
+                  className="glass flex flex-col items-center gap-2 rounded-3xl px-2 py-4 text-ink shadow-card transition-colors enabled:hover:bg-white/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-chain disabled:cursor-not-allowed disabled:opacity-45"
+                  initial={{ opacity: 0, y: 14 }}
+                  animate={{ opacity: 1, y: i % 2 ? 4 : 0 }}
+                  whileHover={off ? undefined : { y: -4 }}
+                  whileTap={off ? undefined : { scale: 0.94 }}
+                  transition={{ type: 'spring', stiffness: 380, damping: 26, delay: i * 0.05 }}
+                >
+                  <span aria-hidden="true" className={bp > 0 ? 'text-success' : 'text-danger'}>
+                    {mine ? (
+                      <span className="flex h-6 items-center gap-1">
+                        {[0, 1, 2].map((n) => (
+                          <span key={n} className="size-1 rounded-full bg-current motion-safe:animate-dot" style={{ animationDelay: `${n * 0.15}s` }} />
+                        ))}
+                      </span>
+                    ) : (
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                        {bp > 0 ? (
+                          <>
+                            <path d="M3 17l6-6 4 4 8-8" />
+                            <path d="M15 7h6v6" />
+                          </>
+                        ) : (
+                          <>
+                            <path d="M3 7l6 6 4-4 8 8" />
+                            <path d="M15 17h6v-6" />
+                          </>
+                        )}
+                      </svg>
+                    )}
+                  </span>
+                  <span className="text-sm font-medium tabular-nums">
+                    {bp > 0 ? '+' : '−'}
+                    {Math.abs(bp)} bp
+                  </span>
+                </motion.button>
+              )
+            })}
           </div>
         </section>
 
