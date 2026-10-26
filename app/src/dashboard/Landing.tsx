@@ -1,35 +1,21 @@
 import { useRef, useState } from 'react'
-import { motion, useReducedMotion, useScroll, useTransform, type MotionValue } from 'motion/react'
+import { motion, useReducedMotion, useScroll, useTransform } from 'motion/react'
 import type { AssetId, KeystoneConfig } from '@keystone/shared'
 import { formatEur } from '../lib/format.ts'
 import { Button, Card, Magnetic, SegmentedControl } from '../ui/index.ts'
 import { BlurReveal } from '../ui/BlurReveal.tsx'
+import { CylinderText } from '../ui/CylinderText.tsx'
+import { GhostType } from '../ui/GhostType.tsx'
+import { VaporText } from '../ui/VaporText.tsx'
+
+// A module constant: VaporText restarts when its `words` prop changes identity.
+const VAPOR_WORDS = ['Lock', 'Call', 'Settle'] as const
 
 const STEPS = [
   { title: 'Lock', text: 'The fund posts tokens it already holds. The vault locks what the margin needs.' },
   { title: 'Call', text: 'Rates move against the fund. A margin call opens, with a deadline.' },
   { title: 'Settle', text: 'Not covered in time? The locked tokens go to the bank. Nothing more.' },
 ] as const
-
-/** One step of the pinned section: fades and rises in over its slice of the scroll. */
-function Step({ index, progress, still }: { index: number; progress: MotionValue<number>; still: boolean }) {
-  const start = index / STEPS.length
-  const end = start + 1 / STEPS.length
-  const opacity = useTransform(progress, [start, start + 0.12, end - 0.05, end], [0.15, 1, 1, index === STEPS.length - 1 ? 1 : 0.35])
-  const y = useTransform(progress, [start, start + 0.12], [24, 0])
-  const step = STEPS[index]!
-  return (
-    <motion.div style={still ? undefined : { opacity, y }} className="flex gap-5">
-      <span className="glass mt-1.5 flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-medium text-ink">
-        {index + 1}
-      </span>
-      <div>
-        <h3 className="text-3xl font-medium tracking-tight sm:text-4xl">{step.title}</h3>
-        <p className="mt-2 max-w-md text-lg text-ink-muted">{step.text}</p>
-      </div>
-    </motion.div>
-  )
-}
 
 /** Apple-style arrival: a hero that recedes, a pinned story revealed by scrolling, then the start. */
 export function Landing({
@@ -71,14 +57,14 @@ export function Landing({
             <br />
             <BlurReveal text="not cash." delay={0.25} />
           </h1>
-          <motion.p
-            className="mx-auto mt-6 max-w-xl text-xl text-ink-muted"
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
-          >
-            Margin calls, covered by the assets a fund already holds. On Stellar.
-          </motion.p>
+          {/* Vapor Type: the three beats of the story condense out of vapor, one after the other. */}
+          <div className="mt-8 h-24" aria-label="Lock, Call, Settle">
+            <VaporText words={VAPOR_WORDS} fontSize={64} holdMs={1300} />
+          </div>
+          {/* Ghost Type: the line writes itself, a grey completion is accepted with Tab. */}
+          <p className="mx-auto mt-2 min-h-14 max-w-xl text-xl text-ink-muted">
+            <GhostType typed="Margin calls, covered by" ghost=" the assets a fund already holds." tail=" On Stellar." />
+          </p>
           <Magnetic className="mt-14">
             <motion.button
               type="button"
@@ -102,11 +88,7 @@ export function Landing({
       <section ref={story} className="relative h-[200vh] md:h-[260vh]">
         <div className="sticky top-0 flex min-h-screen items-center px-4">
           <div className="mx-auto grid w-full max-w-5xl items-center gap-12 md:grid-cols-[minmax(0,1fr)_280px]">
-            <div className="grid gap-10">
-              {STEPS.map((_, i) => (
-                <Step key={i} index={i} progress={storyProgress} still={still} />
-              ))}
-            </div>
+            <CylinderText lines={STEPS} progress={storyProgress} />
             <div className="glass gpu mx-auto hidden size-64 items-center justify-center rounded-full shadow-card md:flex" aria-hidden="true">
               <svg width="200" height="200" viewBox="0 0 200 200">
                 <circle cx="100" cy="100" r="86" fill="none" strokeWidth="12" className="stroke-surface-muted" />

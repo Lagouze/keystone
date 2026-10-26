@@ -9,9 +9,11 @@ function Row({ event, reveal, detail }: { event: ActivityEvent; reveal: boolean;
   return (
     <motion.li
       layout
-      initial={{ opacity: 0, y: -6 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+      // React Bits "Animated List": a new entry drops in from above on a spring, the others make room.
+      initial={{ opacity: 0, y: -28, scale: 0.94 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+      whileHover={{ x: 3 }}
       className="grid grid-cols-[1fr_auto] items-start gap-x-3 gap-y-1 py-3.5"
     >
       <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -54,7 +56,7 @@ export function ActivityFeed({ activity }: { activity: ActivityEvent[] }) {
           tabIndex={0}
           role="region"
           aria-label="Activity, newest first"
-          className="-mr-3 max-h-96 min-h-0 flex-1 divide-y divide-line-soft overflow-y-auto pr-3 [scrollbar-width:thin] focus-visible:outline-2 focus-visible:outline-chain lg:max-h-none"
+          className="-mr-3 max-h-96 min-h-0 flex-1 divide-y divide-line-soft overflow-y-auto pr-3 [scrollbar-width:thin] focus-visible:outline-2 focus-visible:outline-chain [mask-image:linear-gradient(to_bottom,black_calc(100%-2.5rem),transparent)] lg:max-h-none"
         >
           <AnimatePresence initial={false}>
             {activity.map((event) => (
