@@ -12,7 +12,13 @@ function Source({ metric }: { metric: MarketMetric }) {
 }
 
 /** Pure display: choosing an asset and starting a vault remain separate, explicit Landing actions. */
-export function MarketAdvisor({ className }: { className?: string }) {
+export function MarketAdvisor({ className, label = 'Compare market conditions', closeLabel = 'Back to manual selection', inSession = false }: {
+  className?: string
+  label?: string
+  closeLabel?: string
+  /** Opened from the dashboard (a session is running): there is no selection or Start button to mention. */
+  inSession?: boolean
+}) {
   const [open, setOpen] = useState(false)
   const [attempt, setAttempt] = useState(0)
   const [snapshot, setSnapshot] = useState<MarketSnapshot | null>(null)
@@ -36,7 +42,7 @@ export function MarketAdvisor({ className }: { className?: string }) {
   }, [open, attempt])
 
   return <>
-    <Button className={className ?? 'mt-5 w-full'} onClick={() => setOpen(true)}>Compare market conditions</Button>
+    <Button className={className ?? 'mt-5 w-full'} aria-label="Open the collateral market advisor" onClick={() => setOpen(true)}>{label}</Button>
     <Modal open={open} title="Collateral Market Advisor" onClose={() => setOpen(false)}>
       <p className="text-sm text-ink-muted">Indicative class comparison. Real published market observations, separate from simulated token prices. No wallet needed.</p>
       {pending && <p className="mt-4 text-sm" role="status">Loading market observations…</p>}
@@ -74,9 +80,13 @@ export function MarketAdvisor({ className }: { className?: string }) {
       </div>}
       <div className="mt-5 flex flex-wrap gap-2">
         <Button busy={pending} disabled={pending} onClick={() => setAttempt((v) => v + 1)}>Refresh observations</Button>
-        <Button variant="primary" onClick={() => setOpen(false)}>Back to manual selection</Button>
+        <Button variant="primary" onClick={() => setOpen(false)}>{closeLabel}</Button>
       </div>
-      <p className="mt-3 text-xs text-ink-subtle">Closing this assistant leaves your selection unchanged. Starting a session requires the separate Start button.</p>
+      <p className="mt-3 text-xs text-ink-subtle">
+        {inSession
+          ? 'Closing this assistant changes nothing: it is read-only and never touches the running session.'
+          : 'Closing this assistant leaves your selection unchanged. Starting a session requires the separate Start button.'}
+      </p>
     </Modal>
   </>
 }

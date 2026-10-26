@@ -4,12 +4,13 @@ import { randomUUID } from "node:crypto";
 import type { ActivityEvent, ActivityType, AssetId, KeystoneConfig, SessionState, VaultStatus } from "@keystone/shared";
 import { formatCents, formatMilli, formatUnits, parseScaled } from "./amounts.ts";
 import type { EuriborResult } from "./euribor.ts";
-import { KeeperError, VaultError } from "./errors.ts";
+import { isVaultGone, KeeperError, VaultError } from "./errors.ts";
 import {
   collateralParams, computeMargin, fixedRateFromStart, MILLI_PER_BP, shouldPost,
   type CollateralParams, type MarginResult, type SwapParams,
 } from "./margin.ts";
 import type { ScenarioFile } from "./scenarios.ts";
+import type { SessionStore } from "./store.ts";
 import type { OnChainStatus, TxResult, VaultClient, VaultEvent, VaultState } from "./vault-client.ts";
 
 export type StreamMessage =
@@ -22,7 +23,37 @@ export interface SessionDeps {
   scenario: ScenarioFile;
   euribor: () => Promise<EuriborResult>;
   now?: () => Date;
+  /** Durable copy of the session (hosted keeper). Without it the session lives in memory only. */
+  store?: SessionStore;
 }
+
+/**
+ * A transaction that was sent but whose outcome is unknown (RPC timeout, restart). No new write runs
+ * until it is looked up by hash and found confirmed, failed, or expired without being included.
+ */
+interface Unresolved {
+  hash: string;
+  entryId: string;
+  kind: "deploy" | "write";
+  /** Epoch ms after which a transaction still NOT_FOUND can no longer be included in a ledger. */
+  notAfter: number;
+  doneTitle: string;
+  doneDetail?: string;
+  vaultId?: string;                  // deploy: the vault created by the transaction
+  postedValueCents?: bigint;         // margin: becomes lastPostedValueCents once confirmed
+}
+
+/** What `chain` needs to remember an unconfirmed transaction. */
+interface Track {
+  kind?: "deploy";
+  preHash?: string;                  // hash known before sending (wallet-signed transactions)
+  doneTitle: string;
+  doneDetail?: string;
+  postedValueCents?: bigint;
+}
+
+/** Margin of safety over the 180 s validity of a prepared transaction and the 60 s of a keeper-signed one. */
+const EXPIRY_MS = 200_000;
 
 const STATUS: Record<OnChainStatus, VaultStatus> = { Active: "active", MarginCall: "margin_call", Defaulted: "defaulted" };
 const MAX_BP = 1000;
@@ -43,6 +74,10 @@ interface Session {
 
 export class SessionManager {
   private session: Session | null = null;
+  private pendingDeploy: Session | null = null;   // session whose vault deployment is unconfirmed
+  private unresolved: Unresolved | null = null;
+  /** The write in progress: lets a hash reported by the client be recorded before the transaction is sent. */
+  private active: { entry: ActivityEvent; track: Track } | null = null;
   private readonly listeners = new Set<(m: StreamMessage) => void>();
   private queue: Promise<unknown> = Promise.resolve();
   private seq = 0;
@@ -52,6 +87,123 @@ export class SessionManager {
   constructor(deps: SessionDeps) {
     this.deps = deps;
     this.now = deps.now ?? (() => new Date());
+    deps.client.onSigned = (hash, vaultId) => this.noteSigned(hash, vaultId);
+  }
+
+  /** Resolves once the queued writes are done (used to stop cleanly on SIGTERM). */
+  idle(): Promise<void> {
+    return this.queue.then(() => undefined, () => undefined);
+  }
+
+  // ---- persistence and reconciliation ------------------------------------------------------
+
+  /** Reloads the saved session after a restart and settles any transaction left unconfirmed. */
+  async restore(): Promise<void> {
+    const store = this.deps.store;
+    const data = store?.load();
+    if (!store || !data) return;
+    this.seq = typeof data.seq === "number" ? data.seq : 0;
+    this.session = (data.session as Session | null) ?? null;
+    this.pendingDeploy = (data.pendingDeploy as Session | null) ?? null;
+    this.unresolved = (data.unresolved as Unresolved | null) ?? null;
+    // A restart can interrupt a write between its signature and its confirmation. Every persisted pending
+    // chain entry is therefore treated as unconfirmed (by hash when it has one) until its window has passed.
+    if (!this.unresolved) {
+      const owner = this.pendingDeploy ?? this.session;
+      const entry = owner?.feed.find((e) => e.kind === "chain" && e.status === "pending");
+      if (owner && entry) {
+        this.unresolved = {
+          hash: entry.txHash ?? "", entryId: entry.id, kind: owner === this.pendingDeploy ? "deploy" : "write",
+          notAfter: this.now().getTime() + EXPIRY_MS, doneTitle: entry.title,
+        };
+        this.persist();
+      }
+    }
+    if (this.session) {
+      try {
+        await this.publishState(this.session);
+      } catch (e) {
+        // Only proof that the vault is gone (a Testnet reset) drops the session, keeping a copy. A network
+        // trouble at start-up keeps it: the state is rebuilt on the next read.
+        if (isVaultGone(e)) {
+          store.backup("dropped");
+          console.error(`Saved session dropped (a copy was kept): ${e instanceof Error ? e.message : String(e)}`);
+          this.session = null;
+          this.persist();
+        }
+      }
+    }
+    if (this.unresolved) await this.enqueue(() => this.reconcile()).catch(() => undefined);
+  }
+
+  /** Looks up the unconfirmed transaction (if any) every `intervalMs`, so the feed settles by itself. */
+  startReconciler(intervalMs = 15_000): () => void {
+    const timer = setInterval(() => {
+      if (this.unresolved) void this.enqueue(() => this.reconcile()).catch(() => undefined);
+    }, intervalMs);
+    timer.unref();
+    return () => clearInterval(timer);
+  }
+
+  /** Saves the session; false when a store is configured and the write failed. */
+  private persist(): boolean {
+    const strip = (s: Session | null) => (s ? { ...s, lastState: null } : null);
+    return this.deps.store?.save({
+      seq: this.seq, session: strip(this.session), pendingDeploy: strip(this.pendingDeploy), unresolved: this.unresolved,
+    }) ?? true;
+  }
+
+  /**
+   * Settles the unconfirmed transaction by hash. Throws PendingTransaction while it may still be
+   * included, and RpcUnavailable when the network cannot be asked: a write never starts in that case.
+   */
+  private async reconcile(): Promise<void> {
+    const u = this.unresolved;
+    if (!u) return;
+    const s = u.kind === "deploy" ? this.pendingDeploy : this.session;
+    const entry = s?.feed.find((e) => e.id === u.entryId);
+    // No hash: the restart hit before it was recorded. Nothing can be looked up, so wait out the window.
+    const status = u.hash ? await this.deps.client.txStatus(u.hash) : "NOT_FOUND";
+    if (status === "NOT_FOUND" && this.now().getTime() <= u.notAfter) {
+      throw new KeeperError("PendingTransaction",
+        `Transaction ${u.hash} was sent but is not confirmed yet. No new transaction starts until its outcome is known.`);
+    }
+    this.unresolved = null;
+    if (status === "SUCCESS") {
+      if (entry) {
+        this.update(entry, {
+          status: "confirmed", title: u.doneTitle, detail: u.doneDetail ?? "Confirmed after the keeper stopped waiting.",
+          txHash: u.hash, explorerUrl: `${this.deps.config.explorerTxBase}${u.hash}`,
+        });
+      }
+      if (s && u.kind === "deploy" && !u.vaultId) {
+        // Confirmed, but the vault address was not recorded: it cannot be adopted, say so rather than guess.
+        if (entry) this.update(entry, { detail: "Confirmed after a restart; the vault address was not recorded, start a new session." });
+        this.pendingDeploy = null;
+      } else if (s && u.kind === "deploy" && u.vaultId) {
+        s.vaultId = u.vaultId;
+        this.pendingDeploy = null;
+        this.session = s;
+        for (const e of s.feed) this.emit({ event: "activity", data: { ...e } }); // clients now know this session id
+      } else if (s && u.postedValueCents !== undefined) {
+        s.lastPostedValueCents = u.postedValueCents;
+      }
+      this.persist();
+      if (s?.vaultId) await this.publishState(s).catch(() => undefined);
+      return;
+    }
+    if (entry) {
+      this.update(entry, {
+        status: "failed",
+        detail: status === "FAILED"
+          ? `Transaction ${u.hash} failed on-chain.`
+          : u.hash
+            ? `Transaction ${u.hash} was not found by the network after its validity window: treated as not included. The vault state shown is read from the chain.`
+            : "The keeper restarted before recording the outcome of this transaction. The vault state shown is read from the chain.",
+      });
+    }
+    if (u.kind === "deploy") this.pendingDeploy = null;
+    this.persist();
   }
 
   // ---- streaming -------------------------------------------------------------------------
@@ -78,7 +230,7 @@ export class SessionManager {
   // ---- writes ----------------------------------------------------------------------------
 
   start(asset: AssetId): Promise<SessionState> {
-    return this.enqueue(async () => {
+    return this.exclusive(async () => {
       const info = this.deps.config.assets.find((a) => a.id === asset);
       if (!info) throw new KeeperError("BadRequest", `Unknown asset ${asset}`);
       const rate = await this.deps.euribor().catch((e: Error) => {
@@ -100,50 +252,62 @@ export class SessionManager {
       };
       // The new session replaces the current one only once its vault is deployed.
       const { accounts } = this.deps.config;
-      const deployed = await this.chain(s, "session_started", "Deploying a new vault", async () => {
-        const r = await this.deps.client.deploy({
-          fund: accounts.fund, bank: accounts.bank, keeper: accounts.keeper, assetSac: info.sac,
-          maxRequired: BigInt(scenario.csa.maxRequiredUnits), gracePeriodSecs: BigInt(scenario.csa.gracePeriodSecs),
-        });
-        return { ...r, events: [] as VaultEvent[] };
-      }, (r) => ({ title: `Vault deployed for ${info.code}`, detail: `Vault ${r.vaultId}` }));
+      this.pendingDeploy = s;
+      let deployed;
+      try {
+        deployed = await this.chain(s, "session_started", "Deploying a new vault", async () => {
+          const r = await this.deps.client.deploy({
+            fund: accounts.fund, bank: accounts.bank, keeper: accounts.keeper, assetSac: info.sac,
+            maxRequired: BigInt(scenario.csa.maxRequiredUnits), gracePeriodSecs: BigInt(scenario.csa.gracePeriodSecs),
+          });
+          return { ...r, events: [] as VaultEvent[] };
+        }, (r) => ({ title: `Vault deployed for ${info.code}`, detail: `Vault ${r.vaultId}` }), undefined,
+        { kind: "deploy", doneTitle: `Vault deployed for ${info.code}` });
+      } catch (e) {
+        if (!this.unresolved) this.pendingDeploy = null; // a deployment that may still land stays tracked
+        this.persist();
+        throw e;
+      }
+      this.pendingDeploy = null;
       s.vaultId = deployed.vaultId;
       this.session = s;
+      this.persist();
       for (const e of s.feed) this.emit({ event: "activity", data: { ...e } }); // clients now know this session id
       return this.publishState(s);
     });
   }
 
   deposit(units: bigint): Promise<SessionState> {
-    return this.enqueue(async () => {
+    return this.exclusive(async () => {
       const s = this.require();
       await this.chain(s, "deposit", `Depositing ${this.amount(s, units)}`, () => this.deps.client.deposit(s.vaultId!, units),
-        () => ({ title: `Deposit of ${this.amount(s, units)}` }));
+        () => ({ title: `Deposit of ${this.amount(s, units)}` }), undefined, { doneTitle: `Deposit of ${this.amount(s, units)}` });
       return this.publishState(s);
     });
   }
 
   withdraw(units: bigint): Promise<SessionState> {
-    return this.enqueue(async () => {
+    return this.exclusive(async () => {
       const s = this.require();
       await this.chain(s, "withdraw", `Withdrawing ${this.amount(s, units)}`, () => this.deps.client.withdraw(s.vaultId!, units),
-        () => ({ title: `Withdrawal of ${this.amount(s, units)}` }));
+        () => ({ title: `Withdrawal of ${this.amount(s, units)}` }), undefined, { doneTitle: `Withdrawal of ${this.amount(s, units)}` });
       return this.publishState(s);
     });
   }
 
   prepare(action: "deposit" | "withdraw", units: bigint): Promise<string> {
-    return this.enqueue(async () => this.deps.client.prepare(this.require().vaultId!, action, units));
+    return this.exclusive(async () => this.deps.client.prepare(this.require().vaultId!, action, units));
   }
 
   submit(signedTxXdr: string): Promise<SessionState> {
-    return this.enqueue(async () => {
+    return this.exclusive(async () => {
       const s = this.require();
       const info = this.deps.client.inspectSigned(signedTxXdr);
       const label = info.action === "deposit" ? "Deposit" : "Withdrawal";
       await this.chain(s, info.action, `${label} of ${this.amount(s, info.units)} signed in the wallet`,
         () => this.deps.client.submitSigned(s.vaultId!, signedTxXdr),
-        () => ({ title: `${label} of ${this.amount(s, info.units)}`, detail: "Signed by the fund in the wallet" }));
+        () => ({ title: `${label} of ${this.amount(s, info.units)}`, detail: "Signed by the fund in the wallet" }), undefined,
+        { preHash: info.txHash, doneTitle: `${label} of ${this.amount(s, info.units)}`, doneDetail: "Signed by the fund in the wallet" });
       return this.publishState(s);
     });
   }
@@ -153,7 +317,7 @@ export class SessionManager {
    * the MTA. The rate change is kept even if the posting fails: a shock of 0 bp retries the posting.
    */
   rateShock(bp: number): Promise<SessionState> {
-    return this.enqueue(async () => {
+    return this.exclusive(async () => {
       const s = this.require();
       if (!Number.isInteger(bp) || Math.abs(bp) > MAX_BP) {
         throw new KeeperError("BadRequest", `bp must be an integer between -${MAX_BP} and ${MAX_BP}`);
@@ -193,8 +357,10 @@ export class SessionManager {
               detail: `Locked ${formatUnits(r.state.locked)}, shortfall ${formatUnits(r.state.shortfall)} ${s.asset}`,
             }),
             before.locked,
+            { doneTitle: `Margin requirement posted (epoch ${epoch}): ${formatUnits(margin.requiredUnits)} ${s.asset} required`, postedValueCents: margin.requiredValueCents },
           );
           s.lastPostedValueCents = margin.requiredValueCents;
+          this.persist();
         }
       } catch (e) {
         // The new rate and requirement are kept: tell the stream, a 0 bp shock retries the posting.
@@ -206,13 +372,13 @@ export class SessionManager {
   }
 
   settleDefault(): Promise<SessionState> {
-    return this.enqueue(async () => {
+    return this.exclusive(async () => {
       const s = this.require();
       await this.chain(s, "defaulted", "Settling the default", () => this.deps.client.settleDefault(s.vaultId!),
         (r) => {
           const paid = r.events.find((e) => e.type === "defaulted");
           return { title: `Default settled: ${formatUnits(paid?.type === "defaulted" ? paid.amount : 0n)} ${s.asset} transferred to the bank` };
-        });
+        }, undefined, { doneTitle: "Default settled" });
       return this.publishState(s);
     });
   }
@@ -231,19 +397,38 @@ export class SessionManager {
     run: () => Promise<T>,
     done: (r: T) => { title: string; detail?: string },
     lockedBefore?: bigint,
+    track?: Track,
   ): Promise<T> {
-    const entry = this.add(s, { kind: "chain", type, title: pendingTitle, status: "pending" });
+    const entry = this.add(s, {
+      kind: "chain", type, title: pendingTitle, status: "pending",
+      ...(track?.preHash ? { txHash: track.preHash, explorerUrl: `${this.deps.config.explorerTxBase}${track.preHash}` } : {}),
+    });
+    this.active = track ? { entry, track } : null;
     let result: T;
     try {
+      // A hash known before sending (wallet-signed) is recorded before the network can lose track of the transaction.
+      if (track?.preHash) this.markInFlight(entry, track, track.preHash);
       result = await run();
     } catch (e) {
-      if (e instanceof KeeperError && e.code === "RpcUnavailable") {
-        this.update(entry, { detail: `No confirmation yet: ${e.message}` });
-      } else {
+      const known = e instanceof KeeperError ? e : undefined;
+      if (!this.unresolved && known?.txHash && track && !known.notSent) this.markInFlight(entry, track, known.txHash, known.vaultId);
+      // Definite outcomes only: refused by the network, failed on-chain, or rejected before anything was sent.
+      const definite = !this.unresolved || known?.notSent || known?.onChain || known?.code === "BadRequest";
+      if (definite) {
+        this.unresolved = null;
         this.update(entry, { status: "failed", detail: e instanceof Error ? e.message : String(e) });
+        throw e;
       }
-      throw e;
+      // Anything else after the hash was recorded leaves the transaction possibly in flight: it stays pending and
+      // guarded until looked up by hash, whatever the error looks like.
+      const hash = this.unresolved!.hash;
+      const message = e instanceof Error ? e.message : String(e);
+      this.update(entry, { detail: `No confirmation yet: ${message}`, txHash: hash, explorerUrl: `${this.deps.config.explorerTxBase}${hash}` });
+      throw known?.code === "RpcUnavailable" ? e : new KeeperError("RpcUnavailable", `No confirmation yet: ${message}`.slice(0, 300));
+    } finally {
+      this.active = null;
     }
+    this.unresolved = null;
     const link = { txHash: result.txHash, explorerUrl: `${this.deps.config.explorerTxBase}${result.txHash}` };
     this.update(entry, { status: "confirmed", ...done(result), ...link });
     const events = result.events ?? [];
@@ -261,16 +446,37 @@ export class SessionManager {
     return result;
   }
 
+  /** Records a transaction as possibly in flight (and saves it). */
+  private markInFlight(entry: ActivityEvent, track: Track, hash: string, vaultId?: string): void {
+    this.unresolved = {
+      hash, entryId: entry.id, kind: track.kind ?? "write", notAfter: this.now().getTime() + EXPIRY_MS,
+      doneTitle: track.doneTitle, doneDetail: track.doneDetail, vaultId, postedValueCents: track.postedValueCents,
+    };
+    // The record must be durable before the transaction leaves: otherwise a restart would forget it.
+    if (!this.persist()) {
+      this.unresolved = null;
+      throw new KeeperError("InternalError", "The keeper cannot save its state: nothing was sent");
+    }
+  }
+
+  /** The client signed a transaction and is about to send it: record its hash first. */
+  private noteSigned(hash: string, vaultId?: string): void {
+    if (!this.active || this.unresolved?.hash === hash) return;
+    this.markInFlight(this.active.entry, this.active.track, hash, vaultId);
+  }
+
   private add(s: Session, e: Omit<ActivityEvent, "id" | "sessionId" | "ts">): ActivityEvent {
     const entry: ActivityEvent = { id: `${s.id}-${++this.seq}`, sessionId: s.id, ts: this.now().toISOString(), ...e };
     s.feed.push(entry);
     this.emit({ event: "activity", data: { ...entry } });
+    this.persist();
     return entry;
   }
 
   private update(entry: ActivityEvent, patch: Partial<ActivityEvent>): void {
     Object.assign(entry, patch);
     this.emit({ event: "activity", data: { ...entry } });
+    this.persist();
   }
 
   private emit(m: StreamMessage): void {
@@ -335,6 +541,14 @@ export class SessionManager {
   private require(): Session {
     if (!this.session?.vaultId) throw new KeeperError("NoSession", "No active session: POST /session first");
     return this.session;
+  }
+
+  /** A write: runs in the queue, after the previous unconfirmed transaction (if any) has been settled. */
+  private exclusive<T>(job: () => Promise<T>): Promise<T> {
+    return this.enqueue(async () => {
+      await this.reconcile();
+      return job();
+    });
   }
 
   private enqueue<T>(job: () => Promise<T>): Promise<T> {

@@ -4,7 +4,7 @@ Keystone is a programmable collateral engine for an OTC interest rate swap betwe
 
 Built during HackMeridian 2026 (Lisbon, 25–26 October 2026), track Genesis.
 
-> **Project status: backend MVP demonstrated on Testnet.** The shared types, the Testnet bootstrap, the margin model, the Soroban vault (C1 deposit/withdraw/margin and C2 default settlement) and a keeper API that drives it exist. Both scenarios were played on Stellar Testnet through the keeper's session code (section 6). The dashboard has not been run against the real keeper yet, the public URL, the video and the deck are missing. Every section below marked *not yet available* or *not tested* will be filled with real, verified values as the build progresses. The progress table (section 12) is the reference.
+> **Project status: working MVP on Stellar Testnet, deployed.** The Soroban vault (C1 deposit/withdraw/margin and C2 default settlement), the keeper API and the dashboard work together: both scenarios were played on Stellar Testnet from a browser, and a deposit and a withdrawal were signed in the Freighter wallet (section 6). The dashboard is live (section 4). The demo video link is added to section 4 at submission. Not done: the guarantees of a production system (section 14). The progress table (section 12) is the reference, and a line only says *verified* with a proof.
 
 ## 1. Summary
 
@@ -12,7 +12,7 @@ Built during HackMeridian 2026 (Lisbon, 25–26 October 2026), track Genesis.
 - The user picks one collateral class: **KMMF** (tokenized money market fund shares) or **KBOND** (tokenized sovereign bond). Both are fictitious assets issued by the team on Stellar Testnet.
 - A keeper computes the swap exposure and the required collateral, then posts it to the vault.
 - The vault locks what is required, opens a margin call when collateral is missing, releases collateral when exposure falls, and transfers the locked collateral to the bank if a margin call is not met before its deadline.
-- Every token movement is a real Stellar Testnet transaction, shown in the dashboard with a link to the explorer.
+- Every token movement is a real Stellar Testnet transaction, shown in the dashboard with a link to the explorer (in real mode; the `?demo` simulation sends nothing).
 
 ## 2. Problem, target user and value proposition
 
@@ -31,22 +31,34 @@ Keystone does not promise a return, does not remove the need for cash entirely, 
 | Swap, CSA, notional, rates, prices, haircuts | Simulated, labelled as such in the UI |
 | Euribor 3M starting value | Last monthly value published by the ECB (cached fallback) |
 | KMMF and KBOND | Fictitious classic Stellar assets issued by the team on Testnet |
-| Deposits, withdrawals, margin postings, default settlement | **Real Stellar Testnet transactions** executed by the Soroban vault |
+| Deposits, withdrawals, margin postings, default settlement | **Real Stellar Testnet transactions** executed by the Soroban vault (in real mode; simulated in the `?demo` and `--mode demo` builds) |
 | Proof | Transaction hash and stellar.expert link for every on-chain step |
 
 ## 4. Live demo
 
-- **Public URL:** *not yet available* (hosting decided at milestone J2, see `docs/decisions.md`, A8).
-- The public demo runs in `SIGNER=keeper` mode: judges cannot sign with the demo fund key, so the keeper signs on behalf of the demo fund account. The UI says so. The demo video shows the same flow signed in the Freighter wallet.
-- **Demo video:** *not yet available*.
+| What | Where |
+| --- | --- |
+| **Live web app** (real mode: it talks to the hosted keeper on Stellar Testnet) | <https://keystone-eta-ebon.vercel.app> |
+| **Simulated demo** (the whole flow on simulated data, nothing sent to Stellar, no wallet, no code) | <https://keystone-eta-ebon.vercel.app/?demo> |
+| **Demo video** | *link added at submission* |
+| Hosted keeper API (read routes are open) | `https://keystone-keeper.onrender.com/api` (`/health`, `/config`, `/market-advisor`, `/session`, `/events`) |
+
+**What a judge can do.**
+
+- Open the live app, create a local account (accounts live in the browser, see section 10) and see the landing page, the **Collateral Market Advisor** (real ECB and market data, read-only) and, when a session is running, its dashboard updating live over server-sent events.
+- Open the `?demo` link for the full hands-on flow: pick KMMF or KBOND, deposit, move rates, margin call, cure, release, default. Every transaction there is labelled **Demo tx**: nothing is sent to Stellar.
+- Check the real transactions in section 6: every on-chain step has a stellar.expert link.
+
+**Why the live app cannot be driven by anyone.** In real mode, deposits and withdrawals are signed in the Freighter wallet by the demo fund account, whose key stays with the team, and every action that writes (starting a session deploys a vault) needs a team access code, because the keeper is public and pays Testnet fees. This is deliberate (section 9, *Hosted deployment*). The demo video shows the real flow with Freighter. The hosted keeper runs on a free plan: its first answer after a long idle period can take up to a minute, and a restart clears its session (an empty vault stays on-chain).
 
 ## 5. Architecture and use of Stellar
 
 ```
-Dashboard (Vite/React + Freighter) --REST--> Keeper (Node/Fastify) --signed tx--> keystone_vault (Soroban, Testnet)
-Dashboard <--SSE: state + activity feed-- Keeper                                    | transfers through the SAC
-Keeper <-- ECB API (Euribor 3M)                                                     v
-Bootstrap script --issues KMMF and KBOND--> fund account                 Fund and bank accounts (trustlines)
+Browser: Dashboard (Vite/React, Freighter)  --REST + SSE-->  Keeper (Node/Fastify)  --signed tx-->  keystone_vault (Soroban, Testnet)
+   served by Vercel                              |                |                                    | transfers through the SAC
+   Freighter signs the fund's deposits           |                +-- ECB, Yahoo Finance (read-only)   v
+   and withdrawals                               +-- hosted on Render      Fund and bank accounts (trustlines)
+Bootstrap script --issues KMMF and KBOND--> fund account
 ```
 
 **Stellar features used**
@@ -99,7 +111,7 @@ Contract C1 (deployed by the contract pole, recorded in `deployments/testnet.jso
 | Vault deployment (ledger 5388742) | [`66af4894…bdec`](https://stellar.expert/explorer/testnet/tx/66af48946f18f1a16673c78eb37a76ace759c1ba0b9ab35ec825df65c9ecbdec) |
 | Deposit of 1 KMMF signed by the demo fund account (ledger 5388931) | [`17868920…7202`](https://stellar.expert/explorer/testnet/tx/178689208be148899ac567ac6c68da6526e040b39962d313d9594a4eeca07202) |
 
-All three were read back from the Soroban RPC with status `SUCCESS`. After the deposit, the vault reports `available = 10000000` (1 KMMF), `locked = 0`, status `Active`; the vault's KMMF balance went from 0 to `10000000` and the fund's from `10000000000` to `9990000000` (balances read from the SAC by the throwaway script; the transaction itself carries one SAC `transfer` of `10000000` from the fund to the vault), and the transaction emitted one `deposited` event with `{amount: 10000000}`. The deposit was signed with the fund key from a throwaway script (not Freighter, which is untested).
+All three were read back from the Soroban RPC with status `SUCCESS`. After the deposit, the vault reports `available = 10000000` (1 KMMF), `locked = 0`, status `Active`; the vault's KMMF balance went from 0 to `10000000` and the fund's from `10000000000` to `9990000000` (balances read from the SAC by the throwaway script; the transaction itself carries one SAC `transfer` of `10000000` from the fund to the vault), and the transaction emitted one `deposited` event with `{amount: 10000000}`. The deposit was signed with the fund key from a throwaway script (not Freighter, which was exercised later: see the Freighter table below).
 
 Scenario 1 on a fresh C1 vault [`CDL5GRMUQGDTCFVRKJPXKUUIXYLICZOPQP54WYODPGN2XLIVHKWGTQA2`](https://stellar.expert/explorer/testnet/contract/CDL5GRMUQGDTCFVRKJPXKUUIXYLICZOPQP54WYODPGN2XLIVHKWGTQA2), run by the keeper (`npm run integration:c1 -w @keystone/keeper`, start rate 2.635 % from the ECB, K = 2.640 %). Each step was checked against `get_state` and the SAC balances:
 
@@ -115,7 +127,7 @@ Scenario 1 on a fresh C1 vault [`CDL5GRMUQGDTCFVRKJPXKUUIXYLICZOPQP54WYODPGN2XLI
 | Rate shock +30 bp, epoch 4 | required 0, 98.1948 released | [`33cf9729…3b3a`](https://stellar.expert/explorer/testnet/tx/33cf9729cf357e09adfa72fcf32bd00798ab450a5929a8ac999ef6c4cfa63b3a) |
 | Final withdrawal of 98.1948 | vault empty, fund back to 999 KMMF | [`1b9f9f00…a801`](https://stellar.expert/explorer/testnet/tx/1b9f9f00e58eb1a82572e9e7dd6dbad5270244ba0c93f866bfa562823283a801) |
 
-The `prepare` / `submit` path (wallet signing) was exercised on another vault with the fund key standing in for Freighter (one-off script, not kept in the repository, so not reproducible): deposit [`85d0f132…2eee`](https://stellar.expert/explorer/testnet/tx/85d0f132bb236da6352ca35718ad9302c26aead25b3b73dab2ab95a4eb452eee) and withdrawal [`a6401141…8d91`](https://stellar.expert/explorer/testnet/tx/a640114144b9141cfaa78c76e5daadf30af776245b453cbab433a99f7ebf8d91); an unsigned transaction is refused with `BadRequest`. Freighter itself is not tested.
+The `prepare` / `submit` path (wallet signing) was exercised on another vault with the fund key standing in for Freighter (one-off script, not kept in the repository, so not reproducible): deposit [`85d0f132…2eee`](https://stellar.expert/explorer/testnet/tx/85d0f132bb236da6352ca35718ad9302c26aead25b3b73dab2ab95a4eb452eee) and withdrawal [`a6401141…8d91`](https://stellar.expert/explorer/testnet/tx/a640114144b9141cfaa78c76e5daadf30af776245b453cbab433a99f7ebf8d91); an unsigned transaction is refused with `BadRequest`. Freighter itself was exercised later (see the Freighter table below).
 
 Scenario 2 (default, KBOND) on a fresh C2 vault [`CALYRUMGT3J3P32NHBDTRDWJD3JU2AEIXEKRCFDNZ7I6GHKU5DBBKFWA`](https://stellar.expert/explorer/testnet/contract/CALYRUMGT3J3P32NHBDTRDWJD3JU2AEIXEKRCFDNZ7I6GHKU5DBBKFWA), with the team accounts (`npm run e2e:scenario2 -w @keystone/keeper`, 2026-10-26). Every transaction was read back from the RPC as `SUCCESS`:
 
@@ -144,7 +156,7 @@ Scenario 1 played **from the browser** (2026-10-26): the Liquid Glass dashboard 
 | 8 | Rate shock +60 bp again (epoch 4) | [`27ad4b36…5a6c`](https://stellar.expert/explorer/testnet/tx/27ad4b360b6456d229a16e539e6910f2555cf7142913dbd30cbd5ba540e65a6c) | required 0, 98.1948 released |
 | 9 | Withdrawal of 98.1948 | [`0c49c0b2…ac78`](https://stellar.expert/explorer/testnet/tx/0c49c0b2d596ca69aafa7201a60b574e13dbc71728d665cb1bf967b48960ac78) | vault empty, fund back to 999 KMMF |
 
-**Deviation from the planned scenario:** the dashboard has no +30 bp button, so step 8 repeats +60 bp (float rate 3.035 %) instead of +30 bp; the effect is the same (requirement back to 0, remaining collateral released). The margin call was covered, with the cure confirmed about 9 s after the call opened, well inside the 90 s grace period; no `settle_default` was sent. Freighter signing and the default scenario from the browser were not run.
+**Deviation from the planned scenario:** the dashboard has no +30 bp button, so step 8 repeats +60 bp (float rate 3.035 %) instead of +30 bp; the effect is the same (requirement back to 0, remaining collateral released). The margin call was covered, with the cure confirmed about 9 s after the call opened, well inside the 90 s grace period; no `settle_default` was sent. At that point Freighter signing and the default scenario from the browser had not been run; both were run later, in the sections below.
 
 Scenario 2 (default) played **from the browser** (2026-10-26), with at most 50 KBOND engaged, on a fresh C2 vault [`CATMOIWU…DC5B`](https://stellar.expert/explorer/testnet/contract/CATMOIWU2FMO43TGLWH4A6SHCIMVHQ5YYXCV2VUN6ZSQMHHKUJRXDC5B) (keeper `KEEPER_BACKEND=testnet SIGNER=keeper`, dashboard `VITE_USE_MOCKS=false`). The four transactions were read back from the RPC as `SUCCESS`:
 
@@ -157,9 +169,19 @@ Scenario 2 (default) played **from the browser** (2026-10-26), with at most 50 K
 
 The settlement was confirmed after the real 90 s ledger deadline (the keeper account only paid the fee). Its transaction carries one SAC `transfer` of `500000000` (50 KBOND) from the vault to the bank account, and one `defaulted` event `{amount: 500000000}`. Final `get_state`: `Defaulted`, `available`, `locked`, `required`, `shortfall` and `call_deadline` at 0, `epoch` 1. Balances: fund 700 → 650 KBOND, bank 300 → 350 KBOND.
 
-After a reload, the dashboard shows this KBOND session: "Defaulted – Collateral sent to the bank", fund 650 and bank 350 KBOND, and six activity entries (five **On-chain** with an Explorer link, covering the four distinct transactions because the margin posting and the margin call share one hash; one **Sim**), no Demo entry. **Limits:** the clicks were driven through the browser console and the long press by keyboard events on the real button (the tool cannot hold a pointer); the browser pane could not render screenshots, so the visual check comes from the page content, not from images. Freighter signing was not tested.
+After a reload, the dashboard shows this KBOND session: "Defaulted – Collateral sent to the bank", fund 650 and bank 350 KBOND, and six activity entries (five **On-chain** with an Explorer link, covering the four distinct transactions because the margin posting and the margin call share one hash; one **Sim**), no Demo entry. **Limits:** the clicks were driven through the browser console and the long press by keyboard events on the real button (the tool cannot hold a pointer); the browser pane could not render screenshots, so the visual check comes from the page content, not from images. Freighter signing was tested separately (see the Freighter table below).
 
 Scenario 1 was also replayed on a C2 vault (`CD3MAB27BM57BM5SVGAIM5CTBDJPAVSUHFCKDHNZHBHBMNGI6KX7QAC7`) with all script checks passing; its hashes were not recorded, so that replay is not a proof and the C1-build hashes above remain the reference table. An independent settlement fixture of the contract pole (fictitious KSC1 asset) is in `contracts/keystone_vault/testnet-c2.json`.
+
+**Freighter** (2026-10-26, Testnet): a deposit and a withdrawal of 1 KMMF signed in the Freighter wallet from the dashboard, against a keeper running with `SIGNER=freighter` (the keeper prepares the transaction, the fund signs in the wallet, the keeper submits it). Each transaction was read back from Horizon: `successful`, and for the last two the source account is the demo fund account `GDQ6AW…MQOY`, the invoked function is `deposit` or `withdraw` with `i128` `10000000` (1 KMMF, 7 decimals) on the vault [`CAPZEIRJ…MFX2`](https://stellar.expert/explorer/testnet/contract/CAPZEIRJMFSSXN34DG3XV35H6STUEQZOFAH3MCXYJQ3VSRI4EVGDMFX2):
+
+| Step | Signed by | Ledger | Transaction |
+| --- | --- | --- | --- |
+| Vault deployed by *Start* (KMMF) | keeper account `GDGUJH…G4TO` | 5394522 | [`044ac4fd…6c64`](https://stellar.expert/explorer/testnet/tx/044ac4fd7d88f2706a99960abdfedd25d0f65620376aa7f74b03ec4fab466c64) |
+| `deposit` of 1 KMMF | demo fund account, in Freighter | 5394549 | [`4e423a39…7dc1`](https://stellar.expert/explorer/testnet/tx/4e423a39e4021d3c40a85a1e8ffba09df1ca6cb72c91f6744005ecf3fc3c7dc1) |
+| `withdraw` of 1 KMMF | demo fund account, in Freighter | 5394558 | [`30464b3c…8523`](https://stellar.expert/explorer/testnet/tx/30464b3c99c8f87d22835988a3368c56ae1804d5e8ce2b0579df234169598523) |
+
+**Hosted keeper** (2026-10-26): starting a KMMF session from the Vercel deployment of this branch made the keeper on Render deploy a vault on Testnet, vault [`CA6OA3I4…JV7D`](https://stellar.expert/explorer/testnet/contract/CA6OA3I4EPINUCZAVFTPHCQCBH4IQLCYZNHGNJBDWFEQP7IL23PSJV7D), transaction [`e192680a…fdaf`](https://stellar.expert/explorer/testnet/tx/e192680a8e2a0f6dd61da64300ccbf255618e4c188f3d4cd4102c398c48afdaf) (ledger 5395810, signed by the keeper account, status `successful`). The vault holds nothing.
 
 ## 7. Repository structure and poles
 
@@ -189,7 +211,7 @@ deployments/testnet.json   public on-chain identifiers
 
 ## 8. Prerequisites, installation and environment variables
 
-**Prerequisites** (versions to be confirmed on each machine during phase zero)
+**Prerequisites**
 
 - Node.js ≥ 22 and npm (verified on the keeper machine with Node 24.22.1 and npm 11.19.1)
 - Rust ≥ 1.84 with the `wasm32v1-none` target, and stellar-cli ≥ 25.2.0 (contract pole only)
@@ -215,7 +237,12 @@ Verified on the keeper machine (macOS). Not yet verified on Windows.
 | `PORT` | keeper | API port, default 8787 |
 | `KEEPER_BACKEND` | keeper | `testnet` (real vault on Stellar Testnet, real transactions) or `fake` (in-memory vault, fake `FAKE…` hashes, no transaction; used by the tests). No default: the keeper refuses to start without it |
 | `KEEPER_ALLOWED_ORIGINS` | keeper | Extra browser origins allowed by CORS (comma separated). `localhost` and `127.0.0.1` are always allowed; the keeper listens on `127.0.0.1` only |
-| `VITE_KEEPER_URL` | dashboard | Keeper API base URL |
+| `KEEPER_HOST` | keeper | Listening address, default `127.0.0.1`. A hosted keeper sets `0.0.0.0`; it then requires `KEEPER_ACCESS_TOKENS`, `KEEPER_ALLOWED_ORIGINS` and `KEEPER_PUBLIC_HOSTS`, refuses `SIGNER=keeper`, a `FUND_SECRET` and localhost origins |
+| `KEEPER_ACCESS_TOKENS` | hosted keeper | Access codes (32 characters or more, comma separated) required as `Authorization: Bearer` on every `POST` route |
+| `KEEPER_PUBLIC_HOSTS` | hosted keeper | Public host name(s) of the keeper (Host header check) |
+| `KEEPER_TRUST_PROXY_HOPS` | hosted keeper | Number of reverse proxies in front of the keeper (default 1), so that a client cannot forge its address |
+| `KEEPER_DATA_DIR` | keeper | Where the session file and the Euribor and market caches are kept (a mounted volume when hosted). Default `keeper/data` |
+| `VITE_KEEPER_URL` | dashboard | Keeper API base URL. A Vercel build refuses anything but an HTTPS address |
 | `VITE_USE_MOCKS` | dashboard | `true` to run on mocks |
 
 ## 9. Commands
@@ -225,7 +252,7 @@ Only commands that have been run successfully are listed. Run them from the repo
 | Command | What it does | Status |
 | --- | --- | --- |
 | `npm run typecheck` | Type-checks every workspace that defines a `typecheck` script (today: `app`, `packages/shared`, `scripts` and `keeper`) | Verified (macOS) |
-| `npm test` | Runs the tests of every workspace that defines a `test` script (today: Vitest checks of the shared mocks, the script helpers, the margin model with reference values, the Euribor cache and the keeper API on the in-memory vault) | Verified (macOS): 64 keeper tests pass |
+| `npm test` | Runs the tests of every workspace that defines a `test` script (today: Vitest checks of the shared mocks, the script helpers, the margin model with reference values, the Euribor cache and the keeper API on the in-memory vault) | Verified (macOS): 114 keeper tests and 31 app tests pass |
 | `npm run init-env` | Creates `.env` from `.env.example` if needed and generates the Testnet keys still empty (issuer, bank, keeper). Never generates `FUND_SECRET`, never overwrites a value, prints public keys only | Verified (macOS) |
 | `npm run bootstrap` | Idempotent Testnet bootstrap: issuer, bank and keeper accounts (friendbot), bank trustlines, KMMF and KBOND Stellar Asset Contracts, and, when `FUND_SECRET` is set, fund trustlines and issuance up to 1 000 units of each asset (the fund address is derived from `FUND_SECRET`). Writes `deployments/testnet.json` | Verified (macOS) over seven runs (the first stopped on a bug, since fixed); once everything exists, a run sends no transaction |
 | `KEEPER_BACKEND=testnet SIGNER=keeper npm run keeper` | Starts the keeper API on `http://127.0.0.1:8787/api` on the **real vault** (C2 build, from `deployments/testnet.json`): `POST /session` deploys a new vault from the recorded WASM hash, deposits and withdrawals are signed with the local demo fund key, `post_margin` with the keeper key, and every `chain` entry of the SSE feed carries the hash of a transaction confirmed by the RPC. Needs `KEEPER_SECRET` and `FUND_SECRET` in the local `.env` (checked against `deployments/testnet.json`). Routes: `/health`, `/config`, `/session` (POST, GET), `/session/deposit`, `/session/withdraw`, `/session/deposit/prepare`, `/session/withdraw/prepare`, `/session/submit`, `/session/rate-shock`, `/session/settle-default` (permissionless `settle_default`, submitted by the keeper account), `/events` (SSE) | Verified (macOS): boots, `/health`, `/session` without session → `NoSession`; the transactions behind it are proven by the integration run below. **Do not expose it publicly with `SIGNER=keeper`**: anyone reaching the API would spend the demo fund. The keeper listens on 127.0.0.1 and refuses requests whose Host or Origin is not loopback (CORS and DNS-rebinding protection, tested) |
@@ -235,7 +262,31 @@ Only commands that have been run successfully are listed. Run them from the repo
 
 The keeper builds `packages/vault-client` (generated bindings, `dist/` not versioned) before `start`, `test` and `typecheck`.
 
-Still to come, once they work: Freighter signing from the browser, a single e2e script chaining both scenarios, and the public deployment (decision A8).
+Still to come, once they work: a single e2e script chaining both scenarios.
+
+### Run your own Testnet instance (not tested from scratch)
+
+The real mode of this repository uses the team's Testnet accounts and assets (`deployments/testnet.json`), whose keys are not published. To run the same code against your own accounts, which we have **not** done from a clean checkout:
+
+1. `npm install`, then `npm run init-env`: creates `.env` and generates the issuer, bank and keeper keys.
+2. Put the secret key of a **Testnet-only** Freighter account in `FUND_SECRET` (never a real account), fund it with friendbot, and add it to Freighter.
+3. `npm run bootstrap`: creates the KMMF and KBOND assets and their contracts, the trustlines and 1 000 of each asset for the fund, and rewrites `deployments/testnet.json` with your IDs.
+4. Build and upload the vault contract (`contracts/keystone_vault`, `stellar contract build` then `stellar contract upload`) and record its WASM hash in `deployments/testnet.json` under `vault.wasmHash`.
+5. `KEEPER_BACKEND=testnet npm run keeper` and `npm run dev -w @keystone/app` on the same machine, with `VITE_USE_MOCKS=false`.
+
+### Hosted deployment (web app on Vercel, keeper on Render or Railway)
+
+The web app is a static Vite build served by Vercel (`vercel.json`). The keeper is a long-lived Node process (Fastify, server-sent events, in-memory session) and runs in a container (`Dockerfile`; Railway via `railway.json`, or Render), not as serverless functions. Step-by-step instructions, variables and checks are in [`docs/deploy.md`](docs/deploy.md).
+
+What a hosted keeper does differently from a local one (all covered by tests in `keeper/test/hosted.test.ts`):
+
+- **Write routes need an access code.** Every `POST` returns `Unauthorized` (401) without `Authorization: Bearer <code>`; codes live only in the host's `KEEPER_ACCESS_TOKENS`. The dashboard asks for the code once and keeps it in the browser. CORS and the Host/Origin checks are kept (exact origins only) but are not the authorization.
+- **No fund key.** It refuses to start with `SIGNER=keeper` or a `FUND_SECRET`: deposits and withdrawals are always signed in Freighter.
+- **The session survives a restart when a persistent volume is mounted.** It is saved in `KEEPER_DATA_DIR` and checked against the vault on-chain when reloaded. On a host without a persistent disk (the free Render plan used for the public demo) it is lost on every restart.
+- **Uncertain transactions are reconciled by hash.** The hash is recorded before a keeper-signed transaction is sent; after a timeout (or a restart during the wait) the entry stays `pending`, and no other transaction is sent until the hash is found confirmed, failed or expired.
+- **`GET /config` states the backend** (`backend: "testnet" | "fake"`); the page labels a fake backend.
+
+Status: deployed (keeper on Render, web app on Vercel, section 4). `railway.json` is kept as an alternative host: Railway had paused new sign-ups when the demo was deployed, so it was not used.
 
 **Keeper model** (`keeper/src/margin.ts`, parameters in `keeper/scenarios/default.json`): flat curve, 20 quarterly periods, `Q = ceil(V / (P × (1 − h)))` in the token's smallest unit, requirement posted only when it moved by at least the MTA (50 000 EUR). The starting rate is the last ECB Euribor 3M observation (`keeper/data/euribor-cache.json` is the versioned fallback seed, shown as `cache`; it is rewritten only when the ECB value changes, so a run may modify it). Reference values for 0, −50 and −80 bp (computed outside the code, in Python with 50-digit decimals) are checked in `keeper/test/margin.test.ts`.
 
@@ -251,7 +302,7 @@ The dashboard is the `@keystone/app` workspace; it imports the shared types from
 | `VITE_USE_MOCKS=true npm run dev -w @keystone/app` | Same, on an in-browser mock keeper: both scenarios play without keeper, wallet or network |
 | `npm run demo -w @keystone/app` | **The quickest way to try the site.** Builds the production bundle on the in-browser mock keeper (`--mode demo`, no keeper, wallet, network or `.env` needed) into `app/dist-demo/` (apart from the production build in `app/dist/`), serves it on `http://localhost:4173` by default and opens the browser. Sign in with `demo@keystone.app` / `stellar`. Production build, so this is the fluid version (verified on macOS) |
 | `npm run dev:demo -w @keystone/app` | The same demo on the dev server (`http://localhost:5173` by default, hot reload): for editing the front, slower than the build above. Works on Windows too, unlike the `VITE_USE_MOCKS=true …` form |
-| `npm run keeper` then `npm run dev -w @keystone/app`, in two terminals on **the same Mac** | The real setup: the root `.env` sets `KEEPER_BACKEND=testnet`, `SIGNER=freighter`, `PORT=8787`, `VITE_USE_MOCKS=false`, `VITE_KEEPER_URL=http://127.0.0.1:8787/api` and the local `KEEPER_SECRET` (never committed). `127.0.0.1` is the machine running the browser, so the keeper and the browser must run on the same computer. The front opens on `http://localhost:5173`. Not tested from the integration branch with `KEEPER_BACKEND=testnet` (the read-only checks used `KEEPER_BACKEND=fake`) |
+| `npm run keeper` then `npm run dev -w @keystone/app`, in two terminals on **the same Mac** | The real setup: the root `.env` sets `KEEPER_BACKEND=testnet`, `SIGNER=freighter`, `PORT=8787`, `VITE_USE_MOCKS=false`, `VITE_KEEPER_URL=http://127.0.0.1:8787/api` and the local `KEEPER_SECRET` (never committed). `127.0.0.1` is the machine running the browser, so the keeper and the browser must run on the same computer. The front opens on `http://localhost:5173`. Verified from this front on the real vault for both scenarios and for a Freighter deposit and withdrawal (section 6); the read-only checks of the integration branch also ran with `KEEPER_BACKEND=fake` |
 | `npm run build -w @keystone/app` | Type-checks, then builds the static site into `app/dist/` |
 
 The root `npm run typecheck` also covers the dashboard.
@@ -262,11 +313,12 @@ The root `npm run typecheck` also covers the dashboard.
 | --- | --- |
 | `VITE_KEEPER_URL` | Keeper API base URL, default `http://localhost:8787/api` |
 | `VITE_USE_MOCKS` | Exactly `true` to use the in-browser mock keeper (mock data, nothing sent to Stellar, every hash starts with `MOCK`) |
+| `?demo` in the page address | Not a variable: plays the whole flow on the in-browser mock for that visit, on any build (used for the public simulated demo) |
 | `VITE_MOCK_SIGNER` | Mocks only: `keeper` plays the `SIGNER=keeper` fallback; otherwise the Freighter flow, with the signature simulated |
 
 **What the dashboard does.** After the landing page, the user picks KMMF or KBOND and starts a session (a new vault). The screen shows the vault status with its margin-call countdown and actions, the vault (coverage bar, free / locked / missing, the fund's token balance and, next to it, what the bank owes the fund in cash when the swap moves in the fund's favour, simulated because only the fund's side is collateralized on-chain; after a default, the tokens the bank received instead), the market figures (fund P&L, Euribor, cash kept invested, all simulated), rate shocks, deposit and withdraw, and the latest activity (`GET /events`). *Sim* entries are computations and never carry a hash; an *On-chain* entry shows its hash and stellar.expert link only once confirmed. Deposits and withdrawals are prepared by the keeper and signed by the fund in Freighter (Testnet, demo fund account checked before signing); when the keeper runs with `SIGNER=keeper` (public demo URL), the dashboard calls the direct routes and says so in the header. The header shows **Stellar Testnet** and the keeper's real state (*Connecting…*, *Keeper connected* while the event stream is open, *Reconnecting…*, *Keeper unreachable*); in mocks mode it shows *Demo data · nothing sent to Stellar* and *Mock keeper* instead, and the hashes are fake (`MOCK…`). Before asking Freighter for a signature, the dashboard refuses a deposit above the fund's balance or a withdrawal above the available collateral, and refuses a new deposit or withdrawal for about three minutes after a previous one ended without confirmation (an RPC timeout): a prepared transaction stays valid 180 s, so it may still land in that window.
 
-Verified in a browser (integration branch, 2026-10-26): both scenarios on the mock keeper (KMMF deposit, margin call, cure, release, withdrawal; KBOND margin call, deadline, settlement); against a running keeper (`KEEPER_BACKEND=fake`, read-only: config, session, event stream, Market Advisor, loss and return of the keeper), with no POST sent. **Not tested yet from this front:** the keeper on the real vault (`KEEPER_BACKEND=testnet`) and a real Freighter signature.
+Verified in a browser (integration branch, 2026-10-26): both scenarios on the mock keeper (KMMF deposit, margin call, cure, release, withdrawal; KBOND margin call, deadline, settlement); against a running keeper (`KEEPER_BACKEND=fake`, read-only: config, session, event stream, Market Advisor, loss and return of the keeper), with no POST sent. Since then, both scenarios were played from this front on the real vault (section 6), and a deposit and a withdrawal were signed with the Freighter wallet (section 6). **Not tested:** the Freighter flow from the hosted web app (the hosted keeper deployed a vault from the live app, section 6), and a phone-sized screen.
 
 **Lock screen.** The dashboard opens behind a lock screen in the style of the Mac login (`app/src/auth/`). Demo account: `demo@keystone.app` / `stellar`. *Create an account* adds an email and password; an email already registered (case-insensitive) is refused with *An account already exists for this email.* *Forgot password?* runs the local recovery described below (demo code shown on screen, no email). Accounts live in [PGlite](https://pglite.dev) (PostgreSQL compiled to WebAssembly, Apache-2.0) stored in the browser's IndexedDB (`keystone-auth`); passwords are hashed with PBKDF2-SHA256 (210 000 iterations, random salt). The unlocked user is kept in `sessionStorage`, so closing the tab locks again; the lock button in the header locks at once. This is a demo gate, not a security boundary: accounts exist only in that browser, and the keeper API itself has no authentication.
 
@@ -278,7 +330,7 @@ Verified in a browser (integration branch, 2026-10-26): both scenarios on the mo
 
 ### Collateral Market Advisor
 
-On Landing, **Compare market conditions** opens a read-only assistant. It shows five indicator slots, observation/retrieval dates, source links, availability, publication frequency, cache/freshness labels, indicative class scores and assumptions. Closing it leaves the manual collateral selection unchanged. Only the separate Start button creates a vault. No wallet is needed for the assistant, and its only request is `GET /api/market-advisor`; it never calls a Stellar write route. With `VITE_USE_MOCKS=true`, session scenarios remain mocked while the advisor still requests real market observations from the configured keeper (or shows insufficient data if it is unavailable).
+On Landing, **Compare market conditions** opens a read-only assistant; once a session is running, the **Market** button in the dashboard's top bar opens the same assistant, so it can be shown at any time without ending the session. It shows five indicator slots, observation/retrieval dates, source links, availability, publication frequency, cache/freshness labels, indicative class scores and assumptions. Closing it leaves the manual collateral selection unchanged. Only the separate Start button creates a vault. No wallet is needed for the assistant, and its only request is `GET /api/market-advisor`; it never calls a Stellar write route. With `VITE_USE_MOCKS=true`, session scenarios remain mocked while the advisor still requests real market observations from the configured keeper (or shows insufficient data if it is unavailable).
 
 | Indicator | Actual source / interpretation |
 | --- | --- |
@@ -300,7 +352,9 @@ Validation commands: `npm ci`, `npm run typecheck`, `npm test`, `npm run build -
 
 ## 10. Demo instructions
 
-*To be written once the end-to-end flow works.* Two scenarios are planned:
+**Try it online, no install:** <https://keystone-eta-ebon.vercel.app/?demo> (simulated, nothing sent to Stellar). Create a local account on the lock screen, or use `demo@keystone.app` / `stellar`. **Try it on your machine in two commands:** `npm install`, then `npm run demo -w @keystone/app` (builds and opens the same simulated demo on `http://localhost:4173`). The real, on-chain setup needs a Testnet keeper and a Freighter wallet and is described in section 9.
+
+Two scenarios are played, simulated in the demo and real on Stellar Testnet (section 6 has the hashes):
 
 1. **Margin and release (KMMF).** Deposit, rate shock of −50 bp (collateral locked), further −30 bp (margin call, top-up, cured), +60 bp (collateral released and withdrawn).
 2. **Default (KBOND).** Deposit, rate shock of −100 bp (margin call), no top-up, 90-second grace period, settlement: the locked collateral is transferred to the bank.
@@ -339,15 +393,15 @@ Only the status "verified" counts as done, and only with a proof link.
 | --- | --- | --- | --- |
 | 1 | Swap + CSA scenario and margin model | Verified (reference-value tests; scenario 1 on the C1 build and scenario 2 on the C2 build, Testnet) | `keeper/test/margin.test.ts`, section 6 |
 | 2 | KMMF and KBOND issued on Testnet | Verified | [KMMF issued](https://stellar.expert/explorer/testnet/tx/ec2b3c50209bbdfa0851274c03b6cd339b20fdc86774f170cf76d4a65315a532), [KBOND issued](https://stellar.expert/explorer/testnet/tx/637fa5e953241c7a7a2f474b4239e44871d67e60af667419aff8f16a0f8ff463), [KMMF SAC](https://stellar.expert/explorer/testnet/tx/bc7d9d9a2a15473b5bae6b81461cac9a68003235dea60056605c8b2631df0e11), [KBOND SAC](https://stellar.expert/explorer/testnet/tx/08089cde2ab558289d0a18c8f85817e18297bb40b41c6506c2d109462b47dcd3) |
-| 3 | Manual choice of collateral class in the UI | Not started | |
+| 3 | Manual choice of collateral class in the UI | Verified (the choice KMMF or KBOND starts the matching vault, in a browser on Testnet) | KMMF session [`0e7604e2…3f2d`](https://stellar.expert/explorer/testnet/tx/0e7604e28c10da0a4ec3e2ea138a968a00ca805a71cef2fafefb414c45ef3f2d), KBOND session [`63d08b12…b3b4`](https://stellar.expert/explorer/testnet/tx/63d08b125bfe0aaf58e67a051c62122fea6393ccd5f46773ec026473e6c2b3b4) |
 | 4 | Soroban vault: authorized deposit, available / locked accounting | Verified (C1 and C2) | Section 6 tables; 18 Rust tests (contract pole) |
 | 5 | Keeper: exposure and margin computation, posting to the vault | Verified (both scenarios, Testnet) | `post_margin` hashes in section 6 |
 | 6 | Deposit, lock and release with verifiable results | Verified (Testnet) | [Deposit](https://stellar.expert/explorer/testnet/tx/eaeeb3da25b832b9e7019099fb74e8396f9d07a3bd6e5b638db152a3757cdec2), [lock](https://stellar.expert/explorer/testnet/tx/d575193f3c49bed24541a0f03dde70129c0242b570305440e6bdb2ca2c75a5f0), [release](https://stellar.expert/explorer/testnet/tx/91527a412eae01b080f3fe7b5b076904649613688cfe3964630034cd385d0dbb), [withdrawal](https://stellar.expert/explorer/testnet/tx/7de52778115187c6ecaadcef3eb4cef294ad045b9713e9b13e63012034bd7c4a) |
 | 7 | Separate default scenario with on-chain transfer to the bank | Verified (Testnet) | [`settle_default`, 300 KBOND to the bank](https://stellar.expert/explorer/testnet/tx/33793f423facfa6e2968da335558cc9bba2cc296b6ea6e2133b734829309112c); also from the browser: [`settle_default`, 50 KBOND to the bank](https://stellar.expert/explorer/testnet/tx/0c3bd3d7db474f950a6b4bf3119f78536c5ac89c4a6498c67b811a35589add43) |
 | 8 | Real Stellar Testnet transactions shown with proof | Verified (both scenarios from the browser) | Nine KMMF and four KBOND transactions with On-chain badges and Explorer links in section 6 |
-| 9 | Dashboard showing asset choice, steps and on-chain proof | Verified on the real keeper for both scenarios (Liquid Glass UI in a browser); Freighter not tested | [KMMF deposit](https://stellar.expert/explorer/testnet/tx/e00a4b80d5de4e6d6dc08baa06bc9e1c3fdb4fded1bdfb209a32e280c2a15286), [KMMF cure](https://stellar.expert/explorer/testnet/tx/b651b662f4200556cb26975b2243628db34305fe02908911a3969ca5e418723b), [KBOND settlement](https://stellar.expert/explorer/testnet/tx/0c3bd3d7db474f950a6b4bf3119f78536c5ac89c4a6498c67b811a35589add43) |
-| 10 | End-to-end integration of the three poles | In progress | Browser → keeper → C2 vault proven for both scenarios; Freighter signing and the public URL pending |
-| 11 | Submission: public repo, README, public URL, video, pitch deck | Not started | |
+| 9 | Dashboard showing asset choice, steps and on-chain proof | Verified on the real keeper for both scenarios (Liquid Glass UI in a browser); Freighter deposit and withdrawal verified (section 6) | [KMMF deposit](https://stellar.expert/explorer/testnet/tx/e00a4b80d5de4e6d6dc08baa06bc9e1c3fdb4fded1bdfb209a32e280c2a15286), [KMMF cure](https://stellar.expert/explorer/testnet/tx/b651b662f4200556cb26975b2243628db34305fe02908911a3969ca5e418723b), [KBOND settlement](https://stellar.expert/explorer/testnet/tx/0c3bd3d7db474f950a6b4bf3119f78536c5ac89c4a6498c67b811a35589add43) |
+| 10 | End-to-end integration of the three poles | Verified (the Freighter flow from the hosted web app is not tested) | Browser → keeper → C2 vault proven for both scenarios, Freighter deposit and withdrawal signed in the wallet, hosted keeper (Render) deploying a vault from the Vercel app (section 6) |
+| 11 | Submission: public repo, README, public URL, video, pitch deck | In progress: public repo, README and live URL done; video and deck by the team | Section 4 |
 | 12 | Continuous quality: review of every PR, tests, README updates | In place from phase zero | This repository's PR history |
 
 ## 13. Prior work and work done during the event
@@ -356,6 +410,10 @@ Only the status "verified" counts as done, and only with a proof link.
 
 **During the event (25–26 October 2026):** the documentation and interfaces of phase zero, and all application code (contract, keeper, dashboard, scripts). See the commit and pull request history of this repository.
 
+**AI assistance.** The code was written by the team with AI coding agents (Claude Code on two machines, Codex on the third), under the rules in [`AGENTS.md`](AGENTS.md), and reviewed with fresh AI sub-agents (section 11).
+
+**Third-party code.** [React Bits](https://reactbits.dev) components under `app/src/ui/bits/` (MIT with the Commons Clause, licence notice kept in the files), [PGlite](https://pglite.dev) (Apache-2.0), Stellar SDK, Fastify, React, Vite and Tailwind CSS, each under its own licence (see `package-lock.json`).
+
 ## 14. Known limits
 
 - The swap model uses a flat curve, no coupon cash flows, one-way variation margin (fund to bank), no initial margin.
@@ -363,4 +421,6 @@ Only the status "verified" counts as done, and only with a proof link.
 - The default is a simplified rule (margin call not met before a short grace period), not a full CSA close-out.
 - KMMF and KBOND are fictitious; they carry no real economic rights.
 - **Etherfuse Stablebonds were tested and dropped:** on 25 October, an order of sandbox CETES on Etherfuse's API v2 was funded but never delivered to Stellar Testnet. The Etherfuse team confirmed this part of v2 was not finished before the submission deadline, so KBOND represents the bond class instead.
+- **The contract is not audited.** The C2 settlement change was reviewed by automated AI reviewers (decision A11 in `docs/decisions.md`), not by an independent human auditor, and two reserves remain open: a token trustline or freeze can block `withdraw` and `settle_default` (`docs/interfaces.md` section 3.7), and the contract instance TTL must be extended on a long-lived deployment.
+- The public demo is not a production system: the hosted keeper is a single instance on a free plan (idle wake-up delay, session lost on restart), actions need a team access code (one per person, no per-user accounts), and the read routes (`/session`, `/events`) are public Testnet data. Local accounts live in each browser (PGlite) and are not an authorization.
 - Testnet only. No real money, no Mainnet.

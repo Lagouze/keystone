@@ -3,7 +3,7 @@
 import { randomBytes } from "node:crypto";
 import { KeeperError, VaultError } from "./errors.ts";
 import type {
-  DeployParams, SignedTxInfo, TxResult, VaultClient, VaultEvent, VaultState,
+  DeployParams, SignedTxInfo, TxResult, TxStatus, VaultClient, VaultEvent, VaultState,
 } from "./vault-client.ts";
 
 const I128_MAX = (1n << 127n) - 1n;
@@ -28,6 +28,16 @@ export class FakeVaultClient implements VaultClient {
   constructor(opts: FakeOptions = {}) {
     this.now = opts.now ?? (() => BigInt(Math.floor(Date.now() / 1000)));
     this.fundInitial = opts.fundInitialUnits ?? 10_000_000_000n; // 1 000 units, like the bootstrap
+  }
+
+  /** Part of the VaultClient contract; the fake never signs, so it never calls it. */
+  onSigned?: (txHash: string, vaultId?: string) => void;
+
+  /** Test hook: hashes set here answer SUCCESS; every other hash is NOT_FOUND. */
+  readonly known = new Map<string, TxStatus>();
+
+  async txStatus(hash: string): Promise<TxStatus> {
+    return this.known.get(hash) ?? "NOT_FOUND";
   }
 
   async ledgerTime(): Promise<bigint> {

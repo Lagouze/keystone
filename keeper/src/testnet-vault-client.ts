@@ -6,8 +6,13 @@ import {
 } from "vault-client";
 import { CONTRACT_ERRORS, KeeperError, VaultError } from "./errors.ts";
 import type {
-  DeployParams, OnChainStatus, SignedTxInfo, TxResult, VaultClient, VaultEvent, VaultState,
+  DeployParams, OnChainStatus, SignedTxInfo, TxResult, TxStatus, VaultClient, VaultEvent, VaultState,
 } from "./vault-client.ts";
+
+/** Longest validity accepted for a wallet-signed transaction (the keeper builds them for 180 s). */
+export const MAX_VALIDITY_SECS = 200;
+
+type NodeSigner = ReturnType<typeof contract.basicNodeSigner>;
 
 export interface TestnetOptions {
   rpcUrl: string;
@@ -32,10 +37,31 @@ export function mapChainError(e: unknown, vaultId?: string): KeeperError {
   const contracts: string[] = msg.match(/\bC[A-Z2-7]{55}\b/g) ?? [];
   const foreign = vaultId !== undefined && contracts.length > 0 && !contracts.includes(vaultId);
   if (name && !foreign) return new VaultError(name);
-  if (/still pending|timed? ?out|timeout|ECONN|ENOTFOUND|fetch failed|socket hang up|\bHTTP (429|5\d\d)\b|\b(429|502|503|504)\b/i.test(msg)) {
+  if (/still pending|timed? ?out|timeout|ECONN|ETIMEDOUT|EAI_AGAIN|ENOTFOUND|EHOSTUNREACH|network ?error|fetch failed|aborted|socket hang up|\bHTTP (429|5\d\d)\b|\b(429|502|503|504)\b/i.test(msg)) {
     return new KeeperError("RpcUnavailable", `RPC unavailable or no confirmation: ${msg.slice(0, 200)}`);
   }
   return new KeeperError("TxFailed", msg.slice(0, 400));
+}
+
+/**
+ * Error of a keeper-signed send. Before signing nothing was sent: the plain mapping applies. After signing, only a
+ * refusal by the network (the SDK's SendFailedError) proves the transaction was not included; any other failure
+ * leaves it possibly in flight and becomes RpcUnavailable carrying the hash to reconcile.
+ */
+export function classifySendError(e: unknown, signedHash: string | undefined, vaultId?: string): KeeperError {
+  const mapped = mapChainError(e, vaultId);
+  if (!signedHash) return mapped;
+  // The SDK raises SendFailedError for every status but PENDING. Only ERROR and TRY_AGAIN_LATER prove the transaction was
+  // not taken (DUPLICATE means the network already has it).
+  if ((e as { constructor?: { name?: string } } | null)?.constructor?.name === "SendFailedError"
+    && /"status":\s*"(ERROR|TRY_AGAIN_LATER)"/.test((e as Error).message)) {
+    mapped.notSent = true;
+    return mapped;
+  }
+  const uncertain = mapped.code === "RpcUnavailable" ? mapped : new KeeperError("RpcUnavailable", `No confirmation: ${mapped.message}`.slice(0, 300));
+  uncertain.txHash = signedHash;
+  if (vaultId) uncertain.vaultId = vaultId;
+  return uncertain;
 }
 
 /** Decodes one contract event (docs/interfaces.md section 3.5); unknown events are ignored. */
@@ -68,6 +94,7 @@ export class TestnetVaultClient implements VaultClient {
   private readonly o: TestnetOptions;
   private readonly server: rpc.Server;
   private readonly timeout: number;
+  onSigned?: (txHash: string, vaultId?: string) => void;
 
   constructor(options: TestnetOptions) {
     this.o = options;
@@ -83,14 +110,22 @@ export class TestnetVaultClient implements VaultClient {
     });
   }
 
+  async txStatus(hash: string): Promise<TxStatus> {
+    return this.guard(async () => {
+      const res = await this.server.getTransaction(hash);
+      return res.status === "SUCCESS" ? "SUCCESS" : res.status === "FAILED" ? "FAILED" : "NOT_FOUND";
+    });
+  }
+
   async deploy(p: DeployParams): Promise<{ vaultId: string; txHash: string }> {
     return this.guard(async () => {
       const tx = await VaultBindings.deploy(
         { fund: p.fund, bank: p.bank, keeper: p.keeper, asset: p.assetSac, max_required: p.maxRequired, grace_period_secs: p.gracePeriodSecs },
         { ...this.base(this.o.keeper), timeoutInSeconds: this.timeout, wasmHash: this.o.wasmHash, format: "hex" },
       );
-      const sent = await tx.signAndSend();
-      const vaultId = (sent.result as VaultBindings).options.contractId;
+      // The contract address is known from the simulation: keep it if the confirmation times out.
+      const vaultId = (tx.result as VaultBindings).options.contractId;
+      const sent = await this.send(tx, this.o.keeper, vaultId);
       return { vaultId, txHash: this.hashOf(sent) };
     });
   }
@@ -150,6 +185,12 @@ export class TestnetVaultClient implements VaultClient {
     }
     if (tx.source !== this.o.fundAddress) throw new KeeperError("BadRequest", "The transaction source must be the fund account");
     if (tx.signatures.length === 0) throw new KeeperError("BadRequest", "The transaction is not signed");
+    // The keeper decides a lost transaction can no longer land once MAX_VALIDITY_SECS have passed: refuse any that outlives it.
+    const maxTime = Number(tx.timeBounds?.maxTime ?? 0);
+    const nowSecs = Math.floor(Date.now() / 1000);
+    if (!maxTime || maxTime < nowSecs || maxTime > nowSecs + MAX_VALIDITY_SECS) {
+      throw new KeeperError("BadRequest", "The transaction must expire within a few minutes: prepare it again");
+    }
     try {
       if (op.func.switch().name !== "hostFunctionTypeInvokeContract") throw new Error("not an invocation");
       const call = op.func.invokeContract();
@@ -158,7 +199,10 @@ export class TestnetVaultClient implements VaultClient {
       if ((action !== "deposit" && action !== "withdraw") || args.length !== 1 || args[0]!.switch().name !== "scvI128") {
         throw new Error("not a deposit or withdraw of an amount");
       }
-      return { action, units: BigInt(scValToNative(args[0]!) as bigint), vaultId: Address.fromScAddress(call.contractAddress()).toString() };
+      return {
+        action, units: BigInt(scValToNative(args[0]!) as bigint), vaultId: Address.fromScAddress(call.contractAddress()).toString(),
+        txHash: tx.hash().toString("hex"),
+      };
     } catch {
       throw new KeeperError("BadRequest", "Only a deposit or withdraw of an i128 amount on the vault may be submitted");
     }
@@ -171,10 +215,13 @@ export class TestnetVaultClient implements VaultClient {
       const tx = TransactionBuilder.fromXDR(signedTxXdr, this.o.networkPassphrase);
       const sent = await this.server.sendTransaction(tx);
       if (sent.status === "ERROR" || sent.status === "TRY_AGAIN_LATER") {
-        throw new KeeperError(sent.status === "ERROR" ? "TxFailed" : "RpcUnavailable", `The network refused the transaction (${sent.status})`);
+        const refused = new KeeperError(sent.status === "ERROR" ? "TxFailed" : "RpcUnavailable", `The network refused the transaction (${sent.status})`);
+        refused.notSent = true;
+        throw refused;
       }
       const res = await this.confirm(sent.hash);
-      return { txHash: sent.hash, events: await this.eventsOf(vaultId, sent.hash, res.ledger), state: await this.getState(vaultId) };
+      // The transaction is confirmed: a failing event read must not turn it into an error.
+      return { txHash: sent.hash, events: await this.eventsOf(vaultId, sent.hash, res.ledger).catch(() => []), state: await this.getState(vaultId) };
     });
   }
 
@@ -202,13 +249,32 @@ export class TestnetVaultClient implements VaultClient {
   ): Promise<TxResult> {
     return this.guard(vaultId, async () => {
       const tx = await call(this.bindings(vaultId, signer), { timeoutInSeconds: this.timeout });
-      const sent = await tx.signAndSend();
+      const sent = await this.send(tx, signer, vaultId);
       const txHash = this.hashOf(sent);
       const res = await this.confirm(txHash);
       // The transaction is confirmed: a failing event read must not turn it into an error.
       const events = await this.eventsOf(vaultId, txHash, res.ledger).catch(() => []);
       return { txHash, events, state: toState(sent.result) };
     });
+  }
+
+  /** Signs with the given key, reports the hash before sending (`onSigned`), then sends and waits. */
+  private async send<T extends { signAndSend(o: { signTransaction: NodeSigner["signTransaction"] }): Promise<unknown> }>(
+    tx: T, signer: Keypair, vaultId?: string,
+  ): Promise<Awaited<ReturnType<T["signAndSend"]>>> {
+    const node = contract.basicNodeSigner(signer, this.o.networkPassphrase);
+    let signedHash: string | undefined;
+    const signTransaction: NodeSigner["signTransaction"] = async (xdrString, opts) => {
+      const out = await node.signTransaction(xdrString, opts);
+      signedHash = TransactionBuilder.fromXDR(out.signedTxXdr, this.o.networkPassphrase).hash().toString("hex");
+      this.onSigned?.(signedHash, vaultId);
+      return out;
+    };
+    try {
+      return (await tx.signAndSend({ signTransaction })) as Awaited<ReturnType<T["signAndSend"]>>;
+    } catch (e) {
+      throw classifySendError(e, signedHash, vaultId);
+    }
   }
 
   private hashOf(sent: { sendTransactionResponse?: { hash: string } }): string {
@@ -221,8 +287,14 @@ export class TestnetVaultClient implements VaultClient {
   private async confirm(hash: string): Promise<{ ledger: number }> {
     const res = await this.server.pollTransaction(hash, { attempts: Math.ceil(this.timeout / 2), sleepStrategy: () => 2000 });
     if (res.status === "SUCCESS") return { ledger: res.ledger };
-    if (res.status === "FAILED") throw new KeeperError("TxFailed", `Transaction ${hash} failed on-chain`);
-    throw new KeeperError("RpcUnavailable", `No confirmation for ${hash} after ${this.timeout}s`);
+    if (res.status === "FAILED") {
+      const failed = new KeeperError("TxFailed", `Transaction ${hash} failed on-chain`);
+      failed.onChain = true;
+      throw failed;
+    }
+    const pending = new KeeperError("RpcUnavailable", `No confirmation for ${hash} after ${this.timeout}s`);
+    pending.txHash = hash;
+    throw pending;
   }
 
   private async eventsOf(vaultId: string, hash: string, ledger: number): Promise<VaultEvent[]> {

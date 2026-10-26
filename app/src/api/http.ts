@@ -1,5 +1,6 @@
 import type { ActivityEvent, ApiError, AssetId, KeystoneConfig, MarketSnapshot, SessionState } from '@keystone/shared'
 import type { KeeperClient, StreamListener } from './client.ts'
+import { getAccessCode } from './access.ts'
 import { KeystoneError } from './errors.ts'
 
 /** Advisor deliberately uses only this GET, even while session actions run in mock mode. */
@@ -39,9 +40,13 @@ export function createHttpClient(baseUrl: string): KeeperClient {
   async function request<T>(method: 'GET' | 'POST', path: string, body?: unknown): Promise<T> {
     let response: Response
     try {
+      const code = method === 'POST' ? getAccessCode() : null
       response = await fetch(`${baseUrl}${path}`, {
         method,
-        headers: body === undefined ? undefined : { 'content-type': 'application/json' },
+        headers: {
+          ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+          ...(code ? { authorization: `Bearer ${code}` } : {}),
+        },
         body: body === undefined ? undefined : JSON.stringify(body),
       })
     } catch {

@@ -25,6 +25,7 @@ const MESSAGES: Record<string, string> = {
   Defaulted: 'The vault has defaulted. Only the available collateral can still be withdrawn.',
   // Keeper (section 4)
   BadRequest: 'The keeper rejected the request.',
+  Unauthorized: 'The access code is missing or wrong. Enter the team access code to act on the keeper.',
   NoSession: 'No session is running. Start one first.',
   SignerModeDisabled: 'This action is not available in the current signing mode.',
   TxFailed: 'The transaction failed.',

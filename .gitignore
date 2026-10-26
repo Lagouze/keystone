@@ -51,3 +51,7 @@ keeper/data/market-cache.local.json
 Thumbs.db
 .vscode/
 .idea/
+
+# Keeper runtime state (hosted or local run)
+keeper/data/session.json*
+keeper/data/*.probe

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ActivityEvent, AssetId, KeystoneConfig, SessionState } from '@keystone/shared'
 import { createBackend, type Backend } from '../api/index.ts'
 import type { ConnectionStatus } from '../api/client.ts'
+import { getAccessCode, setAccessCode } from '../api/access.ts'
 import { describeError, KeystoneError } from '../api/errors.ts'
 import { formatUnits, parseUnits } from '../lib/format.ts'
 
@@ -32,6 +33,14 @@ export function useKeystone() {
   const [busy, setBusy] = useState<Action | null>(null)
   const [step, setStep] = useState<string | null>(null)
   const [error, setError] = useState<ShownError | null>(null)
+
+  // Hosted keeper: writes need the team access code (config.writeAuth), typed once and kept in this browser.
+  const [hasAccessCode, setHasAccessCode] = useState(() => getAccessCode() !== null)
+  const saveAccessCode = useCallback((code: string) => {
+    setAccessCode(code.trim() || null)
+    setHasAccessCode(getAccessCode() !== null)
+    setError(null)
+  }, [])
 
   const inFlight = useRef(false)
   // When a deposit or withdrawal last ended without a confirmation (RPC timeout): kept here as well,
@@ -92,6 +101,11 @@ export function useKeystone() {
       } catch (e) {
         if ((action === 'deposit' || action === 'withdraw') && e instanceof KeystoneError && e.code === 'RpcUnavailable') {
           unconfirmedAt.current = Date.now()
+        }
+        if (e instanceof KeystoneError && e.code === 'Unauthorized') {
+          // Wrong or revoked code: forget it, the page asks again.
+          setAccessCode(null)
+          setHasAccessCode(false)
         }
         setError(describeError(e))
       } finally {
@@ -204,6 +218,8 @@ export function useKeystone() {
     busy,
     step,
     error,
+    needsAccessCode: source === 'keeper' && config?.writeAuth === 'token' && !hasAccessCode,
+    saveAccessCode,
     ...actions,
   }
 }
