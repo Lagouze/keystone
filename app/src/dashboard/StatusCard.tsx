@@ -30,7 +30,7 @@ const STATUS_WORD: Record<VaultStatus, string> = {
  */
 export function StatusCard(props: StatusCardProps) {
   const { stage, asset, busy } = props
-  // The clock only ticks while a margin call is open: no re-render of the page otherwise.
+  // The clock only ticks while a margin call is open: no re-render of the whole page otherwise.
   const now = useNow(250, stage.shown.vault.status === 'margin_call')
   const session = stage.shown
   const { vault } = session
@@ -60,12 +60,11 @@ export function StatusCard(props: StatusCardProps) {
     detail = `${fmt(vault.lockedUnits)} ${code} locked · ${fmt(vault.availableUnits)} ${code} free · no cash set aside.`
   }
 
-  // Only a margin call or a settled default is a panel; the rest is plain type on the page.
-  const tone = stage.halo ? 'call' : stage.settled ? 'default-settled' : 'bare'
+  const tone = stage.halo ? 'call' : stage.settled ? 'default-settled' : 'default'
   const callOpen = vault.status === 'margin_call'
 
   return (
-    <Card tone={tone} starCapable star={stage.halo} className={tone === 'bare' ? 'px-2' : ''}>
+    <Card tone={tone} starCapable star={stage.halo}>
       <div className="flex min-h-24 flex-col items-start gap-3">
         {stage.status !== 'active' && (
           <StatusPill status={stage.status} label={<FlapLabel text={STATUS_WORD[stage.status]} />} />

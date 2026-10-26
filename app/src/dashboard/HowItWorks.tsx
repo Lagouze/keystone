@@ -40,7 +40,7 @@ export function HowItWorks({ onStart }: { onStart(): void }) {
               viewport={{ once: true, amount: 0.6 }}
               transition={{ duration: 0.6, delay: i * 0.08, ease: [0.16, 1, 0.3, 1] }}
             >
-              <span className="glass-lite flex size-12 shrink-0 items-center justify-center rounded-full text-lg font-medium shadow-card" aria-hidden="true">
+              <span className="glass flex size-12 shrink-0 items-center justify-center rounded-full text-lg font-medium shadow-card" aria-hidden="true">
                 {i + 1}
               </span>
               <div>

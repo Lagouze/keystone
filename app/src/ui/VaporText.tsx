@@ -94,7 +94,7 @@ export function VaporText({ words, fontWeight = 500, fontSize = 72, color = '#1c
     let started = performance.now()
     if (live.current) live.current.textContent = words[0]!
     let frame = 0
-    // Off screen or in a hidden tab: keep the clock, skip the drawing.
+    // Off screen: keep the clock, skip the drawing.
     let visible = true
     const io = new IntersectionObserver(([entry]) => {
       visible = entry?.isIntersecting ?? true
@@ -104,7 +104,6 @@ export function VaporText({ words, fontWeight = 500, fontSize = 72, color = '#1c
     const draw = (now: number) => {
       if (!visible) {
         frame = requestAnimationFrame(draw)
-        started += 0 // the timeline keeps running
         return
       }
       const t = now - started

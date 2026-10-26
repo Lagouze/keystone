@@ -62,8 +62,8 @@ export function LockScreen({ onUnlock }: { onUnlock(email: string): void }) {
           transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
           className="flex flex-col items-center"
         >
-          <Logo size={168} animated />
-          <h1 className="mt-6 text-3xl font-light tracking-[0.06em] text-ink">
+          <Logo size={120} />
+          <h1 className="mt-6 text-3xl font-light tracking-tight text-ink">
             <BlurReveal key={mode} text={mode === 'signin' ? 'Keystone' : 'Create an account'} />
           </h1>
         </motion.div>

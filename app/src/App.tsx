@@ -182,7 +182,7 @@ function TopBar({
     <header className="sticky top-3 z-40 px-3 sm:px-6">
       <div className="glass mx-auto flex min-h-14 max-w-6xl flex-wrap items-center justify-between gap-x-6 gap-y-2 rounded-[2rem] px-5 py-2 shadow-card sm:rounded-full sm:px-6">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <Logo size={36} />
+          <Logo size={26} />
           <h1 className="text-[1.0625rem] font-medium tracking-tight">Keystone</h1>
           {mocks ? <Chip>Demo data · nothing sent to Stellar</Chip> : <Chip>Testnet</Chip>}
           {/* §4: the public demo (SIGNER=keeper) must say that the keeper signs for the fund. */}
@@ -219,7 +219,7 @@ function TopBar({
             onClick={onLock}
             title={`Signed in as ${user}`}
             aria-label={`Lock (signed in as ${user})`}
-            className="glass-lite flex size-9 items-center justify-center rounded-full text-ink-muted transition-colors hover:text-ink focus-visible:outline-2 focus-visible:outline-chain"
+            className="glass flex size-9 items-center justify-center rounded-full text-ink-muted transition-colors hover:text-ink focus-visible:outline-2 focus-visible:outline-chain"
           >
             <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
               <rect x="2.5" y="6" width="9" height="6.5" rx="1.6" fill="currentColor" />
@@ -300,38 +300,33 @@ function Dashboard({ k, stage, config, mocks }: DashboardProps) {
             />
           </div>
         </Reveal>
-        {/* One frosted panel for the vault and the controls: two sections, set apart by whitespace. */}
         <Reveal index={1} opening={stage.opening}>
-          <div className="glass grid gap-9 rounded-card p-7 shadow-card sm:p-8">
-            <VaultCard session={session} asset={asset} duration={stage.figuresDuration} />
-            <div className="border-t border-line-soft pt-9">
-              <ActionsCard
-                session={session}
-                asset={asset}
-                signerMode={config.signerMode}
-                mocks={mocks}
-                busy={k.busy}
-                step={k.step}
-                sequencing={stage.sequencing}
-                onDeposit={k.deposit}
-                onWithdraw={k.withdraw}
-                onShock={k.rateShock}
-              />
-            </div>
-          </div>
+          <VaultCard session={session} asset={asset} duration={stage.figuresDuration} />
+        </Reveal>
+        <Reveal index={2} opening={stage.opening}>
+          <ActionsCard
+            session={session}
+            asset={asset}
+            signerMode={config.signerMode}
+            mocks={mocks}
+            busy={k.busy}
+            step={k.step}
+            sequencing={stage.sequencing}
+            onDeposit={k.deposit}
+            onWithdraw={k.withdraw}
+            onShock={k.rateShock}
+          />
         </Reveal>
       </div>
       {/* The right column never sets the row's height: it fills what the left column needs, and the
           activity list scrolls inside it, so both columns end on the same line. */}
       <aside className="relative min-w-0 lg:min-h-[34rem]">
-        <div className="flex min-h-0 flex-col lg:absolute lg:inset-0">
-          <Reveal index={3} opening={stage.opening} className="flex min-h-0 flex-1 flex-col">
-            <div className="glass flex min-h-0 flex-1 flex-col gap-9 rounded-card p-7 shadow-card sm:p-8">
-              <MarketCard session={session} asset={asset} opening={stage.opening} />
-              <div className="flex min-h-0 flex-1 flex-col border-t border-line-soft pt-9">
-                <ActivityFeed activity={k.activity} />
-              </div>
-            </div>
+        <div className="flex min-h-0 flex-col gap-4 lg:absolute lg:inset-0">
+          <Reveal index={3} opening={stage.opening} className="shrink-0">
+            <MarketCard session={session} asset={asset} opening={stage.opening} />
+          </Reveal>
+          <Reveal index={4} opening={stage.opening} className="flex min-h-0 flex-1 flex-col">
+            <ActivityFeed activity={k.activity} />
           </Reveal>
         </div>
       </aside>
