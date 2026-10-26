@@ -57,6 +57,19 @@ describe('verifiable data and realized yield volatility', () => {
     expect(data.metrics.find((m) => m.id === 'vix')).toMatchObject({ value: '20.000000', observedAt: '2026-10-23' });
     expect(data.metrics.find((m) => m.id === 'sovereignVol')?.name).not.toContain('MOVE');
   });
+  it('rejects a missing ordinary business day after parsing an explicitly empty ECB observation', async () => {
+    const rows = Array.from({ length: 45 }, (_, i) => new Date(Date.UTC(2026, 8, i + 10)))
+      .filter((date) => date.getUTCDay() !== 0 && date.getUTCDay() !== 6)
+      .map((date, i) => ({ date: date.toISOString().slice(0, 10), value: 2 + (i % 2 ? 0.1 : 0) }));
+    const brokenCsv = csv(rows).replace('2026-10-14,2,', '2026-10-14,,').replace('2026-10-14,2.1,', '2026-10-14,,');
+    const parsed = parseObservations(brokenCsv, 'ecb', now);
+    expect(parsed.some((o) => o.date === '2026-10-14')).toBe(false);
+    expect(() => realizedVolatility(parsed)).toThrow('Missing TARGET');
+    const provider = createMarketProvider({ now: () => now, fetchFn: (async (url) => String(url) === MARKET_URLS.sovereign2y ? new Response(brokenCsv) : fetchFn(url)) as typeof fetch });
+    const data = await provider();
+    expect(data.metrics.find((m) => m.id === 'sovereignVol')?.value).toBeNull();
+    expect(data.advice.outcome).toBe('Insufficient market data');
+  });
   it('persists observations, marks failed refreshes as cache, recomputes staleness and excludes it from scoring', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'keystone-market-'));
     try {

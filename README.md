@@ -273,13 +273,6 @@ Verified so far: both scenarios on the mock keeper; the HTTP and SSE client agai
 
 **Motion.** Each confirmed change plays one short sequence instead of everything at once (`app/src/state/useChoreography.ts`): the status flips first (at 400 ms after the confirmation arrives), then the figures roll (at 1 s, or at 400 ms when the status does not change), then a margin-call card lights up (at 1.35 s) and its countdown starts (at 1.55 s); on a default, the locked collateral travels from the vault to the bank in 700 ms. Actions stay disabled while a sequence plays. Market figures (MTM, Euribor) move as soon as they arrive; a hash decrypts when an entry seen pending in this tab confirms. The animations come from [React Bits](https://reactbits.dev) (Counter, SplitFlapText, StatusMark, DecryptedText, LatticeLoader, StarBorder, HoldButton, ShinyText, Stepper, CountUp, SwipeToast), copied under `app/src/ui/bits/` with their licence notice, and configured once in `app/src/ui/motion.tsx`. With reduced motion, new values show at once.
 
-## 10. Demo instructions
-
-*To be written once the end-to-end flow works.* Two scenarios are planned:
-
-1. **Margin and release (KMMF).** Deposit, rate shock of −50 bp (collateral locked), further −30 bp (margin call, top-up, cured), +60 bp (collateral released and withdrawn).
-2. **Default (KBOND).** Deposit, rate shock of −100 bp (margin call), no top-up, 90-second grace period, settlement: the locked collateral is transferred to the bank.
-
 ### Collateral Market Advisor
 
 On Landing, **Compare market conditions** opens a read-only assistant. It shows five indicator slots, observation/retrieval dates, source links, availability, publication frequency, cache/freshness labels, indicative class scores and assumptions. Closing it leaves the manual collateral selection unchanged. Only the separate Start button creates a vault. No wallet is needed for the assistant, and its only request is `GET /api/market-advisor`; it never calls a Stellar write route. With `VITE_USE_MOCKS=true`, session scenarios remain mocked while the advisor still requests real market observations from the configured keeper (or shows insufficient data if it is unavailable).
@@ -301,6 +294,13 @@ Assumptions: short-duration EUR money market fund versus two-year EUR sovereign 
 **Operation:** no new package or paid key is required. Start the existing keeper and app with the usual environment; the new route works without a demo session. Network requests are server-side, fixed-source and parallel, each with a six-second timeout. Optional observations persist in ignored `keeper/data/market-cache.local.json`. Refresh interval is one hour; the Refresh button may reuse that explicitly dated cache. Failed refreshes retain original observation and retrieval dates. Daily data older than seven calendar days, or monthly data older than 45 days after month end, is stale and excluded from scoring. Future/invalid data and incomplete volatility history are rejected; no fabricated fallback exists. ECB and underlying third-party reuse conditions still apply to any public/commercial redistribution; no public deployment is performed by this feature.
 
 Validation commands: `npm ci`, `npm run typecheck`, `npm test`, `npm run build -w @keystone/app`. Unit tests cover CSV parsing, exact proxy calculation, missing/stale/offline/timeout data, cache persistence, VIX disabled/optional, four outcomes, configurable weights, preserved origin checks and a read-only route with no session or activity mutation. Browser results and limits are recorded in the feature PR. Existing on-chain proofs above are unchanged; these checks send no Stellar transactions.
+
+## 10. Demo instructions
+
+*To be written once the end-to-end flow works.* Two scenarios are planned:
+
+1. **Margin and release (KMMF).** Deposit, rate shock of −50 bp (collateral locked), further −30 bp (margin call, top-up, cured), +60 bp (collateral released and withdrawn).
+2. **Default (KBOND).** Deposit, rate shock of −100 bp (margin call), no top-up, 90-second grace period, settlement: the locked collateral is transferred to the bank.
 
 ## 11. Workflow
 

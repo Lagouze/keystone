@@ -52,6 +52,22 @@ export function parseObservations(csv: string, kind: 'ecb' | 'vix', now: Date): 
   if (!observations.length || new Set(observations.map((o) => o.date)).size !== observations.length) throw new Error('No valid observations or duplicate dates');
   return observations;
 }
+/** ECB yield curves are published on TARGET business days. Gregorian Easter computus allows
+ * holiday closures without treating an absent ordinary business day as a daily change. */
+function isTargetBusinessDay(time: number): boolean {
+  const date = new Date(time);
+  if (date.getUTCDay() === 0 || date.getUTCDay() === 6) return false;
+  const monthDay = date.toISOString().slice(5, 10);
+  if (['01-01', '05-01', '12-25', '12-26'].includes(monthDay)) return false;
+  const year = date.getUTCFullYear();
+  const a = year % 19, b = Math.floor(year / 100), c = year % 100;
+  const d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const n = h + l - 7 * m + 114;
+  const easter = Date.UTC(year, Math.floor(n / 31) - 1, n % 31 + 1);
+  return time !== easter - 2 * DAY && time !== easter + DAY;
+}
 export function realizedVolatility(observations: Observation[]): { value: number; start: string; end: string; observations: number } {
   if (observations.length < 21) throw new Error('Need 21 daily observations for 20 changes');
   const sample = observations.slice(-21);
@@ -60,6 +76,11 @@ export function realizedVolatility(observations: Observation[]): { value: number
   // reject prolonged gaps rather than mistaking a missing month for daily observations.
   if (sample.some((o, i) => i > 0 && (Date.parse(o.date) - Date.parse(sample[i - 1]!.date)) / DAY > 7)
     || (Date.parse(sample.at(-1)!.date) - Date.parse(sample[0]!.date)) / DAY > 45) throw new Error('Gaps in daily history');
+  for (let i = 1; i < sample.length; i++) {
+    for (let day = Date.parse(sample[i - 1]!.date) + DAY; day < Date.parse(sample[i]!.date); day += DAY) {
+      if (isTargetBusinessDay(day)) throw new Error('Missing TARGET business-day yield observation');
+    }
+  }
   const changes = sample.slice(1).map((o, i) => (o.value - sample[i]!.value) * 100);
   const mean = changes.reduce((s, x) => s + x, 0) / changes.length;
   return { value: Math.sqrt(changes.reduce((s, x) => s + (x - mean) ** 2, 0) / (changes.length - 1)), start: sample[0]!.date, end: sample.at(-1)!.date, observations: sample.length };
