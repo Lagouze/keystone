@@ -43,6 +43,18 @@ Keystone does not promise a return, does not remove the need for cash entirely, 
 | **Demo video** | *link added at submission* |
 | Hosted keeper API (read routes are open) | `https://keystone-keeper.onrender.com/api` (`/health`, `/config`, `/market-advisor`, `/session`, `/events`) |
 
+**Real mode and simulated demo: the same app, two keepers.** The dashboard talks to "a keeper" through one interface (`docs/interfaces.md` section 4). Two implementations stand behind it:
+
+| | **Real mode** (`/`) | **Simulated demo** (`/?demo`) |
+| --- | --- | --- |
+| Who answers | The hosted keeper (Fastify, on Render), which talks to Stellar Testnet | A mock keeper that runs **inside your browser tab** (`app/src/api/mock.ts`) |
+| Transactions | Real Stellar Testnet transactions: vault deployment, deposit, margin posting, release, default settlement. Shown as **On-chain** with a stellar.expert link | None. Nothing leaves the page; every address and hash starts with `MOCK`, shown as **Demo tx** with no link |
+| Rules and numbers | The Soroban vault and the keeper's margin model | The same margin formula and the same vault rules (locked, released, margin call, 90 s grace period, default), re-implemented for the browser |
+| Who can use it | Anyone can read it (landing, Market Advisor, the running session). Acting needs a team access code, and deposits and withdrawals are signed in Freighter by the demo fund account | Anyone, with no code and no wallet. Each visitor has their own session; a reload resets it |
+| Where to see it work | Section 6 (every step with its hash) and the demo video | Open the link and play both scenarios |
+
+**Why a simulated demo exists.** Real mode spends Testnet fees and moves tokens held by one fund account, so it cannot be left open to anyone: the keeper's actions need a code, the fund's deposits need the fund's key (which is not published), and the keeper holds a single shared session. The simulated demo lets every judge and mentor try the whole flow at once without any of that. It proves how the product behaves; **the proof that it works on Stellar is section 6 and the video**, not the demo. The page always says which mode it is in: the header reads "Demo data · nothing sent to Stellar" in demo mode and "Stellar Testnet · Keeper connected" in real mode.
+
 **What a judge can do.**
 
 - Open the live app, create a local account (accounts live in the browser, see section 10) and see the landing page, the **Collateral Market Advisor** (real ECB and market data, read-only) and, when a session is running, its dashboard updating live over server-sent events.
