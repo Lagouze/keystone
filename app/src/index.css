@@ -20,7 +20,7 @@
   --color-ink: #1c1c1e;
   --color-ink-hover: #000000;
   --color-ink-muted: #3a3a3c;
-  --color-ink-subtle: #55555a;
+  --color-ink-subtle: #48484d;
 
   /* On-chain proof only (hash links, locked collateral). */
   --color-chain: #0a5cc2;

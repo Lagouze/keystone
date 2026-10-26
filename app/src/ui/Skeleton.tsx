@@ -8,8 +8,8 @@ export function Skeleton({ className }: { className?: string }) {
 /** The dashboard's shape, shown while the keeper's configuration loads. */
 export function DashboardSkeleton() {
   return (
-    <div role="status" aria-label="Loading" className="mx-auto grid max-w-6xl gap-5 px-4 py-6 sm:px-6 lg:grid-cols-[minmax(0,1fr)_340px]">
-      <div className="grid content-start gap-5">
+    <div role="status" aria-label="Loading" className="mx-auto grid max-w-6xl gap-4 px-4 py-5 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="grid content-start gap-4">
         <div className="glass min-h-44 rounded-card p-7 shadow-card">
           <Skeleton className="h-9 w-2/3" />
           <Skeleton className="mt-4 h-4 w-1/2" />
@@ -29,7 +29,7 @@ export function DashboardSkeleton() {
           <Skeleton className="mt-6 h-11 w-full" />
         </div>
       </div>
-      <div className="grid content-start gap-5">
+      <div className="grid content-start gap-4">
         <div className="glass min-h-56 rounded-card p-7 shadow-card">
           <Skeleton className="h-4 w-20" />
           <Skeleton className="mt-6 h-8 w-3/4" />

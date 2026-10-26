@@ -181,7 +181,7 @@ function TopBar({
 }) {
   return (
     <header className="sticky top-3 z-40 px-3 sm:px-6">
-      <div className="glass mx-auto flex min-h-14 max-w-6xl flex-wrap items-center justify-between gap-x-6 gap-y-2 rounded-full px-5 py-2 shadow-card sm:px-6">
+      <div className="glass mx-auto flex min-h-14 max-w-6xl flex-wrap items-center justify-between gap-x-6 gap-y-2 rounded-[2rem] px-5 py-2 shadow-card sm:rounded-full sm:px-6">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <Logo size={26} />
           <h1 className="text-[1.0625rem] font-medium tracking-tight">Keystone</h1>

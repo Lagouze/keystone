@@ -51,8 +51,10 @@ export function ActivityFeed({ activity }: { activity: ActivityEvent[] }) {
         <p className="text-sm text-ink-subtle">Nothing yet.</p>
       ) : (
         <ul
-          className="-mr-3 max-h-96 min-h-0 flex-1 divide-y divide-line-soft overflow-y-auto pr-3 [scrollbar-width:thin] lg:max-h-none"
-          aria-live="polite"
+          tabIndex={0}
+          role="region"
+          aria-label="Activity, newest first"
+          className="-mr-3 max-h-96 min-h-0 flex-1 divide-y divide-line-soft overflow-y-auto pr-3 [scrollbar-width:thin] focus-visible:outline-2 focus-visible:outline-chain lg:max-h-none"
         >
           <AnimatePresence initial={false}>
             {activity.map((event) => (

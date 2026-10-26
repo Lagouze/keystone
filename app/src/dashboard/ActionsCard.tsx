@@ -81,7 +81,7 @@ export function ActionsCard(props: ActionsCardProps) {
               {mode === 'deposit' ? 'Deposit' : 'Withdraw'} {asset.code}
             </label>
             <SegmentedControl
-              label="Operation"
+              label="Operation mode"
               value={mode}
               onChange={setMode}
               options={[

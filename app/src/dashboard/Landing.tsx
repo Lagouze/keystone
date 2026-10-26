@@ -54,10 +54,10 @@ export function Landing({
   const heroBlur = useTransform(heroProgress, [0, 1], ['blur(0px)', 'blur(8px)'])
 
   // "Choose the collateral" arrives like a cloud: it grows, clears and sharpens as it is scrolled into view.
-  const { scrollYProgress: cloudProgress } = useScroll({ target: start, offset: ['start 95%', 'start 45%'] })
+  const { scrollYProgress: cloudProgress } = useScroll({ target: start, offset: ['start 95%', 'start 70%'] })
   const cloudScale = useTransform(cloudProgress, [0, 1], [0.8, 1])
   const cloudOpacity = useTransform(cloudProgress, [0, 0.7], [0, 1])
-  const cloudBlur = useTransform(cloudProgress, [0, 1], ['blur(14px)', 'blur(0px)'])
+  const cloudBlur = useTransform(cloudProgress, [0, 0.98, 1], ['blur(14px)', 'blur(0px)', 'none'])
 
   const story = useRef<HTMLElement>(null)
   const { scrollYProgress: storyProgress } = useScroll({ target: story, offset: ['start start', 'end end'] })

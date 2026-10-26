@@ -48,13 +48,13 @@ export function LockScreen({ onUnlock }: { onUnlock(email: string): void }) {
 
   return (
     <motion.div
-      className="fixed inset-0 z-[60] flex flex-col items-center justify-center overflow-y-auto px-4 py-10"
+      className="fixed inset-0 z-[60] flex flex-col items-center overflow-y-auto px-4 py-10"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0, scale: 1.04, filter: 'blur(12px)' }}
       transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
     >
-      <div className="glass-heavy gpu w-full max-w-md rounded-[2.5rem] px-8 pt-12 pb-9 shadow-card sm:px-12">
+      <div className="glass-heavy gpu my-auto w-full max-w-md rounded-[2.5rem] px-8 pt-12 pb-9 shadow-card sm:px-12">
         <motion.div
           key={mode}
           initial={{ opacity: 0, y: 10, scale: 0.96 }}
@@ -79,7 +79,7 @@ export function LockScreen({ onUnlock }: { onUnlock(email: string): void }) {
             placeholder="Email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="h-14 w-full rounded-full bg-white/45 px-5 text-center text-base text-ink shadow-[inset_0_0_0_1px_rgba(255,255,255,0.6)] outline-none transition-shadow placeholder:text-ink-subtle focus-visible:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.8),0_0_0_3px_rgba(28,28,30,0.18)]"
+            className="h-14 w-full rounded-full bg-white/45 px-5 text-center text-base text-ink shadow-[inset_0_0_0_1px_rgba(255,255,255,0.6)] outline-transparent transition-shadow placeholder:text-ink-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-chain"
           />
           <div className="relative">
             <label className="sr-only" htmlFor="lock-password">
@@ -93,7 +93,7 @@ export function LockScreen({ onUnlock }: { onUnlock(email: string): void }) {
               value={password}
               autoFocus
               onChange={(e) => setPassword(e.target.value)}
-              className="h-14 w-full rounded-full bg-white/45 pr-16 pl-5 text-center text-base text-ink shadow-[inset_0_0_0_1px_rgba(255,255,255,0.6)] outline-none transition-shadow placeholder:text-ink-subtle focus-visible:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.8),0_0_0_3px_rgba(28,28,30,0.18)]"
+              className="h-14 w-full rounded-full bg-white/45 pr-16 pl-5 text-center text-base text-ink shadow-[inset_0_0_0_1px_rgba(255,255,255,0.6)] outline-transparent transition-shadow placeholder:text-ink-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-chain"
             />
             <motion.button
               type="submit"
