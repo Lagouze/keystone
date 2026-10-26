@@ -12,7 +12,8 @@
     "prestart": "npm run build:bindings",
     "pretypecheck": "npm run build:bindings",
     "pretest": "npm run build:bindings",
-    "integration:c1": "npm run build:bindings && tsx scripts/integration-c1.ts"
+    "integration:c1": "npm run build:bindings && tsx scripts/integration-c1.ts",
+    "e2e:scenario2": "npm run build:bindings && tsx scripts/e2e-scenario2.ts"
   },
   "dependencies": {
     "@fastify/cors": "^11.0.0",
