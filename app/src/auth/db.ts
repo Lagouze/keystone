@@ -60,6 +60,13 @@ async function open(): Promise<PGlite> {
       hash       text NOT NULL,
       created_at timestamptz NOT NULL DEFAULT now()
     );
+    CREATE TABLE IF NOT EXISTS recovery (
+      email text PRIMARY KEY REFERENCES users(email) ON DELETE CASCADE,
+      code_hash text,
+      token_hash text,
+      expires_at bigint NOT NULL,
+      attempts integer NOT NULL DEFAULT 0
+    );
   `)
   await insertUser(db, DEMO_ACCOUNT.email, DEMO_ACCOUNT.password)
   return db
@@ -89,6 +96,7 @@ export type AuthResult = { ok: true; email: string } | { ok: false; error: strin
 
 export async function signIn(emailInput: string, password: string): Promise<AuthResult> {
   const email = normalizeEmail(emailInput)
+  if (!validEmail(email) || !password) return { ok: false, error: 'Enter a valid email and password.' }
   const result = await (await db()).query<{ salt: string; hash: string }>('SELECT salt, hash FROM users WHERE email = $1', [email])
   const row = result.rows[0]
   // Derive even for an unknown email, so both failures take the same time and read the same.
@@ -97,11 +105,88 @@ export async function signIn(emailInput: string, password: string): Promise<Auth
   return { ok: true, email }
 }
 
-export async function signUp(emailInput: string, password: string): Promise<AuthResult> {
+export function validEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmail(email))
+}
+
+export function passwordError(password: string, confirmation: string): string | null {
+  if (password.length < 10) return 'Use at least 10 characters.'
+  if (password !== confirmation) return 'Passwords do not match.'
+  return null
+}
+
+export async function signUp(emailInput: string, password: string, confirmation = password): Promise<AuthResult> {
   const email = normalizeEmail(emailInput)
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { ok: false, error: 'Enter a valid email.' }
-  if (password.length < 6) return { ok: false, error: 'Use at least 6 characters.' }
+  if (!validEmail(email)) return { ok: false, error: 'Enter a valid email.' }
+  const error = passwordError(password, confirmation)
+  if (error) return { ok: false, error }
   const created = await insertUser(await db(), email, password)
   if (!created) return { ok: false, error: 'An account already exists for this email.' }
   return { ok: true, email }
+}
+
+export const RECOVERY_TTL_MS = 10 * 60_000
+export const RECOVERY_ATTEMPTS = 5
+const randomToken = () => hex(crypto.getRandomValues(new Uint8Array(24)))
+const digest = async (value: string) => hex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)))
+const invalidRecovery = 'Invalid, expired or already used recovery code. Request a new code.'
+
+/** Local demonstration only: possession of this browser's database is the trust boundary.
+ * No email is sent. Only a matching local account receives a displayed code. */
+export async function requestRecovery(emailInput: string): Promise<AuthResult & { demoCode?: string }> {
+  const email = normalizeEmail(emailInput)
+  if (!validEmail(email)) return { ok: false, error: 'Enter a valid email.' }
+  const code = hex(crypto.getRandomValues(new Uint8Array(6))).toUpperCase()
+  const result = await (await db()).query(`
+    INSERT INTO recovery (email, code_hash, expires_at)
+    SELECT email, $2, $3 FROM users WHERE email = $1
+    ON CONFLICT (email) DO UPDATE SET code_hash = $2, token_hash = NULL, expires_at = $3, attempts = 0
+    RETURNING email`, [email, await digest(code), Date.now() + RECOVERY_TTL_MS])
+  return { ok: true, email, ...(result.rows.length ? { demoCode: code } : {}) }
+}
+
+export async function verifyRecovery(emailInput: string, codeInput: string): Promise<AuthResult & { resetToken?: string }> {
+  const email = normalizeEmail(emailInput)
+  const codeHash = await digest(codeInput.trim().toUpperCase())
+  return (await db()).transaction(async (tx) => {
+    const result = await tx.query<{ code_hash: string | null; expires_at: string; attempts: number }>(
+      'SELECT code_hash, expires_at, attempts FROM recovery WHERE email = $1 FOR UPDATE', [email])
+    const row = result.rows[0]
+    if (!row || !row.code_hash || Number(row.expires_at) <= Date.now() || row.attempts >= RECOVERY_ATTEMPTS) {
+      return { ok: false as const, error: invalidRecovery }
+    }
+    await tx.query('UPDATE recovery SET attempts = attempts + 1 WHERE email = $1', [email])
+    if (!same(codeHash, row.code_hash)) return { ok: false as const, error: invalidRecovery }
+    const resetToken = randomToken()
+    // Consume the code immediately. The short-lived reset grant is also single-use.
+    await tx.query('UPDATE recovery SET code_hash = NULL, token_hash = $2 WHERE email = $1', [email, await digest(resetToken)])
+    return { ok: true as const, email, resetToken }
+  })
+}
+
+export async function resetPassword(emailInput: string, resetToken: string, password: string, confirmation: string): Promise<AuthResult> {
+  const error = passwordError(password, confirmation)
+  if (error) return { ok: false, error }
+  const email = normalizeEmail(emailInput)
+  const salt = crypto.getRandomValues(new Uint8Array(16))
+  const hash = await derive(password, salt)
+  const tokenHash = await digest(resetToken)
+  return (await db()).transaction(async (tx) => {
+    const result = await tx.query<{ token_hash: string | null; expires_at: string }>(
+      'SELECT token_hash, expires_at FROM recovery WHERE email = $1 FOR UPDATE', [email])
+    const row = result.rows[0]
+    if (!row?.token_hash || Number(row.expires_at) <= Date.now() || !same(tokenHash, row.token_hash)) {
+      return { ok: false as const, error: invalidRecovery }
+    }
+    await tx.query('UPDATE users SET salt = $2, hash = $3 WHERE email = $1', [email, hex(salt), hash])
+    await tx.query('DELETE FROM recovery WHERE email = $1', [email])
+    return { ok: true as const, email }
+  })
+}
+
+// Imported only by the dynamically loaded development admin module; never exposes hashes in UI.
+export const developmentDatabase = db
+export async function passwordRecord(password: string): Promise<{ salt: string; hash: string }> {
+  const salt = crypto.getRandomValues(new Uint8Array(16))
+  return { salt: hex(salt), hash: await derive(password, salt) }
 }
