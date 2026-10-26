@@ -68,7 +68,6 @@ const sessions = new SessionManager({
 const app = buildServer(config, sessions, {
   market: createMarketProvider({
     cachePath: join(keeperDir, 'data', 'market-cache.local.json'),
-    vixEnabled: process.env.MARKET_VIX_ENABLED === 'true',
   }),
   allowedOrigin: (o) => isLocalOrigin(o) || extraOrigins.includes(o),
   // a hosted deployment adds its own host names here

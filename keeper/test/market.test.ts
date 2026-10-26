@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AdvisorWeights, MarketMetric, MarketMetricId } from '@keystone/shared';
-import { createMarketProvider, MARKET_URLS, parseObservations, realizedVolatility, unavailableMarket } from '../src/market-data.ts';
+import { createMarketProvider, MARKET_URLS, parseObservations, parseYahooVix, realizedVolatility, unavailableMarket } from '../src/market-data.ts';
 import { DEFAULT_WEIGHTS, scoreMarket } from '../src/market-scoring.ts';
 import { buildServer } from '../src/server.ts';
 import { config, makeKeeper } from './helpers.ts';
@@ -12,9 +12,16 @@ const now = new Date('2026-10-26T12:00:00Z');
 // Synthetic unit-test observations, never shipped as market values.
 const history = Array.from({ length: 21 }, (_, i) => ({ date: new Date(Date.UTC(2026, 9, i + 2)).toISOString().slice(0, 10), value: 2 + (i % 2 ? 0.1 : 0) }));
 const csv = (rows = history) => 'TIME_PERIOD,OBS_VALUE,TITLE\n' + rows.map((o) => `${o.date},${o.value},"quoted, title"`).join('\n');
+const unix = (iso: string) => Date.parse(iso) / 1000;
+const yahoo = () => ({ chart: { error: null, result: [{
+  meta: { symbol: '^VIX', dataGranularity: '1d', exchangeTimezoneName: 'America/Chicago', regularMarketPrice: 99,
+    currentTradingPeriod: { regular: { start: unix('2026-10-23T07:00:00Z'), end: unix('2026-10-23T20:15:00Z') } } },
+  timestamp: [unix('2026-10-22T07:00:00Z'), unix('2026-10-23T07:00:00Z')],
+  indicators: { quote: [{ close: [19.03, 19.45] }] },
+}] } });
 const fetchFn = vi.fn(async (url: string | URL | Request) => new Response(
   String(url) === MARKET_URLS.euribor3m ? 'TIME_PERIOD,OBS_VALUE\n2026-09,2.635'
-    : String(url) === MARKET_URLS.vix ? 'DATE,OPEN,HIGH,LOW,CLOSE\n10/23/2026,20,21,19,20'
+    : String(url) === MARKET_URLS.vix ? JSON.stringify(yahoo())
       : String(url) === MARKET_URLS.estr ? 'TIME_PERIOD,OBS_VALUE\n2026-10-22,2.442' : csv())) as unknown as typeof fetch;
 afterEach(() => vi.clearAllMocks());
 
@@ -32,16 +39,16 @@ describe('verifiable data and realized yield volatility', () => {
     expect(realizedVolatility(history.map((o) => ({ ...o, value: 2 }))).value).toBe(0);
     expect(() => realizedVolatility(history.map((o, i) => i === 0 ? { ...o, date: '2026-09-01' } : o))).toThrow();
   });
-  it('fetches no VIX without configured rights, deduplicates requests, labels in-memory reuse as cache', async () => {
+  it('fetches Yahoo VIX automatically, deduplicates requests, labels in-memory reuse as cache', async () => {
     const provider = createMarketProvider({ fetchFn, now: () => now });
     const [a, b] = await Promise.all([provider(), provider()]);
     expect(a).toEqual(b);
-    expect(fetchFn).toHaveBeenCalledTimes(3);
-    expect(a.metrics.find((m) => m.id === 'vix')).toMatchObject({ value: null, delivery: 'restricted' });
+    expect(fetchFn).toHaveBeenCalledTimes(4);
+    expect(a.metrics.find((m) => m.id === 'vix')).toMatchObject({ value: '19.450000', observedAt: '2026-10-23', delivery: 'source', freshness: 'current', source: { name: 'Yahoo Finance / Cboe' } });
     expect(a.metrics.find((m) => m.id === 'euribor3m')).toMatchObject({ value: '2.635000', observedAt: '2026-09', frequency: 'monthly average' });
-    expect(a.metrics.filter((m) => m.value !== null)).toHaveLength(4);
+    expect(a.metrics.filter((m) => m.value !== null)).toHaveLength(5);
     expect((await provider()).metrics.find((m) => m.id === 'estr')?.delivery).toBe('cache');
-    expect(fetchFn).toHaveBeenCalledTimes(3);
+    expect(fetchFn).toHaveBeenCalledTimes(4);
   });
   it('accepts the complete TARGET Easter holiday gap between published business observations', () => {
     const days = Array.from({ length: 50 }, (_, i) => new Date(Date.UTC(2026, 2, i + 1)))
@@ -52,9 +59,14 @@ describe('verifiable data and realized yield volatility', () => {
     expect(observations).toHaveLength(21);
     expect(realizedVolatility(observations).value).toBe(0);
   });
-  it('optionally parses the official VIX CSV and never relabels realized volatility MOVE', async () => {
-    const data = await createMarketProvider({ fetchFn, now: () => now, vixEnabled: true })();
-    expect(data.metrics.find((m) => m.id === 'vix')).toMatchObject({ value: '20.000000', observedAt: '2026-10-23' });
+  it('uses fresh Yahoo VIX as secondary scoring input and never relabels realized volatility MOVE', async () => {
+    const highVix = yahoo(); highVix.chart.result[0]!.indicators.quote[0]!.close[1] = 40;
+    const data = await createMarketProvider({ fetchFn: (async (url) => String(url) === MARKET_URLS.vix ? new Response(JSON.stringify(highVix)) : fetchFn(url)) as typeof fetch, now: () => now })();
+    expect(data.metrics.find((m) => m.id === 'vix')).toMatchObject({ value: '40.000000', observedAt: '2026-10-23' });
+    expect(data.advice.criteria.find((c) => c.id === 'valuation')?.metrics).toContain('vix');
+    const withoutVix = scoreMarket(data.metrics.filter((m) => m.id !== 'vix')).scores!;
+    expect(data.advice.scores!.KMMF).toBeLessThan(withoutVix.KMMF);
+    expect(data.advice.scores!.KBOND).toBeLessThan(withoutVix.KBOND);
     expect(data.metrics.find((m) => m.id === 'sovereignVol')?.name).not.toContain('MOVE');
   });
   it('rejects a missing ordinary business day after parsing an explicitly empty ECB observation', async () => {
@@ -77,9 +89,18 @@ describe('verifiable data and realized yield volatility', () => {
       await createMarketProvider({ cachePath, fetchFn, now: () => now })();
       expect(JSON.parse(await readFile(cachePath, 'utf8')).advice).toBeUndefined();
       const offline = vi.fn(async () => { throw new Error('offline'); }) as unknown as typeof fetch;
+      const fallback = await createMarketProvider({ cachePath, fetchFn: offline, now: () => now })();
+      expect(fallback.metrics.find((m) => m.id === 'vix')).toMatchObject({ value: '19.450000', delivery: 'cache', freshness: 'current', observedAt: '2026-10-23', retrievedAt: now.toISOString() });
+      expect(fallback.advice.criteria.find((c) => c.id === 'valuation')?.metrics).toContain('vix');
       const data = await createMarketProvider({ cachePath, fetchFn: offline, now: () => new Date('2026-11-26T12:00:00Z') })();
       expect(data.metrics.find((m) => m.id === 'estr')).toMatchObject({ delivery: 'cache', freshness: 'stale', observedAt: '2026-10-22' });
       expect(data.advice.outcome).toBe('Insufficient market data');
+      expect(data.metrics.find((m) => m.id === 'vix')).toMatchObject({ delivery: 'cache', freshness: 'stale', observedAt: '2026-10-23' });
+      expect(data.advice.criteria).toHaveLength(0);
+      // Previous Cboe CSV observations must never be relabelled as Yahoo.
+      const old = (await createMarketProvider({ fetchFn, now: () => now })()).metrics.find((m) => m.id === 'vix')!;
+      await writeFile(cachePath, JSON.stringify({ version: 1, metrics: [{ ...old, source: { ...old.source, url: 'https://www.cboe.com/tradable-products/vix/vix-historical-data/' } }] }));
+      expect((await createMarketProvider({ cachePath, fetchFn: offline, now: () => now })()).metrics.find((m) => m.id === 'vix')?.value).toBeNull();
       // Untrusted cache cannot provide a different source URL or inject an old recommendation.
       await writeFile(cachePath, '{"version":1,"metrics":[{"id":"estr","value":"NaN"}]}');
       expect((await createMarketProvider({ cachePath, fetchFn: offline, now: () => now })()).metrics.every((m) => m.value === null)).toBe(true);
@@ -96,6 +117,50 @@ describe('verifiable data and realized yield volatility', () => {
       const data = await createMarketProvider({ fetchFn: fn as typeof fetch, now: () => now, timeoutMs: 10 })();
       expect(data.advice.outcome).toBe('Insufficient market data');
       expect(data.metrics.every((m) => m.value === null)).toBe(true);
+    }
+  });
+});
+
+describe('Yahoo daily VIX closes', () => {
+  it('selects the latest timestamp-aligned valid close, skips nulls/future points and ignores regularMarketPrice', () => {
+    const data = yahoo(); const result = data.chart.result[0]!;
+    result.timestamp = [unix('2026-10-23T07:00:00Z'), unix('2026-10-22T07:00:00Z'), unix('2026-10-27T07:00:00Z')];
+    result.indicators.quote[0]!.close = [19.45, 19.03, 80];
+    expect(parseYahooVix(data, now)).toEqual({ value: 19.45, date: '2026-10-23' });
+    const missing = structuredClone(data) as unknown as { chart: { result: { indicators: { quote: { close: unknown[] }[] } }[] } };
+    missing.chart.result[0]!.indicators.quote[0]!.close[0] = null;
+    expect(parseYahooVix(missing, now)).toEqual({ value: 19.03, date: '2026-10-22' });
+  });
+  it('does not call a still-open daily bar a close; includes it at the exact session end', () => {
+    const data = yahoo();
+    expect(parseYahooVix(data, new Date('2026-10-23T19:00:00Z'))).toEqual({ value: 19.03, date: '2026-10-22' });
+    expect(parseYahooVix(data, new Date('2026-10-23T20:15:00Z'))).toEqual({ value: 19.45, date: '2026-10-23' });
+  });
+  it('uses the exchange calendar date across UTC midnight', () => {
+    const data = yahoo(); const result = data.chart.result[0]!;
+    result.timestamp = [unix('2026-10-24T00:15:00Z')];
+    result.indicators.quote[0]!.close = [19.45];
+    expect(parseYahooVix(data, now)).toEqual({ value: 19.45, date: '2026-10-23' });
+  });
+  it('rejects errors, malformed charts, wrong ticker/granularity/timezone, nonfinite/negative closes and no completed bar', () => {
+    const cases: unknown[] = [null, {}, { chart: { error: { code: 'Not Found' }, result: null } }];
+    for (const mutate of [
+      (d: ReturnType<typeof yahoo>) => { d.chart.result[0]!.meta.symbol = '^OTHER'; },
+      (d: ReturnType<typeof yahoo>) => { d.chart.result[0]!.meta.dataGranularity = '1m'; },
+      (d: ReturnType<typeof yahoo>) => { d.chart.result[0]!.meta.exchangeTimezoneName = 'invalid'; },
+      (d: ReturnType<typeof yahoo>) => { d.chart.result[0]!.timestamp.pop(); },
+      (d: ReturnType<typeof yahoo>) => { d.chart.result[0]!.indicators.quote[0]!.close = [NaN, -1]; },
+      (d: ReturnType<typeof yahoo>) => { d.chart.result[0]!.meta.currentTradingPeriod.regular.end = 0; },
+    ]) { const data = yahoo(); mutate(data); cases.push(data); }
+    for (const data of cases) expect(() => parseYahooVix(data, now)).toThrow();
+    expect(() => parseYahooVix(yahoo(), new Date('2026-10-22T06:00:00Z'))).toThrow();
+  });
+  it('keeps core advice available when only Yahoo fails or returns invalid JSON', async () => {
+    for (const response of [new Response('rate limited', { status: 429 }), new Response('{bad json'), new Response(JSON.stringify({ chart: { error: { code: 'Unavailable' }, result: null } }))]) {
+      const data = await createMarketProvider({ fetchFn: (async (url) => String(url) === MARKET_URLS.vix ? response : fetchFn(url)) as typeof fetch, now: () => now })();
+      expect(data.metrics.find((m) => m.id === 'vix')).toMatchObject({ delivery: 'unavailable', value: null });
+      expect(data.advice.scores).not.toBeNull();
+      expect(data.advice.criteria.find((c) => c.id === 'valuation')?.metrics).not.toContain('vix');
     }
   });
 });

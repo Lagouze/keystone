@@ -7,7 +7,7 @@ import { Modal } from '../ui/Modal.tsx'
 
 function Source({ metric }: { metric: MarketMetric }) {
   // Source links are restricted to HTTPS; values are plain React text, never HTML.
-  const safe = /^https:\/\/(data\.ecb\.europa\.eu|www\.cboe\.com)\//.test(metric.source.url)
+  const safe = /^https:\/\/(data\.ecb\.europa\.eu|www\.cboe\.com|finance\.yahoo\.com)\//.test(metric.source.url)
   return safe ? <a className="underline underline-offset-2" href={metric.source.url} target="_blank" rel="noreferrer">{metric.source.name}</a> : <span>{metric.source.name}</span>
 }
 
