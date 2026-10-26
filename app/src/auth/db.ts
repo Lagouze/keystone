@@ -3,7 +3,7 @@
 //
 // Limit (by design, decided for the demo): this database lives in the visitor's browser. It gates
 // the demo screen; it is not a security boundary, and accounts are not shared between browsers.
-import type { PGlite } from '@electric-sql/pglite'
+import type { PGlite, Transaction } from '@electric-sql/pglite'
 
 /** Default account, so the demo can be opened without signing up. */
 export const DEMO_ACCOUNT = { email: 'demo@keystone.app', password: 'stellar' } as const
@@ -80,6 +80,18 @@ function db(): Promise<PGlite> {
   return dbPromise
 }
 
+/**
+ * A transaction written through to IndexedDB before it resolves. PGlite flushes to storage after
+ * `query()`, but not after `transaction()`: without this, a reload right after a password reset
+ * lost the new password.
+ */
+export async function durable<T>(run: (tx: Transaction) => Promise<T>): Promise<T> {
+  const database = await db()
+  const result = await database.transaction(run)
+  await database.syncToFs()
+  return result
+}
+
 /** Starts loading the database early (the lock screen calls it on mount). */
 export function warmUp(): Promise<void> {
   return db().then(
@@ -148,7 +160,7 @@ export async function requestRecovery(emailInput: string): Promise<AuthResult & 
 export async function verifyRecovery(emailInput: string, codeInput: string): Promise<AuthResult & { resetToken?: string }> {
   const email = normalizeEmail(emailInput)
   const codeHash = await digest(codeInput.trim().toUpperCase())
-  return (await db()).transaction(async (tx) => {
+  return durable(async (tx) => {
     const result = await tx.query<{ code_hash: string | null; expires_at: string; attempts: number }>(
       'SELECT code_hash, expires_at, attempts FROM recovery WHERE email = $1 FOR UPDATE', [email])
     const row = result.rows[0]
@@ -171,7 +183,7 @@ export async function resetPassword(emailInput: string, resetToken: string, pass
   const salt = crypto.getRandomValues(new Uint8Array(16))
   const hash = await derive(password, salt)
   const tokenHash = await digest(resetToken)
-  return (await db()).transaction(async (tx) => {
+  return durable(async (tx) => {
     const result = await tx.query<{ token_hash: string | null; expires_at: string }>(
       'SELECT token_hash, expires_at FROM recovery WHERE email = $1 FOR UPDATE', [email])
     const row = result.rows[0]

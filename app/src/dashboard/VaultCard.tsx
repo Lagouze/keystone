@@ -3,7 +3,7 @@ import type { AssetInfo, SessionState } from '@keystone/shared'
 import { formatUnits, valueAfterHaircut } from '../lib/format.ts'
 import { AutoHeight } from '../ui/AutoHeight.tsx'
 import { Card, CoverageBar, Stat } from '../ui/index.ts'
-import { RollUnits } from '../ui/motion.tsx'
+import { Figure, RollUnits } from '../ui/motion.tsx'
 
 interface VaultCardProps {
   session: SessionState
@@ -21,6 +21,8 @@ export const VaultCard = memo(function VaultCard({ session, asset, duration }: V
   // A larger gap is a posting on its way to the ledger (or one that failed, which the error banner
   // reports), not a requirement left unposted on purpose.
   const { margin } = session
+  // The fund's gain on the swap is what the bank owes it (cash, simulated).
+  const owedEur = Math.max(0, Number(margin.mtmFundEur))
   const gap = BigInt(margin.requiredUnits) - BigInt(vault.requiredUnits)
   const gapEur = Number(valueAfterHaircut((gap < 0n ? -gap : gap).toString(), asset.decimals, margin.unitPriceEur, margin.haircutPct))
   const notPosted = vault.status !== 'defaulted' && gap !== 0n && gapEur < Number(margin.mtaEur)
@@ -47,12 +49,24 @@ export const VaultCard = memo(function VaultCard({ session, asset, duration }: V
               <RollUnits units={balances.fundUnits} decimals={asset.decimals} duration={duration} /> {asset.code}
             </dd>
           </div>
-          <div className="flex items-baseline gap-2">
-            <dt className="text-ink-subtle">Bank</dt>
-            <dd className={BigInt(balances.bankUnits) > 0n ? 'font-medium text-danger' : 'font-medium'}>
-              <RollUnits units={balances.bankUnits} decimals={asset.decimals} duration={duration} /> {asset.code}
-            </dd>
-          </div>
+          {BigInt(balances.bankUnits) > 0n ? (
+            // After a default: the tokens the vault sent to the bank, the on-chain settlement.
+            <div className="flex items-baseline gap-2">
+              <dt className="text-ink-subtle">Bank received</dt>
+              <dd className="font-medium text-danger">
+                <RollUnits units={balances.bankUnits} decimals={asset.decimals} duration={duration} /> {asset.code}
+              </dd>
+            </div>
+          ) : (
+            // Otherwise the other direction: when the swap moves in the fund's favour, the bank owes
+            // the fund its gain in cash. Simulated: the vault only holds the fund's collateral.
+            <div className="flex items-baseline gap-2" title="Simulated: the bank's side is not collateralized on-chain">
+              <dt className="text-ink-subtle">Bank owes the fund</dt>
+              <dd className={owedEur > 0 ? 'font-medium text-success' : 'font-medium'}>
+                <Figure value={owedEur} decimals={2} /> € <span className="text-xs font-normal text-ink-subtle">simulated</span>
+              </dd>
+            </div>
+          )}
         </dl>
         {notPosted && (
           <p className="mt-3 text-xs text-ink-subtle">

@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode, type Ref } from 'react'
 import { createPortal } from 'react-dom'
-import { AnimatePresence, motion } from 'motion/react'
+import { AnimatePresence, motion, useIsPresent } from 'motion/react'
 import type { AssetId, KeystoneConfig, VaultStatus } from '@keystone/shared'
 import { LockScreen } from './auth/LockScreen.tsx'
 import { currentUser, rememberUser } from './auth/session.ts'
@@ -33,27 +33,56 @@ const PAGE = {
   transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] as const },
 }
 
+/**
+ * One page of the main area. While it fades out (popLayout keeps it over the new one), it is inert:
+ * no clicks, no focus, nothing read by screen readers; only the new page is live.
+ */
+function Page({
+  as = 'main',
+  className,
+  children,
+  ref,
+}: {
+  as?: 'main' | 'div'
+  className?: string
+  children: ReactNode
+  ref?: Ref<HTMLElement>
+}) {
+  const present = useIsPresent()
+  const Tag = as === 'main' ? motion.main : motion.div
+  return (
+    <Tag ref={ref as Ref<HTMLDivElement>} {...PAGE} className={className} inert={!present}>
+      {children}
+    </Tag>
+  )
+}
+
 /** The lock screen comes first; the keeper connection opens only once someone is signed in. */
 export default function App() {
   const [user, setUser] = useState<string | null>(currentUser)
+  // A new key on every lock and unlock: a screen still fading out is never revived with its old
+  // state (a lock right after an unlock used to bring back the previous form).
+  const [round, setRound] = useState(0)
   const unlock = (email: string) => {
     rememberUser(email)
     setUser(email)
+    setRound((r) => r + 1)
   }
   const lock = () => {
     rememberUser(null)
     setUser(null)
+    setRound((r) => r + 1)
   }
   return (
     <>
       <Aura />
       <AnimatePresence>
       {user ? (
-        <motion.div key="app" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4, delay: 0.15 }}>
+        <motion.div key={`app-${round}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4, delay: 0.15 }}>
           <Main user={user} onLock={lock} />
         </motion.div>
       ) : (
-        <LockScreen key="lock" onUnlock={unlock} />
+        <LockScreen key={`lock-${round}`} onUnlock={unlock} />
       )}
       </AnimatePresence>
     </>
@@ -119,8 +148,7 @@ function Main({ user, onLock }: { user: string; onLock(): void }) {
           <Banner tone="danger" live>
             <div className="flex items-start justify-between gap-4">
               <span>
-                {k.loadError.code === 'KeeperUnreachable' ? 'Keeper unreachable.' : `Keeper error (${k.loadError.code}).`}{' '}
-                {k.loadError.message}
+                {k.loadError.code === 'KeeperUnreachable' ? k.loadError.message : `Keeper error (${k.loadError.code}). ${k.loadError.message}`}
                 {!mocks && <> ({KEEPER_URL})</>}
               </span>
               <button
@@ -155,22 +183,25 @@ function Main({ user, onLock }: { user: string; onLock(): void }) {
         </AnimatePresence>
       </div>
 
-      <AnimatePresence mode="wait" onExitComplete={() => window.scrollTo(0, 0)}>
+      {/* popLayout, not wait: the new page mounts at once and the old one fades out of the flow.
+          With "wait", a hidden tab (no animation frames) kept the old page, a loading skeleton
+          for instance, on screen until the tab came back. */}
+      <AnimatePresence mode="popLayout" onExitComplete={() => window.scrollTo(0, 0)}>
         {!k.config ? (
           !k.loadError && (
-            <motion.div key="loading" {...PAGE}>
+            <Page key="loading" as="div">
               <HeroSkeleton />
-            </motion.div>
+            </Page>
           )
         ) : !stage || !asset ? (
-          <motion.main key="landing" {...PAGE}>
+          <Page key="landing">
             <Landing config={k.config} busy={k.busy === 'start'} onStart={startSession} />
-          </motion.main>
+          </Page>
         ) : (
-          <motion.main key={`session-${stage.shown.sessionId}`} {...PAGE} className="mx-auto max-w-6xl px-4 py-5 sm:px-6">
+          <Page key={`session-${stage.shown.sessionId}`} className="mx-auto max-w-6xl px-4 py-5 sm:px-6">
             <Dashboard k={k} stage={stage} config={k.config} mocks={mocks} />
             <DetailsModal open={details} onClose={() => setDetails(false)} session={stage.shown} asset={asset} />
-          </motion.main>
+          </Page>
         )}
       </AnimatePresence>
     </>
@@ -205,7 +236,7 @@ function TopBar({
           <h1 className="text-[0.9375rem]">
             <Wordmark />
           </h1>
-          {mocks ? <Chip>Demo data · nothing sent to Stellar</Chip> : <Chip>Testnet</Chip>}
+          {mocks ? <Chip>Demo data · nothing sent to Stellar</Chip> : <Chip>Stellar Testnet</Chip>}
           {/* §4: the public demo (SIGNER=keeper) must say that the keeper signs for the fund. */}
           {k.config?.signerMode === 'keeper' && <Chip>Public demo · keeper signs</Chip>}
         </div>
@@ -218,8 +249,17 @@ function TopBar({
                 k.loadError ? 'bg-danger' : k.connection === 'open' ? 'bg-success' : 'bg-ink-subtle',
               )}
             />
-            <span className={cx(!mocks && !k.loadError && k.connection !== 'open' ? 'text-xs' : 'sr-only')}>
-              {k.loadError ? 'Keeper unreachable' : mocks ? 'Mock keeper' : k.connection === 'open' ? 'Live' : 'Reconnecting…'}
+            {/* The keeper's real state: the event stream is open, (re)connecting, or the keeper is down. */}
+            <span className="text-xs max-sm:sr-only">
+              {k.loadError
+                ? 'Keeper unreachable'
+                : mocks
+                  ? 'Mock keeper'
+                  : k.connection === 'open'
+                    ? 'Keeper connected'
+                    : k.connection === 'connecting'
+                      ? 'Connecting…'
+                      : 'Reconnecting…'}
             </span>
           </span>
           {onDetails && (

@@ -35,7 +35,8 @@ export function PasswordField({
         placeholder={label}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className={`${AUTH_INPUT} ${trailing ? '!pr-28 !pl-28' : '!pr-16 !pl-16'}`}
+        // Symmetric padding keeps the text centered; narrow screens give the left side back to the text.
+        className={`${AUTH_INPUT} ${trailing ? '!pr-28 !pl-6 sm:!pl-28' : '!pr-16 !pl-6 sm:!pl-16'}`}
       />
       <div className="absolute top-2.5 right-2.5 flex items-center gap-1">
         <button
