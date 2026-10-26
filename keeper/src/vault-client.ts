@@ -49,7 +49,12 @@ export interface DeployParams {
 export interface SignedTxInfo {
   action: "deposit" | "withdraw";
   units: bigint;
+  /** Hash of the signed transaction, known before it is sent (absent on the in-memory vault). */
+  txHash?: string;
 }
+
+/** Outcome of a transaction looked up by hash. NOT_FOUND: not (yet) included in a ledger. */
+export type TxStatus = "SUCCESS" | "FAILED" | "NOT_FOUND";
 
 /**
  * Failures: a business rejection throws `VaultError` (409, section 3.6); a rejection outside the
@@ -58,6 +63,8 @@ export interface SignedTxInfo {
  * confirmed.
  */
 export interface VaultClient {
+  /** Looks a transaction up by hash; used to settle entries left pending by a timeout. */
+  txStatus(hash: string): Promise<TxStatus>;
   /** Ledger time in seconds: the authority for deadlines. */
   ledgerTime(): Promise<bigint>;
   deploy(params: DeployParams): Promise<{ vaultId: string; txHash: string }>;

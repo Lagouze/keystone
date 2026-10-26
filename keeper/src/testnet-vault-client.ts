@@ -6,7 +6,7 @@ import {
 } from "vault-client";
 import { CONTRACT_ERRORS, KeeperError, VaultError } from "./errors.ts";
 import type {
-  DeployParams, OnChainStatus, SignedTxInfo, TxResult, VaultClient, VaultEvent, VaultState,
+  DeployParams, OnChainStatus, SignedTxInfo, TxResult, TxStatus, VaultClient, VaultEvent, VaultState,
 } from "./vault-client.ts";
 
 export interface TestnetOptions {
@@ -83,14 +83,22 @@ export class TestnetVaultClient implements VaultClient {
     });
   }
 
+  async txStatus(hash: string): Promise<TxStatus> {
+    return this.guard(async () => {
+      const res = await this.server.getTransaction(hash);
+      return res.status === "SUCCESS" ? "SUCCESS" : res.status === "FAILED" ? "FAILED" : "NOT_FOUND";
+    });
+  }
+
   async deploy(p: DeployParams): Promise<{ vaultId: string; txHash: string }> {
     return this.guard(async () => {
       const tx = await VaultBindings.deploy(
         { fund: p.fund, bank: p.bank, keeper: p.keeper, asset: p.assetSac, max_required: p.maxRequired, grace_period_secs: p.gracePeriodSecs },
         { ...this.base(this.o.keeper), timeoutInSeconds: this.timeout, wasmHash: this.o.wasmHash, format: "hex" },
       );
-      const sent = await tx.signAndSend();
-      const vaultId = (sent.result as VaultBindings).options.contractId;
+      // The contract address is known from the simulation: keep it if the confirmation times out.
+      const vaultId = (tx.result as VaultBindings).options.contractId;
+      const sent = await this.send(tx, vaultId);
       return { vaultId, txHash: this.hashOf(sent) };
     });
   }
@@ -158,7 +166,10 @@ export class TestnetVaultClient implements VaultClient {
       if ((action !== "deposit" && action !== "withdraw") || args.length !== 1 || args[0]!.switch().name !== "scvI128") {
         throw new Error("not a deposit or withdraw of an amount");
       }
-      return { action, units: BigInt(scValToNative(args[0]!) as bigint), vaultId: Address.fromScAddress(call.contractAddress()).toString() };
+      return {
+        action, units: BigInt(scValToNative(args[0]!) as bigint), vaultId: Address.fromScAddress(call.contractAddress()).toString(),
+        txHash: tx.hash().toString("hex"),
+      };
     } catch {
       throw new KeeperError("BadRequest", "Only a deposit or withdraw of an i128 amount on the vault may be submitted");
     }
@@ -171,7 +182,9 @@ export class TestnetVaultClient implements VaultClient {
       const tx = TransactionBuilder.fromXDR(signedTxXdr, this.o.networkPassphrase);
       const sent = await this.server.sendTransaction(tx);
       if (sent.status === "ERROR" || sent.status === "TRY_AGAIN_LATER") {
-        throw new KeeperError(sent.status === "ERROR" ? "TxFailed" : "RpcUnavailable", `The network refused the transaction (${sent.status})`);
+        const refused = new KeeperError(sent.status === "ERROR" ? "TxFailed" : "RpcUnavailable", `The network refused the transaction (${sent.status})`);
+        refused.notSent = true;
+        throw refused;
       }
       const res = await this.confirm(sent.hash);
       return { txHash: sent.hash, events: await this.eventsOf(vaultId, sent.hash, res.ledger), state: await this.getState(vaultId) };
@@ -202,13 +215,29 @@ export class TestnetVaultClient implements VaultClient {
   ): Promise<TxResult> {
     return this.guard(vaultId, async () => {
       const tx = await call(this.bindings(vaultId, signer), { timeoutInSeconds: this.timeout });
-      const sent = await tx.signAndSend();
+      const sent = await this.send(tx, vaultId);
       const txHash = this.hashOf(sent);
       const res = await this.confirm(txHash);
       // The transaction is confirmed: a failing event read must not turn it into an error.
       const events = await this.eventsOf(vaultId, txHash, res.ledger).catch(() => []);
       return { txHash, events, state: toState(sent.result) };
     });
+  }
+
+  /** signAndSend, tagging a lost confirmation with the hash of the transaction that was already sent. */
+  private async send<T extends { signAndSend(): Promise<unknown>; sendTransactionResponse?: { hash: string } }>(
+    tx: T, vaultId?: string,
+  ): Promise<Awaited<ReturnType<T["signAndSend"]>>> {
+    try {
+      return (await tx.signAndSend()) as Awaited<ReturnType<T["signAndSend"]>>;
+    } catch (e) {
+      const mapped = mapChainError(e, vaultId);
+      if (mapped.code === "RpcUnavailable" && tx.sendTransactionResponse?.hash) {
+        mapped.txHash = tx.sendTransactionResponse.hash;
+        if (vaultId) mapped.vaultId = vaultId;
+      }
+      throw mapped;
+    }
   }
 
   private hashOf(sent: { sendTransactionResponse?: { hash: string } }): string {
@@ -222,7 +251,9 @@ export class TestnetVaultClient implements VaultClient {
     const res = await this.server.pollTransaction(hash, { attempts: Math.ceil(this.timeout / 2), sleepStrategy: () => 2000 });
     if (res.status === "SUCCESS") return { ledger: res.ledger };
     if (res.status === "FAILED") throw new KeeperError("TxFailed", `Transaction ${hash} failed on-chain`);
-    throw new KeeperError("RpcUnavailable", `No confirmation for ${hash} after ${this.timeout}s`);
+    const pending = new KeeperError("RpcUnavailable", `No confirmation for ${hash} after ${this.timeout}s`);
+    pending.txHash = hash;
+    throw pending;
   }
 
   private async eventsOf(vaultId: string, hash: string, ledger: number): Promise<VaultEvent[]> {

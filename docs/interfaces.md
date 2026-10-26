@@ -1,6 +1,6 @@
 # Keystone — Shared interfaces
 
-**Version: v1.3** (v1.0 frozen at the end of the kickoff; later changes follow section 6).
+**Version: v1.4** (v1.0 frozen at the end of the kickoff; later changes follow section 6).
 
 This file is the single source of truth for everything exchanged between the three poles: the Soroban contract, the keeper API and the shared TypeScript types. `README.md` and `AGENTS.md` refer to it. When they disagree, this file wins.
 
@@ -120,6 +120,8 @@ Each event has a single topic: a symbol carrying the exact event name below. Dat
 
 Base URL: `http://localhost:8787/api` in local development; the public URL is set at deployment (decision A8). CORS is open to the local and public front. JSON everywhere.
 
+**Write authorization (v1.4, hosted keeper).** A keeper listening beyond loopback requires `Authorization: Bearer <access code>` on every `POST` route (the codes are listed in the keeper's `KEEPER_ACCESS_TOKENS`, never in the web bundle). A missing or wrong code returns `Unauthorized` (401) before anything is read or sent. `GET` routes stay open: they expose public Testnet data only. A local keeper (loopback, no code configured) behaves as before. `GET /config` tells which mode applies through `writeAuth`, and which vault backs the keeper through `backend`.
+
 **Formats.** Amounts, rates and timestamps travel as strings, never as JSON numbers. The only other JSON types are numbers for `bp`, `epoch`, `tenorYears` and `decimals`, the boolean `ok` of `GET /health`, and `null` for `callDeadline` outside a margin call:
 
 - `*Units`: integer in the token's smallest unit (7 decimals: 300 shares = `"3000000000"`). The keeper converts the contract's `i128` straight to a decimal string, without going through a JS `number`.
@@ -148,6 +150,8 @@ Base URL: `http://localhost:8787/api` in local development; the public URL is se
 
 **Write routes** (`POST /session`, `submit`, `rate-shock`, `settle-default`, `deposit`, `withdraw`) respond once the transaction is confirmed or failed (`getTransaction` SUCCESS or FAILED). The `pending` entry is sent on the SSE stream before that. Without confirmation after 60 s, the route returns `RpcUnavailable` and the entry stays `pending` until its outcome is known.
 
+**Unconfirmed transactions (v1.4).** When a transaction was sent but not confirmed (`RpcUnavailable`), its `pending` entry carries its `txHash`. The keeper then refuses every write and every `prepare` with `PendingTransaction` until it has looked the hash up: `SUCCESS` turns the entry `confirmed` (with its link), `FAILED` turns it `failed`, and a hash still not found 200 s after it was sent (longer than the validity of any transaction the keeper builds) turns it `failed` ("never included"). The keeper repeats the lookup every 15 s by itself. A hosted keeper keeps its session in a JSON file (`KEEPER_DATA_DIR`) and reloads it after a restart, checking the vault on-chain; the unconfirmed transaction is saved with it. The front's own 200 s guard is only a convenience: the keeper decides.
+
 **Rate shock.** `bp` is added to the current float rate (cumulative: −50 then −30 = −80 bp from the start); `floatRateSource` becomes `"scenario"` after the first shock. If the requirement moves by less than the MTA, no transaction is sent and only a `rate_shock` `sim` entry is added. After `defaulted`, `rate-shock` returns `Defaulted` (409) without changing anything: `margin` stays frozen, so `margin.requiredUnits` and `margin.requiredValueEur` remain the last computed requirement, shown as "last computed requirement (historical)" while `vault.requiredUnits` is `"0"`.
 
 **SSE.** Two named events:
@@ -165,6 +169,8 @@ Base URL: `http://localhost:8787/api` in local development; the public URL is se
 | contract error name (section 3.6) | 409 | the vault rejected the call, for example `GracePeriodRunning` |
 | `TxFailed` | 502 | transaction rejected or failed outside the vault's business rules (authorization, SAC, simulation); details in `message` |
 | `RpcUnavailable` | 503 | RPC unreachable, or no confirmation after 60 s |
+| `Unauthorized` | 401 | (v1.4) write route called without a valid access code on a hosted keeper |
+| `PendingTransaction` | 409 | (v1.4) a transaction sent earlier has no known outcome yet; no new write starts until it is confirmed, failed or expired (see below) |
 
 `SIGNER=keeper` is used by the end-to-end script and by the **public demo URL**, because judges cannot sign with the fund key. The front shows a visible notice in that mode.
 
@@ -207,6 +213,8 @@ export interface KeystoneConfig {
   accounts: { fund: string; bank: string; keeper: string };
   assets: AssetInfo[];
   signerMode: SignerMode;
+  backend?: "testnet" | "fake"; // v1.4: "fake" = in-memory vault, no real transaction
+  writeAuth?: "token" | "none"; // v1.4: "token" = POST routes need `Authorization: Bearer <access code>`
 }
 
 export interface SessionState {
@@ -333,6 +341,7 @@ export interface MarketSnapshot {
 
 | Version | Date | Change |
 | --- | --- | --- |
+| v1.4 | 2026-10-26 | Compatible addition for the hosted keeper (consuming pole: front): optional `backend` and `writeAuth` in `KeystoneConfig`, `Authorization: Bearer` on write routes, error codes `Unauthorized` (401) and `PendingTransaction` (409), reconciliation of unconfirmed transactions by hash, durable session. Local behaviour unchanged. |
 | v1.3 | 2026-10-26 | Compatible addition for front: read-only `GET /market-advisor`, diagnostic types in `packages/shared/src/market.ts`, real-source/freshness/cache semantics and explainable class scoring. Existing session/contract types and behaviours unchanged. |
 | v1.0-rc | 2026-10-25 | Initial proposal for the kickoff. |
 | v1.0 | 2026-10-25 | Kickoff amendments (Issue #5): `AssetId` `BOND` → `KBOND`; full constructor signature; state after `settle_default` and no rebalancing after `Defaulted`; deadline rules; SAC balance invariant `>=`; named event data; error precisions; keeper formats, error codes, write-route timing, rate-shock rule (refused after `defaulted`, `margin` frozen), single session; SSE `activity` and `state` events; `ActivityEvent.sessionId`; `ActivityType` mapping; `deployments/testnet.json` written by the keeper. |

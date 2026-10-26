@@ -5,6 +5,7 @@ import type { AssetId, KeystoneConfig, VaultStatus } from '@keystone/shared'
 import { LockScreen } from './auth/LockScreen.tsx'
 import { currentUser, rememberUser } from './auth/session.ts'
 import { KEEPER_URL } from './config.ts'
+import { AccessCodeModal } from './dashboard/AccessCodeModal.tsx'
 import { ActionsCard } from './dashboard/ActionsCard.tsx'
 import { ActivityFeed } from './dashboard/ActivityFeed.tsx'
 import { assetOf } from './dashboard/assets.ts'
@@ -131,9 +132,15 @@ function Main({ user, onLock }: { user: string; onLock(): void }) {
   const mocks = k.source === 'mocks'
   const asset = k.config && k.session ? assetOf(k.config, k.session) : null
   const [details, setDetails] = useState(false)
+  // Asked as soon as the keeper says it needs a code; "Not now" keeps the page readable until an action is refused.
+  const [codeDismissed, setCodeDismissed] = useState(false)
+  useEffect(() => {
+    if (k.error?.code === 'Unauthorized') setCodeDismissed(false)
+  }, [k.error])
 
   return (
     <>
+      <AccessCodeModal open={k.needsAccessCode && !codeDismissed} onSave={k.saveAccessCode} onClose={() => setCodeDismissed(true)} />
       <TopBar
         k={k}
         mocks={mocks}
@@ -237,6 +244,8 @@ function TopBar({
             <Wordmark />
           </h1>
           {mocks ? <Chip>Demo data · nothing sent to Stellar</Chip> : <Chip>Stellar Testnet</Chip>}
+          {/* A keeper on the in-memory vault says so: its hashes are not Testnet transactions. */}
+          {!mocks && k.config?.backend === 'fake' && <Chip>Demo backend · fake transactions</Chip>}
           {/* §4: the public demo (SIGNER=keeper) must say that the keeper signs for the fund. */}
           {k.config?.signerMode === 'keeper' && <Chip>Public demo · keeper signs</Chip>}
         </div>

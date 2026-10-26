@@ -215,7 +215,11 @@ Verified on the keeper machine (macOS). Not yet verified on Windows.
 | `PORT` | keeper | API port, default 8787 |
 | `KEEPER_BACKEND` | keeper | `testnet` (real vault on Stellar Testnet, real transactions) or `fake` (in-memory vault, fake `FAKE…` hashes, no transaction; used by the tests). No default: the keeper refuses to start without it |
 | `KEEPER_ALLOWED_ORIGINS` | keeper | Extra browser origins allowed by CORS (comma separated). `localhost` and `127.0.0.1` are always allowed; the keeper listens on `127.0.0.1` only |
-| `VITE_KEEPER_URL` | dashboard | Keeper API base URL |
+| `KEEPER_HOST` | keeper | Listening address, default `127.0.0.1`. A hosted keeper sets `0.0.0.0`; it then requires `KEEPER_ACCESS_TOKENS`, `KEEPER_ALLOWED_ORIGINS` and `KEEPER_PUBLIC_HOSTS`, refuses `SIGNER=keeper` and a `FUND_SECRET`, and ignores localhost origins |
+| `KEEPER_ACCESS_TOKENS` | hosted keeper | Access codes (32 characters or more, comma separated) required as `Authorization: Bearer` on every `POST` route |
+| `KEEPER_PUBLIC_HOSTS` | hosted keeper | Public host name(s) of the keeper (Host header check) |
+| `KEEPER_DATA_DIR` | keeper | Where the session file and the Euribor and market caches are kept (a mounted volume when hosted). Default `keeper/data` |
+| `VITE_KEEPER_URL` | dashboard | Keeper API base URL. A Vercel build refuses anything but an HTTPS address |
 | `VITE_USE_MOCKS` | dashboard | `true` to run on mocks |
 
 ## 9. Commands
@@ -225,7 +229,7 @@ Only commands that have been run successfully are listed. Run them from the repo
 | Command | What it does | Status |
 | --- | --- | --- |
 | `npm run typecheck` | Type-checks every workspace that defines a `typecheck` script (today: `app`, `packages/shared`, `scripts` and `keeper`) | Verified (macOS) |
-| `npm test` | Runs the tests of every workspace that defines a `test` script (today: Vitest checks of the shared mocks, the script helpers, the margin model with reference values, the Euribor cache and the keeper API on the in-memory vault) | Verified (macOS): 64 keeper tests pass |
+| `npm test` | Runs the tests of every workspace that defines a `test` script (today: Vitest checks of the shared mocks, the script helpers, the margin model with reference values, the Euribor cache and the keeper API on the in-memory vault) | Verified (macOS): 94 keeper tests and 29 app tests pass |
 | `npm run init-env` | Creates `.env` from `.env.example` if needed and generates the Testnet keys still empty (issuer, bank, keeper). Never generates `FUND_SECRET`, never overwrites a value, prints public keys only | Verified (macOS) |
 | `npm run bootstrap` | Idempotent Testnet bootstrap: issuer, bank and keeper accounts (friendbot), bank trustlines, KMMF and KBOND Stellar Asset Contracts, and, when `FUND_SECRET` is set, fund trustlines and issuance up to 1 000 units of each asset (the fund address is derived from `FUND_SECRET`). Writes `deployments/testnet.json` | Verified (macOS) over seven runs (the first stopped on a bug, since fixed); once everything exists, a run sends no transaction |
 | `KEEPER_BACKEND=testnet SIGNER=keeper npm run keeper` | Starts the keeper API on `http://127.0.0.1:8787/api` on the **real vault** (C2 build, from `deployments/testnet.json`): `POST /session` deploys a new vault from the recorded WASM hash, deposits and withdrawals are signed with the local demo fund key, `post_margin` with the keeper key, and every `chain` entry of the SSE feed carries the hash of a transaction confirmed by the RPC. Needs `KEEPER_SECRET` and `FUND_SECRET` in the local `.env` (checked against `deployments/testnet.json`). Routes: `/health`, `/config`, `/session` (POST, GET), `/session/deposit`, `/session/withdraw`, `/session/deposit/prepare`, `/session/withdraw/prepare`, `/session/submit`, `/session/rate-shock`, `/session/settle-default` (permissionless `settle_default`, submitted by the keeper account), `/events` (SSE) | Verified (macOS): boots, `/health`, `/session` without session → `NoSession`; the transactions behind it are proven by the integration run below. **Do not expose it publicly with `SIGNER=keeper`**: anyone reaching the API would spend the demo fund. The keeper listens on 127.0.0.1 and refuses requests whose Host or Origin is not loopback (CORS and DNS-rebinding protection, tested) |
@@ -235,7 +239,21 @@ Only commands that have been run successfully are listed. Run them from the repo
 
 The keeper builds `packages/vault-client` (generated bindings, `dist/` not versioned) before `start`, `test` and `typecheck`.
 
-Still to come, once they work: Freighter signing from the browser, a single e2e script chaining both scenarios, and the public deployment (decision A8).
+Still to come, once they work: a single e2e script chaining both scenarios.
+
+### Hosted deployment (web app on Vercel, keeper on Railway)
+
+The web app is a static Vite build served by Vercel (`vercel.json`). The keeper is a long-lived Node process (Fastify, server-sent events, in-memory session) and runs in a container on Railway (`Dockerfile`, `railway.json`), not as serverless functions. Step-by-step instructions, variables and checks are in [`docs/deploy.md`](docs/deploy.md).
+
+What a hosted keeper does differently from a local one (all covered by tests in `keeper/test/hosted.test.ts`):
+
+- **Write routes need an access code.** Every `POST` returns `Unauthorized` (401) without `Authorization: Bearer <code>`; codes live only in the host's `KEEPER_ACCESS_TOKENS`. The dashboard asks for the code once and keeps it in the browser. CORS and the Host/Origin checks are kept (exact origins only) but are not the authorization.
+- **No fund key.** It refuses to start with `SIGNER=keeper` or a `FUND_SECRET`: deposits and withdrawals are always signed in Freighter.
+- **The session survives a restart.** It is saved in `KEEPER_DATA_DIR` and checked against the vault on-chain when reloaded.
+- **Uncertain transactions are reconciled by hash.** After a timeout the entry stays `pending` with its hash; no other transaction is sent until the hash is found confirmed, failed or expired.
+- **`GET /config` states the backend** (`backend: "testnet" | "fake"`); the page labels a fake backend.
+
+Status: configuration and tests written; **not deployed yet** (see the progress table).
 
 **Keeper model** (`keeper/src/margin.ts`, parameters in `keeper/scenarios/default.json`): flat curve, 20 quarterly periods, `Q = ceil(V / (P × (1 − h)))` in the token's smallest unit, requirement posted only when it moved by at least the MTA (50 000 EUR). The starting rate is the last ECB Euribor 3M observation (`keeper/data/euribor-cache.json` is the versioned fallback seed, shown as `cache`; it is rewritten only when the ECB value changes, so a run may modify it). Reference values for 0, −50 and −80 bp (computed outside the code, in Python with 50-digit decimals) are checked in `keeper/test/margin.test.ts`.
 
@@ -346,7 +364,7 @@ Only the status "verified" counts as done, and only with a proof link.
 | 7 | Separate default scenario with on-chain transfer to the bank | Verified (Testnet) | [`settle_default`, 300 KBOND to the bank](https://stellar.expert/explorer/testnet/tx/33793f423facfa6e2968da335558cc9bba2cc296b6ea6e2133b734829309112c); also from the browser: [`settle_default`, 50 KBOND to the bank](https://stellar.expert/explorer/testnet/tx/0c3bd3d7db474f950a6b4bf3119f78536c5ac89c4a6498c67b811a35589add43) |
 | 8 | Real Stellar Testnet transactions shown with proof | Verified (both scenarios from the browser) | Nine KMMF and four KBOND transactions with On-chain badges and Explorer links in section 6 |
 | 9 | Dashboard showing asset choice, steps and on-chain proof | Verified on the real keeper for both scenarios (Liquid Glass UI in a browser); Freighter not tested | [KMMF deposit](https://stellar.expert/explorer/testnet/tx/e00a4b80d5de4e6d6dc08baa06bc9e1c3fdb4fded1bdfb209a32e280c2a15286), [KMMF cure](https://stellar.expert/explorer/testnet/tx/b651b662f4200556cb26975b2243628db34305fe02908911a3969ca5e418723b), [KBOND settlement](https://stellar.expert/explorer/testnet/tx/0c3bd3d7db474f950a6b4bf3119f78536c5ac89c4a6498c67b811a35589add43) |
-| 10 | End-to-end integration of the three poles | In progress | Browser → keeper → C2 vault proven for both scenarios; Freighter signing and the public URL pending |
+| 10 | End-to-end integration of the three poles | In progress | Browser → keeper → C2 vault proven for both scenarios; Freighter signing and the public URL pending; hosted configuration (Vercel + Railway, access codes, durable session) written and tested locally, **not deployed** |
 | 11 | Submission: public repo, README, public URL, video, pitch deck | Not started | |
 | 12 | Continuous quality: review of every PR, tests, README updates | In place from phase zero | This repository's PR history |
 
@@ -363,4 +381,5 @@ Only the status "verified" counts as done, and only with a proof link.
 - The default is a simplified rule (margin call not met before a short grace period), not a full CSA close-out.
 - KMMF and KBOND are fictitious; they carry no real economic rights.
 - **Etherfuse Stablebonds were tested and dropped:** on 25 October, an order of sandbox CETES on Etherfuse's API v2 was funded but never delivered to Stellar Testnet. The Etherfuse team confirmed this part of v2 was not finished before the submission deadline, so KBOND represents the bond class instead.
+- Hosted keeper: one shared team access code per teammate, no per-user accounts; the read routes (`/session`, `/events`) are public Testnet data. Local accounts (PGlite) are per browser origin and are not an authorization.
 - Testnet only. No real money, no Mainnet.

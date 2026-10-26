@@ -79,7 +79,7 @@ describe("inspectSigned only accepts a signed deposit or withdraw on the vault",
   const code = (xdrString: string) => { try { client.inspectSigned(xdrString); } catch (e) { return (e as KeeperError).code; } return null; };
 
   it("accepts a signed deposit and a withdraw", () => {
-    expect(client.inspectSigned(build([call("deposit", amount)]))).toEqual({ action: "deposit", units: 10000000n, vaultId: VAULT });
+    expect(client.inspectSigned(build([call("deposit", amount)]))).toEqual({ action: "deposit", units: 10000000n, vaultId: VAULT, txHash: expect.stringMatching(/^[0-9a-f]{64}$/) });
     expect(client.inspectSigned(build([call("withdraw", amount)])).action).toBe("withdraw");
   });
   it("refuses everything else with BadRequest", () => {
