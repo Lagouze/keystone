@@ -1,16 +1,16 @@
 import type { ActivityEvent } from '@keystone/shared'
 import { cx } from './cx.ts'
 
-/** Tells apart a local computation from a real Stellar Testnet transaction. */
+/** Tells apart a local computation (violet) from a real Stellar Testnet transaction (blue). */
 export function KindBadge({ kind }: { kind: ActivityEvent['kind'] }) {
   return (
     <span
       className={cx(
-        'inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium',
-        kind === 'chain' ? 'bg-accent-soft text-accent' : 'bg-surface-muted text-ink-muted',
+        'inline-flex items-center rounded-tag px-2 py-0.5 text-[0.625rem] font-medium tracking-wider',
+        kind === 'chain' ? 'bg-chain-soft text-chain' : 'bg-sim-soft text-sim',
       )}
     >
-      {kind === 'chain' ? 'Testnet tx' : 'Simulation'}
+      {kind === 'chain' ? 'TESTNET' : 'SIM'}
     </span>
   )
 }

@@ -21,7 +21,7 @@ export function proofOf(event: ActivityEvent): Proof | null {
  */
 export function ActivityProof({ event }: { event: ActivityEvent }) {
   if (event.status === 'failed') {
-    return <span className="text-xs font-medium text-danger-ink">Failed</span>
+    return <span className="text-xs font-medium text-danger">Failed</span>
   }
   if (event.status === 'pending') {
     return (
@@ -41,7 +41,7 @@ export function ActivityProof({ event }: { event: ActivityEvent }) {
   if (!proof) {
     // A confirmed chain entry must carry a hash and a link (section 5): flag the keeper bug.
     console.warn('Confirmed chain entry without proof', event)
-    return <span className="text-xs font-medium text-danger-ink">Missing proof</span>
+    return <span className="text-xs font-medium text-danger">Missing proof</span>
   }
   const short = proof.hash.length > 12 ? `${proof.hash.slice(0, 4)}…${proof.hash.slice(-4)}` : proof.hash
   return (
@@ -50,7 +50,7 @@ export function ActivityProof({ event }: { event: ActivityEvent }) {
       target="_blank"
       rel="noreferrer"
       title={proof.hash}
-      className="font-mono text-xs text-accent underline-offset-2 hover:underline"
+      className="text-xs text-chain underline-offset-2 hover:text-chain-hover hover:underline"
     >
       {short}
       <span aria-hidden="true"> ↗</span>

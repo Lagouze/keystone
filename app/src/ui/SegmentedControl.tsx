@@ -25,7 +25,7 @@ export function SegmentedControl<T extends string>({
             onClick={() => onChange(option.value)}
             className={cx(
               'rounded-lg px-3 py-1.5 text-sm transition-colors',
-              'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent',
+              'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-chain',
               selected
                 ? 'bg-surface font-medium text-ink shadow-sm ring-1 ring-line-strong'
                 : 'text-ink-muted hover:text-ink',

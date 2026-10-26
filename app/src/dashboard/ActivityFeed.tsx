@@ -7,12 +7,12 @@ export function ActivityFeed({ activity }: { activity: ActivityEvent[] }) {
   return (
     <Card
       title="Activity"
-      description="Computations are marked Simulation. Every token movement is a Stellar Testnet transaction with its proof."
+      description="SIM entries are computations. Every token movement is a Stellar Testnet transaction with its proof."
     >
       {activity.length === 0 ? (
         <p className="text-sm text-ink-subtle">Nothing yet.</p>
       ) : (
-        <ul className="divide-y divide-line" aria-live="polite">
+        <ul className="divide-y divide-line-soft" aria-live="polite">
           <AnimatePresence initial={false}>
             {activity.map((event) => (
               <motion.li

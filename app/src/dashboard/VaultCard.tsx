@@ -1,52 +1,64 @@
 import type { AssetInfo, SessionState } from '@keystone/shared'
-import { formatCountdown, formatUnits, shortAddress } from '../lib/format.ts'
-import { AllocationBar, Card, Stat, StatusPill } from '../ui/index.ts'
+import { formatEur, formatUnits, shortAddress } from '../lib/format.ts'
+import { AllocationBar, Card, CoverageRing, Stat, Tile } from '../ui/index.ts'
 
-interface VaultCardProps {
-  session: SessionState
-  asset: AssetInfo
-  now: number
-}
-
-export function VaultCard({ session, asset, now }: VaultCardProps) {
-  const { vault } = session
+export function VaultCard({ session, asset }: { session: SessionState; asset: AssetInfo }) {
+  const { vault, margin } = session
   const fmt = (units: string) => formatUnits(units, asset.decimals)
-  const countdown = vault.callDeadline ? formatCountdown(vault.callDeadline, now) : null
-  const shortfall = BigInt(vault.shortfallUnits) > 0n
+  const historical = vault.status === 'defaulted'
+  // Below the MTA the keeper does not post the new requirement: the vault keeps the previous one.
+  const notPosted = !historical && margin.requiredUnits !== vault.requiredUnits
 
   return (
-    <Card
-      title={`Collateral vault · ${asset.code}`}
-      description="Tokens the fund has posted on Stellar. The vault locks what the margin requires; the rest stays withdrawable."
-      actions={
-        <StatusPill status={vault.status}>
-          {vault.status === 'margin_call' ? (countdown ?? 'deadline passed') : undefined}
-        </StatusPill>
-      }
-    >
-      <dl className="mb-6 grid grid-cols-3 gap-4 sm:gap-6">
-        <Stat label="Available" value={fmt(vault.availableUnits)} unit={asset.code} />
-        <Stat label="Locked" value={fmt(vault.lockedUnits)} unit={asset.code} tone="accent" />
-        <Stat
-          label="Shortfall"
-          value={fmt(vault.shortfallUnits)}
-          unit={asset.code}
-          tone={shortfall ? 'warning' : 'default'}
+    <Card>
+      <div className="flex flex-wrap items-center gap-8">
+        <CoverageRing locked={vault.lockedUnits} required={vault.requiredUnits} />
+        <div className="flex min-w-72 flex-1 flex-col gap-5">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-base font-medium">Collateral vault · {asset.code}</h2>
+            <span className="text-xs text-ink-subtle">
+              Soroban contract <span title={session.vaultId}>{shortAddress(session.vaultId)}</span> · epoch {vault.epoch}
+            </span>
+          </div>
+          <dl className="grid grid-cols-3 gap-4 sm:gap-6">
+            <Stat label="Available" value={fmt(vault.availableUnits)} />
+            <Stat label="Locked" value={fmt(vault.lockedUnits)} tone="chain" />
+            <Stat
+              label="Shortfall"
+              value={fmt(vault.shortfallUnits)}
+              tone={BigInt(vault.shortfallUnits) > 0n ? 'warning' : 'default'}
+            />
+          </dl>
+          <AllocationBar
+            available={vault.availableUnits}
+            locked={vault.lockedUnits}
+            shortfall={vault.shortfallUnits}
+            label={`Locked ${fmt(vault.lockedUnits)}, available ${fmt(vault.availableUnits)}, shortfall ${fmt(vault.shortfallUnits)} ${asset.code}`}
+          />
+        </div>
+      </div>
+
+      <dl className="mt-6 grid grid-cols-2 gap-2.5 md:grid-cols-4">
+        <Tile
+          label={historical ? 'Last computed requirement' : 'Margin requirement'}
+          value={`${formatEur(margin.requiredValueEur)} EUR`}
+          sim
         />
+        <Tile label="Haircut" value={`${margin.haircutPct}%`} sim />
+        <Tile label="Threshold" value={`${formatEur(margin.thresholdEur)} EUR`} />
+        <Tile label="Min. transfer" value={`${formatEur(margin.mtaEur)} EUR`} />
       </dl>
-      <AllocationBar
-        available={vault.availableUnits}
-        locked={vault.lockedUnits}
-        shortfall={vault.shortfallUnits}
-        label={`Locked ${fmt(vault.lockedUnits)}, available ${fmt(vault.availableUnits)}, shortfall ${fmt(vault.shortfallUnits)} ${asset.code}`}
-      />
-      <p className="mt-4 text-xs text-ink-subtle">
-        Posted on-chain: {fmt(vault.requiredUnits)} {asset.code} required · vault contract{' '}
-        <span className="font-mono" title={session.vaultId}>
-          {shortAddress(session.vaultId)}
-        </span>{' '}
-        · epoch {vault.epoch}
-      </p>
+      {notPosted && (
+        <p className="mt-4 text-sm text-warning-ink">
+          Computed requirement {fmt(margin.requiredUnits)} {asset.code} is below the minimum transfer amount: the
+          vault still requires {fmt(vault.requiredUnits)} {asset.code}.
+        </p>
+      )}
+      {historical && (
+        <p className="mt-4 text-sm text-ink-subtle">
+          Last computed requirement: {fmt(margin.requiredUnits)} {asset.code} (historical, frozen after the default).
+        </p>
+      )}
     </Card>
   )
 }

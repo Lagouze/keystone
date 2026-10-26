@@ -50,12 +50,12 @@ export function formatPct(value: string): string {
   return `${value}%`
 }
 
-/** Remaining time as "m:ss", or null once the deadline has passed. */
+/** Remaining time as "mm:ss", or null once the deadline has passed. */
 export function formatCountdown(deadline: string, now: number): string | null {
   const ms = Date.parse(deadline) - now
   if (ms <= 0) return null
   const total = Math.ceil(ms / 1000)
-  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`
 }
 
 /** ISO timestamp → local "21:02:05" */
@@ -66,4 +66,18 @@ export function formatTime(iso: string): string {
 /** "GABC…WXYZ" */
 export function shortAddress(address: string): string {
   return address.length > 12 ? `${address.slice(0, 4)}…${address.slice(-4)}` : address
+}
+
+/** ISO timestamp → "21:03:35" in UTC, the ledger's clock. */
+export function formatUtcTime(iso: string): string {
+  return new Date(iso).toISOString().slice(11, 19)
+}
+
+/**
+ * EUR value of a token amount after haircut: what the fund would otherwise have posted in cash.
+ * Display only (float); never sent to the keeper. Price and haircut are simulated.
+ */
+export function valueAfterHaircut(units: string, decimals: number, unitPriceEur: string, haircutPct: string): string {
+  const tokens = Number(BigInt(units)) / 10 ** decimals
+  return (tokens * Number(unitPriceEur) * (1 - Number(haircutPct) / 100)).toFixed(2)
 }

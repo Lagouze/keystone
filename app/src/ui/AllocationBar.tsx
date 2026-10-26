@@ -10,8 +10,8 @@ interface AllocationBarProps {
 }
 
 const SEGMENTS = [
-  { key: 'locked', label: 'Locked', className: 'bg-accent' },
-  { key: 'available', label: 'Available', className: 'bg-accent-light' },
+  { key: 'locked', label: 'Locked', className: 'bg-chain' },
+  { key: 'available', label: 'Available', className: 'bg-chain-light' },
   { key: 'shortfall', label: 'Shortfall', className: 'bg-warning' },
 ] as const
 
