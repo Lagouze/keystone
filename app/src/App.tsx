@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import type { AssetId, KeystoneConfig, VaultStatus } from '@keystone/shared'
+import { LockScreen } from './auth/LockScreen.tsx'
+import { currentUser, rememberUser } from './auth/session.ts'
 import { KEEPER_URL } from './config.ts'
 import { ActionsCard } from './dashboard/ActionsCard.tsx'
 import { ActivityFeed } from './dashboard/ActivityFeed.tsx'
@@ -31,7 +33,31 @@ const PAGE = {
   transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] as const },
 }
 
+/** The lock screen comes first; the keeper connection opens only once someone is signed in. */
 export default function App() {
+  const [user, setUser] = useState<string | null>(currentUser)
+  const unlock = (email: string) => {
+    rememberUser(email)
+    setUser(email)
+  }
+  const lock = () => {
+    rememberUser(null)
+    setUser(null)
+  }
+  return (
+    <AnimatePresence>
+      {user ? (
+        <motion.div key="app" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4, delay: 0.15 }}>
+          <Main user={user} onLock={lock} />
+        </motion.div>
+      ) : (
+        <LockScreen key="lock" onUnlock={unlock} />
+      )}
+    </AnimatePresence>
+  )
+}
+
+function Main({ user, onLock }: { user: string; onLock(): void }) {
   const k = useKeystone()
   const now = useNow()
   // Set when the user starts a session from this page: that first session opens with the stagger.
@@ -47,7 +73,14 @@ export default function App() {
 
   return (
     <>
-      <TopBar k={k} mocks={mocks} onDetails={stage && asset ? () => setDetails(true) : undefined} onStart={startSession} />
+      <TopBar
+        k={k}
+        mocks={mocks}
+        user={user}
+        onLock={onLock}
+        onDetails={stage && asset ? () => setDetails(true) : undefined}
+        onStart={startSession}
+      />
 
       <div className="mx-auto grid max-w-6xl gap-3 px-4 pt-4 empty:hidden sm:px-6">
         {k.loadError && (
@@ -119,11 +152,15 @@ function Chip({ children }: { children: ReactNode }) {
 function TopBar({
   k,
   mocks,
+  user,
+  onLock,
   onDetails,
   onStart,
 }: {
   k: KeystoneHook
   mocks: boolean
+  user: string
+  onLock(): void
   onDetails?: () => void
   onStart(asset: AssetId): void
 }) {
@@ -162,6 +199,18 @@ function TopBar({
               onStart={onStart}
             />
           )}
+          <button
+            type="button"
+            onClick={onLock}
+            title={`Signed in as ${user}`}
+            aria-label={`Lock (signed in as ${user})`}
+            className="glass flex size-9 items-center justify-center rounded-full text-ink-muted transition-colors hover:text-ink focus-visible:outline-2 focus-visible:outline-chain"
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+              <rect x="2.5" y="6" width="9" height="6.5" rx="1.6" fill="currentColor" />
+              <path d="M4.5 6V4.5a2.5 2.5 0 0 1 5 0V6" fill="none" stroke="currentColor" strokeWidth="1.5" />
+            </svg>
+          </button>
         </div>
       </div>
     </header>
