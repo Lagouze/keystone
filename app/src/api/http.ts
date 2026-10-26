@@ -1,15 +1,52 @@
-import type { ActivityEvent, ApiError, AssetId, KeystoneConfig, SessionState } from '@keystone/shared'
+import type { ActivityEvent, ApiError, AssetId, KeystoneConfig, MarketSnapshot, SessionState } from '@keystone/shared'
 import type { KeeperClient, StreamListener } from './client.ts'
+import { getAccessCode } from './access.ts'
 import { KeystoneError } from './errors.ts'
+
+/** Advisor deliberately uses only this GET, even while session actions run in mock mode. */
+export async function getMarketSnapshot(baseUrl: string, signal: AbortSignal): Promise<MarketSnapshot> {
+  const response = await fetch(`${baseUrl}/market-advisor`, { method: 'GET', signal })
+  if (!response.ok) throw new Error('Market provider unavailable.')
+  const data = await response.json() as MarketSnapshot
+  const ids = ['vix', 'sovereignVol', 'euribor3m', 'sovereign2y', 'estr']
+  const outcomes = ['KMMF potentially preferable', 'KBOND potentially preferable', 'No clear preference', 'Insufficient market data']
+  const criteriaIds = ['duration', 'stability', 'liquidity', 'yield', 'valuation']
+  const finite = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value)
+  const score = (value: unknown) => finite(value) && value >= 0 && value <= 100
+  const dateOrNull = (value: unknown) => value === null || (typeof value === 'string' && Number.isFinite(Date.parse(value)))
+  const advice = data?.advice
+  if (!data || typeof data.asOf !== 'string' || !Number.isFinite(Date.parse(data.asOf))
+    || !Array.isArray(data.metrics) || data.metrics.length !== 5 || !ids.every((id) => data.metrics.some((m) => m?.id === id))
+    || !data.metrics.every((m) => m && typeof m.name === 'string' && typeof m.unit === 'string' && typeof m.note === 'string'
+      && (m.value === null || (typeof m.value === 'string' && m.value.trim() !== '' && Number.isFinite(Number(m.value))))
+      && dateOrNull(m.observedAt) && dateOrNull(m.retrievedAt)
+      && typeof m.source?.name === 'string' && typeof m.source?.url === 'string' && typeof m.source?.series === 'string'
+      && ['daily close', 'daily', 'monthly average'].includes(m.frequency)
+      && ['source', 'cache', 'unavailable', 'restricted'].includes(m.delivery) && ['current', 'stale', 'unknown'].includes(m.freshness)
+      && (m.calculation === undefined || (typeof m.calculation?.method === 'string' && typeof m.calculation.start === 'string'
+        && typeof m.calculation.end === 'string' && finite(m.calculation.observations) && Number.isInteger(m.calculation.observations))))
+    || !advice || !outcomes.includes(advice.outcome) || typeof advice.explanation !== 'string'
+    || !advice.weights || !criteriaIds.every((id) => finite(advice.weights[id as keyof typeof advice.weights]) && advice.weights[id as keyof typeof advice.weights] >= 0)
+    || (advice.scores !== null && (!score(advice.scores?.KMMF) || !score(advice.scores?.KBOND)))
+    || !Array.isArray(advice.criteria) || !advice.criteria.every((c) => c && criteriaIds.includes(c.id)
+      && typeof c.label === 'string' && typeof c.explanation === 'string' && finite(c.weight) && c.weight >= 0 && score(c.KMMF) && score(c.KBOND)
+      && Array.isArray(c.metrics) && c.metrics.every((id) => ids.includes(id)))
+    || !Array.isArray(advice.limits) || !advice.limits.every((limit) => typeof limit === 'string')) throw new Error('Invalid market response.')
+  return data
+}
 
 /** Client of the real keeper: REST routes and the SSE stream of docs/interfaces.md section 4. */
 export function createHttpClient(baseUrl: string): KeeperClient {
   async function request<T>(method: 'GET' | 'POST', path: string, body?: unknown): Promise<T> {
     let response: Response
     try {
+      const code = method === 'POST' ? getAccessCode() : null
       response = await fetch(`${baseUrl}${path}`, {
         method,
-        headers: body === undefined ? undefined : { 'content-type': 'application/json' },
+        headers: {
+          ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+          ...(code ? { authorization: `Bearer ${code}` } : {}),
+        },
         body: body === undefined ? undefined : JSON.stringify(body),
       })
     } catch {

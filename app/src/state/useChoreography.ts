@@ -88,6 +88,21 @@ export function useChoreography(session: SessionState | null, openingRequested =
     [],
   )
 
+  // Back from a hidden tab (throttled timers, paused frames): show the latest confirmed state at
+  // once, at rest, with the actions enabled; nothing replays.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible' || !target.current) return
+      timers.current.forEach((id) => window.clearTimeout(id))
+      timers.current = []
+      window.clearTimeout(openingTimer.current)
+      const latest = target.current
+      setStage((s) => (s && s.sequencing ? restingStage(latest) : s?.opening ? { ...s, opening: false } : s))
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [])
+
   useEffect(() => {
     const prev = target.current
     if (prev && session && prev.sessionId === session.sessionId && prev.updatedAt === session.updatedAt) return

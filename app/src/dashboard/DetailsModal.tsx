@@ -1,9 +1,10 @@
+import { memo } from 'react'
 import type { AssetInfo, SessionState } from '@keystone/shared'
 import { formatEur, formatUnits, formatUtcTime, shortAddress } from '../lib/format.ts'
 import { Modal } from '../ui/Modal.tsx'
 
 /** Everything dense but necessary, kept out of the main screen. */
-export function DetailsModal({
+function DetailsModalView({
   open,
   onClose,
   session,
@@ -35,7 +36,7 @@ export function DetailsModal({
 
   return (
     <Modal open={open} title="Details" onClose={onClose}>
-      <dl className="divide-y divide-line text-sm">
+      <dl className="grid gap-3 text-sm">
         {rows.map(([label, value]) => (
           <div key={label} className="flex justify-between gap-6 py-2.5">
             <dt className="text-ink-subtle">{label}</dt>
@@ -53,3 +54,6 @@ export function DetailsModal({
     </Modal>
   )
 }
+
+// While closed, new states do not re-render the (hidden) sheet.
+export const DetailsModal = memo(DetailsModalView, (prev, next) => !prev.open && !next.open)

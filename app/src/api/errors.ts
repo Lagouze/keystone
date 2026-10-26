@@ -25,14 +25,16 @@ const MESSAGES: Record<string, string> = {
   Defaulted: 'The vault has defaulted. Only the available collateral can still be withdrawn.',
   // Keeper (section 4)
   BadRequest: 'The keeper rejected the request.',
+  Unauthorized: 'The access code is missing or wrong. Enter the team access code to act on the keeper.',
   NoSession: 'No session is running. Start one first.',
   SignerModeDisabled: 'This action is not available in the current signing mode.',
   TxFailed: 'The transaction failed.',
-  RpcUnavailable: 'Stellar Testnet did not answer in time. The activity feed shows the final outcome.',
+  RpcUnavailable: 'Stellar Testnet did not answer in time. The transaction may still confirm: wait for the activity feed to show its outcome before signing again.',
   // Front
   KeeperUnreachable: 'The keeper is unreachable. Check that it is running.',
   NotReady: 'The dashboard is still loading. Try again in a moment.',
   InvalidInput: 'Check the amount.',
+  PendingTransaction: 'A previous deposit or withdrawal may still confirm. Wait for the activity feed to show its outcome, at most about 3 minutes.',
   FreighterMissing: 'Freighter is not installed or not enabled in this browser.',
   FreighterAccessDenied: 'Freighter did not share the account with Keystone.',
   FreighterUnavailable: 'Freighter did not answer. Unlock it and try again.',

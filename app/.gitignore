@@ -1,0 +1,2 @@
+# The demo build (npm run demo), kept apart from the production build in dist/.
+dist-demo/

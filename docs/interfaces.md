@@ -1,6 +1,6 @@
 # Keystone — Shared interfaces
 
-**Version: v1.2** (v1.0 frozen at the end of the kickoff; later changes follow section 6).
+**Version: v1.4** (v1.0 frozen at the end of the kickoff; later changes follow section 6).
 
 This file is the single source of truth for everything exchanged between the three poles: the Soroban contract, the keeper API and the shared TypeScript types. `README.md` and `AGENTS.md` refer to it. When they disagree, this file wins.
 
@@ -120,6 +120,8 @@ Each event has a single topic: a symbol carrying the exact event name below. Dat
 
 Base URL: `http://localhost:8787/api` in local development; the public URL is set at deployment (decision A8). CORS is open to the local and public front. JSON everywhere.
 
+**Write authorization (v1.4, hosted keeper).** A keeper listening beyond loopback requires `Authorization: Bearer <access code>` on every `POST` route (the codes are listed in the keeper's `KEEPER_ACCESS_TOKENS`, never in the web bundle). A missing or wrong code returns `Unauthorized` (401) before anything is read or sent. `GET` routes stay open: they expose public Testnet data only. A local keeper (loopback, no code configured) behaves as before. `GET /config` tells which mode applies through `writeAuth`, and which vault backs the keeper through `backend`.
+
 **Formats.** Amounts, rates and timestamps travel as strings, never as JSON numbers. The only other JSON types are numbers for `bp`, `epoch`, `tenorYears` and `decimals`, the boolean `ok` of `GET /health`, and `null` for `callDeadline` outside a margin call:
 
 - `*Units`: integer in the token's smallest unit (7 decimals: 300 shares = `"3000000000"`). The keeper converts the contract's `i128` straight to a decimal string, without going through a JS `number`.
@@ -148,6 +150,8 @@ Base URL: `http://localhost:8787/api` in local development; the public URL is se
 
 **Write routes** (`POST /session`, `submit`, `rate-shock`, `settle-default`, `deposit`, `withdraw`) respond once the transaction is confirmed or failed (`getTransaction` SUCCESS or FAILED). The `pending` entry is sent on the SSE stream before that. Without confirmation after 60 s, the route returns `RpcUnavailable` and the entry stays `pending` until its outcome is known.
 
+**Unconfirmed transactions (v1.4).** When a transaction was sent but not confirmed (`RpcUnavailable`), its `pending` entry carries its `txHash`. The keeper then refuses every write and every `prepare` with `PendingTransaction` until it has looked the hash up: `SUCCESS` turns the entry `confirmed` (with its link), `FAILED` turns it `failed`, and a hash still not found 200 s after it was sent (longer than the validity of any transaction the keeper builds) turns it `failed` ("never included"). The keeper repeats the lookup every 15 s by itself. A hosted keeper keeps its session in a JSON file (`KEEPER_DATA_DIR`) and reloads it after a restart, checking the vault on-chain; the unconfirmed transaction is saved with it. The front's own 200 s guard is only a convenience: the keeper decides.
+
 **Rate shock.** `bp` is added to the current float rate (cumulative: −50 then −30 = −80 bp from the start); `floatRateSource` becomes `"scenario"` after the first shock. If the requirement moves by less than the MTA, no transaction is sent and only a `rate_shock` `sim` entry is added. After `defaulted`, `rate-shock` returns `Defaulted` (409) without changing anything: `margin` stays frozen, so `margin.requiredUnits` and `margin.requiredValueEur` remain the last computed requirement, shown as "last computed requirement (historical)" while `vault.requiredUnits` is `"0"`.
 
 **SSE.** Two named events:
@@ -165,8 +169,22 @@ Base URL: `http://localhost:8787/api` in local development; the public URL is se
 | contract error name (section 3.6) | 409 | the vault rejected the call, for example `GracePeriodRunning` |
 | `TxFailed` | 502 | transaction rejected or failed outside the vault's business rules (authorization, SAC, simulation); details in `message` |
 | `RpcUnavailable` | 503 | RPC unreachable, or no confirmation after 60 s |
+| `Unauthorized` | 401 | (v1.4) write route called without a valid access code on a hosted keeper |
+| `PendingTransaction` | 409 | (v1.4) a transaction sent earlier has no known outcome yet; no new write starts until it is confirmed, failed or expired (see below) |
 
-`SIGNER=keeper` is used by the end-to-end script and by the **public demo URL**, because judges cannot sign with the fund key. The front shows a visible notice in that mode.
+`SIGNER=keeper` is used by the end-to-end script and local runs. A hosted keeper refuses it (v1.4): the public live app runs with `SIGNER=freighter` and offers judges the simulated `?demo` mode instead, because they cannot sign with the fund key. The front shows a visible notice in keeper mode.
+
+### 4.1 Read-only market advisor (v1.3, consuming pole: front)
+
+`GET /market-advisor` returns `MarketSnapshot` (section 5.1), without a session, wallet, signer or on-chain effect. It never calls a session write route and never updates the keeper's swap rate or margin. Existing session routes, mocks and formats are unchanged. Source/network/parse failures return HTTP 200 with each affected metric marked unavailable, or a dated cache; transport failures are displayed by the front as insufficient data. An unexpected provider failure returns five unavailable metrics and `Insufficient market data`. Origin/Host checks remain in force; the route takes no parameters or user-supplied URLs. Responses use `Cache-Control: no-store`.
+
+Market values remain decimal strings; dates and timestamps are strings, absent observations/values/retrieval dates are `null`. For this new diagnostic route only, weights, scores, criterion scores and calculation sample counts are finite JSON numbers. There is no conversion of contract amounts through JS numbers. `asOf` is evaluation time, **not** a market observation date. `observedAt` is `YYYY-MM-DD`, or `YYYY-MM` for monthly Euribor; `retrievedAt` is the ISO UTC fetch time. `delivery` distinguishes source, cache, unavailable and restricted; freshness is current, stale or unknown. Daily observations older than seven calendar days and monthly observations more than 45 days after period end are stale and excluded from scoring. Invalid/future dates are not used. No indicator is labelled live.
+
+Sources: Yahoo Finance / Cboe daily closing VIX (`^VIX`, enabled automatically, chart endpoint `https://query1.finance.yahoo.com/v8/finance/chart/%5EVIX?interval=1d&range=5d`); ECB AAA euro sovereign 2Y spot yield (`YC.B.U2.EUR.4F.G_N_A.SV_C_YM.SR_2Y`); sample SD of its last 20 daily changes in bp/day using 21 observations (explicit realized proxy, **not MOVE**); existing monthly Euribor 3M series (`FM.M.U2.EUR.RT.MM.EURIBOR3MD_.HSTA`); overnight €STR (`EST.B.EU000A2X2A25.WT`). Yahoo timestamps are aligned with daily `close` values and dated in the exchange timezone; invalid/future points and the still-open session's bar are excluded. `regularMarketPrice` is never a fallback for a close. No activation environment variable is needed. Yahoo errors/rate limits use the same dated-cache/unavailable semantics; old Cboe VIX cache entries are discarded rather than relabelled as Yahoo. Every metric provides attribution, a source link, frequency and explanatory note. The proxy also provides method, window and observation count. No MOVE feed or Etherfuse integration is claimed.
+
+The keeper fetches only fixed source URLs, in parallel, with a six-second timeout per request and a one-hour refresh interval. Concurrent requests share the same refresh. Optional ignored `keeper/data/market-cache.local.json` stores observations, not recommendations; scoring/freshness are recomputed per read. A failed refresh never changes the observation/retrieval dates and labels fallback as cache. Read-only/unavailable disk does not prevent a response. The frontend times out after ten seconds and cancels on close. Refresh may reuse the dated server cache until its interval elapses.
+
+Scoring requires fresh realized yield volatility, Euribor, 2Y yield and €STR. VIX is optional and only secondary equity stress. Outcomes are exactly `KMMF potentially preferable`, `KBOND potentially preferable`, `No clear preference`, `Insufficient market data`. Scores compare assumed collateral **classes**, never the fictitious token prices/haircuts. Weights and thresholds, neutral unmeasured liquidity, overlapping duration/stability assumptions and the score gap threshold are documented in the README. Selecting collateral and starting a vault remain explicit separate actions. This compatible route is introduced in the same PR as its front consumer, under section 6's compatible-addition rule.
 
 ## 5. Shared TypeScript types
 
@@ -195,6 +213,8 @@ export interface KeystoneConfig {
   accounts: { fund: string; bank: string; keeper: string };
   assets: AssetInfo[];
   signerMode: SignerMode;
+  backend?: "testnet" | "fake"; // v1.4: "fake" = in-memory vault, no real transaction
+  writeAuth?: "token" | "none"; // v1.4: "token" = POST routes need `Authorization: Bearer <access code>`
 }
 
 export interface SessionState {
@@ -273,6 +293,44 @@ Mapping to `ActivityType`:
 | `defaulted` | `chain` | contract event `defaulted` |
 | `error` | `sim` or `chain` | failed computation or transaction |
 
+### 5.1 Market advisor types (compatible addition)
+
+Exported from `@keystone/shared` via `packages/shared/src/market.ts`:
+
+```ts
+/** Read-only advisor, independent of sessions and simulated token prices. */
+export type MarketMetricId = 'vix' | 'sovereignVol' | 'euribor3m' | 'sovereign2y' | 'estr';
+export interface MarketMetric {
+  id: MarketMetricId;
+  name: string;
+  value: string | null;
+  unit: string;
+  observedAt: string | null;
+  retrievedAt: string | null;
+  source: { name: string; url: string; series: string };
+  frequency: 'daily close' | 'daily' | 'monthly average';
+  delivery: 'source' | 'cache' | 'unavailable' | 'restricted';
+  freshness: 'current' | 'stale' | 'unknown';
+  note: string;
+  calculation?: { method: string; start: string; end: string; observations: number };
+}
+export type AdvisorCriterion = 'duration' | 'stability' | 'liquidity' | 'yield' | 'valuation';
+export type AdvisorWeights = Record<AdvisorCriterion, number>;
+export interface MarketAdvice {
+  outcome: 'KMMF potentially preferable' | 'KBOND potentially preferable' | 'No clear preference' | 'Insufficient market data';
+  explanation: string;
+  scores: { KMMF: number; KBOND: number } | null;
+  weights: AdvisorWeights;
+  criteria: { id: AdvisorCriterion; label: string; weight: number; KMMF: number; KBOND: number; explanation: string; metrics: MarketMetricId[] }[];
+  limits: string[];
+}
+export interface MarketSnapshot {
+  asOf: string;
+  metrics: MarketMetric[];
+  advice: MarketAdvice;
+}
+```
+
 ## 6. Change rules
 
 - **Compatible change** (new optional field, new event, new route): minor version bump (v1.1, v1.2…), done in the PR that needs it, with the consuming pole mentioned in the PR.
@@ -283,6 +341,8 @@ Mapping to `ActivityType`:
 
 | Version | Date | Change |
 | --- | --- | --- |
+| v1.4 | 2026-10-26 | Compatible addition for the hosted keeper (consuming pole: front): optional `backend` and `writeAuth` in `KeystoneConfig`, `Authorization: Bearer` on write routes, error codes `Unauthorized` (401) and `PendingTransaction` (409), reconciliation of unconfirmed transactions by hash, durable session. Local behaviour unchanged. Wording: the public demo no longer uses `SIGNER=keeper`. |
+| v1.3 | 2026-10-26 | Compatible addition for front: read-only `GET /market-advisor`, diagnostic types in `packages/shared/src/market.ts`, real-source/freshness/cache semantics and explainable class scoring. Existing session/contract types and behaviours unchanged. |
 | v1.0-rc | 2026-10-25 | Initial proposal for the kickoff. |
 | v1.0 | 2026-10-25 | Kickoff amendments (Issue #5): `AssetId` `BOND` → `KBOND`; full constructor signature; state after `settle_default` and no rebalancing after `Defaulted`; deadline rules; SAC balance invariant `>=`; named event data; error precisions; keeper formats, error codes, write-route timing, rate-shock rule (refused after `defaulted`, `margin` frozen), single session; SSE `activity` and `state` events; `ActivityEvent.sessionId`; `ActivityType` mapping; `deployments/testnet.json` written by the keeper. |
 | v1.1 | 2026-10-25 | Wording only (compatible): section 4 now lists every non-string value (`decimals`, `ok`, `callDeadline` when `null`). No type change. |

@@ -2,8 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ActivityEvent, AssetId, KeystoneConfig, SessionState } from '@keystone/shared'
 import { createBackend, type Backend } from '../api/index.ts'
 import type { ConnectionStatus } from '../api/client.ts'
+import { getAccessCode, setAccessCode } from '../api/access.ts'
 import { describeError, KeystoneError } from '../api/errors.ts'
-import { parseUnits } from '../lib/format.ts'
+import { formatUnits, parseUnits } from '../lib/format.ts'
+
+/** Validity of a prepared transaction (keeper: 180 s) plus a margin for ledger close. */
+const PENDING_WINDOW_MS = 200_000
 
 export type Action = 'start' | 'deposit' | 'withdraw' | 'shock' | 'settle'
 type ShownError = { code: string; message: string }
@@ -30,7 +34,18 @@ export function useKeystone() {
   const [step, setStep] = useState<string | null>(null)
   const [error, setError] = useState<ShownError | null>(null)
 
+  // Hosted keeper: writes need the team access code (config.writeAuth), typed once and kept in this browser.
+  const [hasAccessCode, setHasAccessCode] = useState(() => getAccessCode() !== null)
+  const saveAccessCode = useCallback((code: string) => {
+    setAccessCode(code.trim() || null)
+    setHasAccessCode(getAccessCode() !== null)
+    setError(null)
+  }, [])
+
   const inFlight = useRef(false)
+  // When a deposit or withdrawal last ended without a confirmation (RPC timeout): kept here as well,
+  // since the pending feed entry may not have reached this tab (stream reconnecting).
+  const unconfirmedAt = useRef<number | null>(null)
 
   /**
    * Shows a new state unless it is older than the one shown (responses and SSE can arrive in
@@ -84,6 +99,14 @@ export function useKeystone() {
       try {
         acceptState(await task(backend), action === 'start')
       } catch (e) {
+        if ((action === 'deposit' || action === 'withdraw') && e instanceof KeystoneError && e.code === 'RpcUnavailable') {
+          unconfirmedAt.current = Date.now()
+        }
+        if (e instanceof KeystoneError && e.code === 'Unauthorized') {
+          // Wrong or revoked code: forget it, the page asks again.
+          setAccessCode(null)
+          setHasAccessCode(false)
+        }
         setError(describeError(e))
       } finally {
         inFlight.current = false
@@ -94,24 +117,64 @@ export function useKeystone() {
     [acceptState],
   )
 
-  const toUnits = useCallback(
-    (input: string): string => {
-      const asset = config?.assets.find((a) => a.id === session?.asset)
-      try {
-        return parseUnits(input, asset?.decimals ?? 7)
-      } catch (e) {
-        throw new KeystoneError('InvalidInput', e instanceof Error ? e.message : String(e))
-      }
-    },
-    [config, session],
-  )
+  // Read through refs: the actions stay the same functions from one state to the next, so the
+  // panels that receive them are not re-rendered by every SSE update.
+  const configRef = useRef(config)
+  configRef.current = config
+  const sessionRef = useRef(session)
+  sessionRef.current = session
+  const eventsRef = useRef(events)
+  eventsRef.current = events
+
+  const toUnits = useCallback((input: string): string => {
+    const asset = configRef.current?.assets.find((a) => a.id === sessionRef.current?.asset)
+    try {
+      return parseUnits(input, asset?.decimals ?? 7)
+    } catch (e) {
+      throw new KeystoneError('InvalidInput', e instanceof Error ? e.message : String(e))
+    }
+  }, [])
 
   /** Deposit or withdrawal: signed in Freighter, or by the keeper in SIGNER=keeper mode. */
   const moveFunds = useCallback(
     (kind: 'deposit' | 'withdraw', input: string) =>
       run(kind, async ({ client, signer }) => {
         const units = toUnits(input)
+        const config = configRef.current
         if (!config) throw new KeystoneError('NotReady', 'Configuration not loaded.')
+        const session = sessionRef.current
+        // A previous deposit or withdrawal still pending (for example after an RPC timeout) may
+        // still land: no second one while it can. Prepared transactions expire 180 s after the
+        // keeper builds them, so past PENDING_WINDOW_MS the old one can no longer be included.
+        const now = Date.now()
+        // An unreadable timestamp counts as recent: blocking is the safe side.
+        const recent = (ms: number) => !(now - ms >= PENDING_WINDOW_MS)
+        const stillPending =
+          (unconfirmedAt.current !== null && recent(unconfirmedAt.current)) ||
+          eventsRef.current.some(
+            (e) =>
+              e.sessionId === session?.sessionId &&
+              e.kind === 'chain' &&
+              e.status === 'pending' &&
+              (e.type === 'deposit' || e.type === 'withdraw') &&
+              recent(Date.parse(e.ts)),
+          )
+        if (stillPending) {
+          throw new KeystoneError('PendingTransaction', 'A previous transaction is still pending.')
+        }
+        // Checked before asking for a signature, from the last confirmed state.
+        if (session) {
+          const decimals = config.assets.find((a) => a.id === session.asset)?.decimals ?? 7
+          const limit = kind === 'deposit' ? session.balances.fundUnits : session.vault.availableUnits
+          if (BigInt(units) > BigInt(limit)) {
+            throw new KeystoneError(
+              'InvalidInput',
+              kind === 'deposit'
+                ? `The fund holds ${formatUnits(limit, decimals, decimals)} ${session.asset}.`
+                : `Only ${formatUnits(limit, decimals, decimals)} ${session.asset} are available to withdraw.`,
+            )
+          }
+        }
         if (config.signerMode === 'keeper') {
           setStep('Submitting…')
           return kind === 'deposit' ? client.deposit(units) : client.withdraw(units)
@@ -123,7 +186,7 @@ export function useKeystone() {
         setStep('Submitting…')
         return client.submit(signed)
       }),
-    [config, run, toUnits],
+    [run, toUnits],
   )
 
   const actions = useMemo(
@@ -139,9 +202,10 @@ export function useKeystone() {
   )
 
   // docs/interfaces.md section 4: ignore entries whose sessionId is not the current session.
+  const sessionId = session?.sessionId
   const activity = useMemo(
-    () => (session ? events.filter((e) => e.sessionId === session.sessionId).reverse() : []),
-    [events, session],
+    () => (sessionId ? events.filter((e) => e.sessionId === sessionId).reverse() : []),
+    [events, sessionId],
   )
 
   return {
@@ -154,16 +218,20 @@ export function useKeystone() {
     busy,
     step,
     error,
+    needsAccessCode: source === 'keeper' && config?.writeAuth === 'token' && !hasAccessCode,
+    saveAccessCode,
     ...actions,
   }
 }
 
 /** Current time, refreshed for countdowns. */
-export function useNow(intervalMs = 250): number {
+export function useNow(intervalMs = 250, enabled = true): number {
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
+    if (!enabled) return
+    setNow(Date.now())
     const timer = window.setInterval(() => setNow(Date.now()), intervalMs)
     return () => window.clearInterval(timer)
-  }, [intervalMs])
+  }, [intervalMs, enabled])
   return now
 }

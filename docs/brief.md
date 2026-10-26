@@ -1,3 +1,5 @@
+> **Document historique : brief initial (25 octobre 2026), partiellement dépassé.** Il contient des consignes données à l'agent au lancement du projet (dépôt alors privé, répartition des pôles non fixée). Les références à jour sont `README.md`, `docs/interfaces.md` et `docs/decisions.md`.
+
 # KEYSTONE — Brief complet actualisé pour Claude
 
 **HackMeridian 2026 · Lisbonne · 25 octobre 2026**  
