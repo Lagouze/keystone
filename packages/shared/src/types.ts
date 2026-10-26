@@ -23,9 +23,9 @@ export interface KeystoneConfig {
   accounts: { fund: string; bank: string; keeper: string };
   assets: AssetInfo[];
   signerMode: SignerMode;
-  /** Optional (v1.3): which vault backs the keeper. "fake" means no real transaction. */
+  /** Optional (v1.4): which vault backs the keeper. "fake" means no real transaction. */
   backend?: "testnet" | "fake";
-  /** Optional (v1.3): "token" when the write routes need `Authorization: Bearer <access code>`. */
+  /** Optional (v1.4): "token" when the write routes need `Authorization: Bearer <access code>`. */
   writeAuth?: "token" | "none";
 }
 

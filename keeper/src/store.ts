@@ -1,6 +1,6 @@
 // Durable copy of the keeper's session, so a restart or a new deployment does not forget a vault that
 // already holds tokens. One JSON file, written atomically; bigint values are tagged to survive JSON.
-import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const VERSION = 1;
@@ -19,6 +19,14 @@ export class SessionStore {
   constructor(dir: string) {
     mkdirSync(dir, { recursive: true });
     this.file = join(dir, "session.json");
+  }
+
+  /** Throws when the data directory cannot be written and read back (volume missing or read-only). */
+  assertWritable(): void {
+    const probe = `${this.file}.probe`;
+    writeFileSync(probe, "ok", { mode: 0o600 });
+    if (readFileSync(probe, "utf8") !== "ok") throw new Error("KEEPER_DATA_DIR cannot be read back");
+    unlinkSync(probe);
   }
 
   /** The saved state, or null when there is none or it is unreadable (an unreadable file is kept as a backup). */

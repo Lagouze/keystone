@@ -38,3 +38,8 @@ export class VaultError extends KeeperError {
     super(code, message ?? `The vault rejected the call: ${code}`);
   }
 }
+
+/** True only when the chain says the vault does not exist (after a Testnet reset, for example): never for a network trouble. */
+export function isVaultGone(e: unknown): boolean {
+  return e instanceof KeeperError && e.code === "TxFailed" && /MissingValue|not found|does not exist|Unknown vault/i.test(e.message);
+}

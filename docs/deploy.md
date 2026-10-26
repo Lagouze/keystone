@@ -22,8 +22,8 @@ Pourquoi le keeper n'est pas sur Vercel : il garde des connexions SSE ouvertes, 
 | Un visiteur déploie des vaults, poste une marge, règle un défaut | Chaque route `POST` exige `Authorization: Bearer <code>`; les codes sont dans `KEEPER_ACCESS_TOKENS` (côté serveur, 32 caractères minimum, comparaison à temps constant) | `keeper/src/access.ts`, `server.ts` |
 | Le code fuit dans le site | Le code n'est jamais une variable `VITE_*` : chaque personne le saisit dans la page, il reste dans son navigateur | `app/src/api/access.ts` |
 | Le keeper signe pour le fonds | Au démarrage hébergé, `SIGNER=keeper` et `FUND_SECRET` sont refusés : tout dépôt ou retrait passe par Freighter | `keeper/src/index.ts` |
-| Page tierce qui appelle l'API | Origines exactes (`KEEPER_ALLOWED_ORIGINS`), hôtes exacts (`KEEPER_PUBLIC_HOSTS`), `localhost` refusé en mode hébergé. Ce n'est **pas** une authentification | `server.ts` |
-| Trop de flux SSE | 100 flux ouverts au plus | `server.ts` |
+| Page tierce qui appelle l'API | Origines (`KEEPER_ALLOWED_ORIGINS`), hôtes exacts (`KEEPER_PUBLIC_HOSTS`), `localhost` refusé en mode hébergé. Ce n'est **pas** une authentification. Le joker `*` des origines (previews Vercel) accepte aussi des noms d'autres équipes qui se terminent pareil : préférer des origines exactes quand c'est possible | `server.ts` |
+| Trop de flux SSE | 100 flux ouverts au plus, 10 par adresse | `server.ts` |
 
 Les routes `GET` (`/health`, `/config`, `/session`, `/events`, `/market-advisor`) restent ouvertes : elles ne montrent que des données publiques de Testnet.
 
@@ -33,8 +33,12 @@ Limites assumées : un seul code partagé par personne (pas de comptes), pas de 
 
 - Le keeper écrit `session.json` dans `KEEPER_DATA_DIR` (volume Railway monté sur `/data`) à chaque changement, de façon atomique. Au redémarrage il recharge la session et relit le coffre sur la chaîne. Si le coffre n'existe plus (remise à zéro de Testnet), une copie `session.json.dropped-….bak` est gardée et le keeper repart sans session.
 - **Sans volume, un redéploiement efface la session** : le coffre garde ses jetons sur la chaîne mais le keeper n'en connaît plus l'adresse. Le volume est donc obligatoire pour un usage au-delà d'un essai.
-- Une transaction envoyée dont la confirmation n'arrive pas (délai RPC) reste `pending` avec son hash. Tant qu'elle n'est pas tranchée, **toute écriture est refusée** (`PendingTransaction`). Toutes les 15 s, et avant chaque écriture, le keeper interroge `getTransaction(hash)` : `SUCCESS` confirme l'entrée, `FAILED` la rejette, et un hash introuvable 200 s après l'envoi est déclaré non inclus (aucune transaction construite par le keeper n'est valable plus longtemps). La garde de 200 s du front reste, mais elle n'est qu'un confort.
-- Cas non couvert : un arrêt du processus entre l'envoi du déploiement d'un vault et sa première trace. Le vault orphelin est vide et ne coûte que ses frais.
+- Le hash d'une transaction signée par le keeper est enregistré **avant** son envoi (et celui d'une transaction signée dans Freighter dès sa réception), puis sauvegardé. Un redémarrage pendant l'attente de confirmation garde donc la garde. Une entrée `pending` retrouvée au redémarrage sans hash bloque les écritures jusqu'à la fin de la fenêtre de 200 s.
+- Une transaction dont la confirmation n'arrive pas (délai RPC, coupure réseau) reste `pending` avec son hash. Tant qu'elle n'est pas tranchée, **toute écriture et toute préparation de signature sont refusées** (`PendingTransaction`). Toutes les 15 s, et avant chaque écriture, le keeper interroge `getTransaction(hash)` : `SUCCESS` confirme l'entrée, `FAILED` la rejette, et un hash introuvable 200 s après l'enregistrement est déclaré non inclus (aucune transaction construite par le keeper n'est valable plus longtemps). Une transaction refusée par le réseau, ou qui n'a jamais été signée, est marquée `failed` tout de suite. La garde de 200 s du front reste, mais elle n'est qu'un confort.
+- Après un arrêt, le keeper ne jette la session que si la chaîne dit que le coffre n'existe plus ; une panne réseau au démarrage la conserve.
+- Sur SIGTERM (redéploiement), le keeper cesse d'accepter des requêtes et laisse finir l'écriture en cours avant de s'arrêter (25 s au plus).
+- Au démarrage hébergé, le keeper vérifie qu'il peut écrire dans `KEEPER_DATA_DIR` et refuse de démarrer sinon.
+- Limites connues : la fenêtre de 200 s se mesure à l'horloge du serveur ; un hash introuvable après un très long arrêt (au-delà de la mémoire du RPC) est lu comme non inclus, d'où le message qui renvoie à l'état du coffre lu sur la chaîne. Une confirmation tardive met à jour l'entrée et l'état, mais ne recrée pas les entrées `margin_call`, `cured` et `released` de cette transaction. Un déploiement confirmé après un redémarrage sans adresse de coffre enregistrée n'est pas adopté : lancer une nouvelle session.
 
 ## 4. Coûts et limites (vérifiés dans la documentation des hébergeurs le 26 octobre 2026)
 
@@ -72,7 +76,7 @@ openssl rand -hex 24   # un code d'accès par personne : à donner à la personn
    | `KEEPER_DATA_DIR` | `/data` |
 
    Déjà fixées par le `Dockerfile` : `KEEPER_HOST=0.0.0.0`, `KEEPER_BACKEND=testnet`, `SIGNER=freighter`. Railway fournit `PORT`. Ne **jamais** définir `FUND_SECRET`, `ISSUER_SECRET` ni `BANK_SECRET`.
-5. 👤 *Settings → Volumes → New Volume*, point de montage `/data`. Si le service ne peut pas y écrire, ajouter la variable `RAILWAY_RUN_UID=0`.
+5. 👤 *Settings → Volumes → New Volume*, point de montage `/data`. Le conteneur tourne en root (compatible avec les volumes de Railway) ; si le service ne peut pas écrire dans `/data`, le keeper refuse de démarrer, et ajouter `RAILWAY_RUN_UID=0` règle le cas.
 6. Vérifier : `curl https://xxx.up.railway.app/api/config` doit répondre `"backend":"testnet"`, `"signerMode":"freighter"`, `"writeAuth":"token"` et le compte fonds `GDQ6AW…MQOY`.
 
 ### C. Site sur Vercel

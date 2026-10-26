@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import type { ActivityEvent, ActivityType, AssetId, KeystoneConfig, SessionState, VaultStatus } from "@keystone/shared";
 import { formatCents, formatMilli, formatUnits, parseScaled } from "./amounts.ts";
 import type { EuriborResult } from "./euribor.ts";
-import { KeeperError, VaultError } from "./errors.ts";
+import { isVaultGone, KeeperError, VaultError } from "./errors.ts";
 import {
   collateralParams, computeMargin, fixedRateFromStart, MILLI_PER_BP, shouldPost,
   type CollateralParams, type MarginResult, type SwapParams,
@@ -76,6 +76,8 @@ export class SessionManager {
   private session: Session | null = null;
   private pendingDeploy: Session | null = null;   // session whose vault deployment is unconfirmed
   private unresolved: Unresolved | null = null;
+  /** The write in progress: lets a hash reported by the client be recorded before the transaction is sent. */
+  private active: { entry: ActivityEvent; track: Track } | null = null;
   private readonly listeners = new Set<(m: StreamMessage) => void>();
   private queue: Promise<unknown> = Promise.resolve();
   private seq = 0;
@@ -85,6 +87,12 @@ export class SessionManager {
   constructor(deps: SessionDeps) {
     this.deps = deps;
     this.now = deps.now ?? (() => new Date());
+    deps.client.onSigned = (hash, vaultId) => this.noteSigned(hash, vaultId);
+  }
+
+  /** Resolves once the queued writes are done (used to stop cleanly on SIGTERM). */
+  idle(): Promise<void> {
+    return this.queue.then(() => undefined, () => undefined);
   }
 
   // ---- persistence and reconciliation ------------------------------------------------------
@@ -98,13 +106,26 @@ export class SessionManager {
     this.session = (data.session as Session | null) ?? null;
     this.pendingDeploy = (data.pendingDeploy as Session | null) ?? null;
     this.unresolved = (data.unresolved as Unresolved | null) ?? null;
+    // A restart can interrupt a write between its signature and its confirmation. Every persisted pending
+    // chain entry is therefore treated as unconfirmed (by hash when it has one) until its window has passed.
+    if (!this.unresolved) {
+      const owner = this.pendingDeploy ?? this.session;
+      const entry = owner?.feed.find((e) => e.kind === "chain" && e.status === "pending");
+      if (owner && entry) {
+        this.unresolved = {
+          hash: entry.txHash ?? "", entryId: entry.id, kind: owner === this.pendingDeploy ? "deploy" : "write",
+          notAfter: this.now().getTime() + EXPIRY_MS, doneTitle: entry.title,
+        };
+        this.persist();
+      }
+    }
     if (this.session) {
       try {
         await this.publishState(this.session);
       } catch (e) {
-        // Unreachable RPC: keep the session, the state is rebuilt on the next read. Any other failure
-        // (the vault no longer exists, for example after a Testnet reset): keep a copy and start clean.
-        if (!(e instanceof KeeperError && e.code === "RpcUnavailable")) {
+        // Only proof that the vault is gone (a Testnet reset) drops the session, keeping a copy. A network
+        // trouble at start-up keeps it: the state is rebuilt on the next read.
+        if (isVaultGone(e)) {
           store.backup("dropped");
           console.error(`Saved session dropped (a copy was kept): ${e instanceof Error ? e.message : String(e)}`);
           this.session = null;
@@ -140,7 +161,8 @@ export class SessionManager {
     if (!u) return;
     const s = u.kind === "deploy" ? this.pendingDeploy : this.session;
     const entry = s?.feed.find((e) => e.id === u.entryId);
-    const status = await this.deps.client.txStatus(u.hash);
+    // No hash: the restart hit before it was recorded. Nothing can be looked up, so wait out the window.
+    const status = u.hash ? await this.deps.client.txStatus(u.hash) : "NOT_FOUND";
     if (status === "NOT_FOUND" && this.now().getTime() <= u.notAfter) {
       throw new KeeperError("PendingTransaction",
         `Transaction ${u.hash} was sent but is not confirmed yet. No new transaction starts until its outcome is known.`);
@@ -153,10 +175,15 @@ export class SessionManager {
           txHash: u.hash, explorerUrl: `${this.deps.config.explorerTxBase}${u.hash}`,
         });
       }
-      if (s && u.kind === "deploy" && u.vaultId) {
+      if (s && u.kind === "deploy" && !u.vaultId) {
+        // Confirmed, but the vault address was not recorded: it cannot be adopted, say so rather than guess.
+        if (entry) this.update(entry, { detail: "Confirmed after a restart; the vault address was not recorded, start a new session." });
+        this.pendingDeploy = null;
+      } else if (s && u.kind === "deploy" && u.vaultId) {
         s.vaultId = u.vaultId;
         this.pendingDeploy = null;
         this.session = s;
+        for (const e of s.feed) this.emit({ event: "activity", data: { ...e } }); // clients now know this session id
       } else if (s && u.postedValueCents !== undefined) {
         s.lastPostedValueCents = u.postedValueCents;
       }
@@ -167,7 +194,11 @@ export class SessionManager {
     if (entry) {
       this.update(entry, {
         status: "failed",
-        detail: status === "FAILED" ? `Transaction ${u.hash} failed on-chain.` : `Transaction ${u.hash} was never included in a ledger.`,
+        detail: status === "FAILED"
+          ? `Transaction ${u.hash} failed on-chain.`
+          : u.hash
+            ? `Transaction ${u.hash} was not found by the network after its validity window: treated as not included. The vault state shown is read from the chain.`
+            : "The keeper restarted before recording the outcome of this transaction. The vault state shown is read from the chain.",
       });
     }
     if (u.kind === "deploy") this.pendingDeploy = null;
@@ -371,29 +402,32 @@ export class SessionManager {
       kind: "chain", type, title: pendingTitle, status: "pending",
       ...(track?.preHash ? { txHash: track.preHash, explorerUrl: `${this.deps.config.explorerTxBase}${track.preHash}` } : {}),
     });
+    this.active = track ? { entry, track } : null;
+    // A hash known before sending (wallet-signed) is recorded before the network can lose track of the transaction.
+    if (track?.preHash) this.markInFlight(entry, track, track.preHash);
     let result: T;
     try {
       result = await run();
     } catch (e) {
-      if (e instanceof KeeperError && e.code === "RpcUnavailable") {
-        const hash = e.notSent ? undefined : (e.txHash ?? track?.preHash);
+      // Pending only when something may be in flight: a hash is known. Without one, nothing was signed or sent.
+      if (e instanceof KeeperError && e.code === "RpcUnavailable" && !e.notSent && (e.txHash || this.unresolved)) {
+        const hash = e.txHash ?? this.unresolved?.hash;
         this.update(entry, {
           detail: `No confirmation yet: ${e.message}`,
           ...(hash ? { txHash: hash, explorerUrl: `${this.deps.config.explorerTxBase}${hash}` } : {}),
         });
-        // The transaction may still land: remember it so that nothing else is sent before its outcome is known.
-        if (hash && track) {
-          this.unresolved = {
-            hash, entryId: entry.id, kind: track.kind ?? "write", notAfter: this.now().getTime() + EXPIRY_MS,
-            doneTitle: track.doneTitle, doneDetail: track.doneDetail, vaultId: e.vaultId, postedValueCents: track.postedValueCents,
-          };
-          this.persist();
-        }
+        // The transaction may still land: it stays recorded so that nothing else is sent before its outcome is known.
+        if (hash && track && !this.unresolved) this.markInFlight(entry, track, hash, e.vaultId);
       } else {
+        // A definite outcome (rejected, failed on-chain, or refused by the network): nothing is in flight.
+        this.unresolved = null;
         this.update(entry, { status: "failed", detail: e instanceof Error ? e.message : String(e) });
       }
       throw e;
+    } finally {
+      this.active = null;
     }
+    this.unresolved = null;
     const link = { txHash: result.txHash, explorerUrl: `${this.deps.config.explorerTxBase}${result.txHash}` };
     this.update(entry, { status: "confirmed", ...done(result), ...link });
     const events = result.events ?? [];
@@ -409,6 +443,21 @@ export class SessionManager {
       }
     }
     return result;
+  }
+
+  /** Records a transaction as possibly in flight (and saves it). */
+  private markInFlight(entry: ActivityEvent, track: Track, hash: string, vaultId?: string): void {
+    this.unresolved = {
+      hash, entryId: entry.id, kind: track.kind ?? "write", notAfter: this.now().getTime() + EXPIRY_MS,
+      doneTitle: track.doneTitle, doneDetail: track.doneDetail, vaultId, postedValueCents: track.postedValueCents,
+    };
+    this.persist();
+  }
+
+  /** The client signed a transaction and is about to send it: record its hash first. */
+  private noteSigned(hash: string, vaultId?: string): void {
+    if (!this.active || this.unresolved?.hash === hash) return;
+    this.markInFlight(this.active.entry, this.active.track, hash, vaultId);
   }
 
   private add(s: Session, e: Omit<ActivityEvent, "id" | "sessionId" | "ts">): ActivityEvent {

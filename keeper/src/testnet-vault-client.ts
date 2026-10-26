@@ -9,6 +9,8 @@ import type {
   DeployParams, OnChainStatus, SignedTxInfo, TxResult, TxStatus, VaultClient, VaultEvent, VaultState,
 } from "./vault-client.ts";
 
+type NodeSigner = ReturnType<typeof contract.basicNodeSigner>;
+
 export interface TestnetOptions {
   rpcUrl: string;
   networkPassphrase: string;
@@ -32,10 +34,28 @@ export function mapChainError(e: unknown, vaultId?: string): KeeperError {
   const contracts: string[] = msg.match(/\bC[A-Z2-7]{55}\b/g) ?? [];
   const foreign = vaultId !== undefined && contracts.length > 0 && !contracts.includes(vaultId);
   if (name && !foreign) return new VaultError(name);
-  if (/still pending|timed? ?out|timeout|ECONN|ENOTFOUND|fetch failed|socket hang up|\bHTTP (429|5\d\d)\b|\b(429|502|503|504)\b/i.test(msg)) {
+  if (/still pending|timed? ?out|timeout|ECONN|ETIMEDOUT|EAI_AGAIN|ENOTFOUND|EHOSTUNREACH|network ?error|fetch failed|aborted|socket hang up|\bHTTP (429|5\d\d)\b|\b(429|502|503|504)\b/i.test(msg)) {
     return new KeeperError("RpcUnavailable", `RPC unavailable or no confirmation: ${msg.slice(0, 200)}`);
   }
   return new KeeperError("TxFailed", msg.slice(0, 400));
+}
+
+/**
+ * Error of a keeper-signed send. Before signing nothing was sent: the plain mapping applies. After signing, only a
+ * refusal by the network (the SDK's SendFailedError) proves the transaction was not included; any other failure
+ * leaves it possibly in flight and becomes RpcUnavailable carrying the hash to reconcile.
+ */
+export function classifySendError(e: unknown, signedHash: string | undefined, vaultId?: string): KeeperError {
+  const mapped = mapChainError(e, vaultId);
+  if (!signedHash) return mapped;
+  if ((e as { constructor?: { name?: string } } | null)?.constructor?.name === "SendFailedError") {
+    mapped.notSent = true;
+    return mapped;
+  }
+  const uncertain = mapped.code === "RpcUnavailable" ? mapped : new KeeperError("RpcUnavailable", `No confirmation: ${mapped.message}`.slice(0, 300));
+  uncertain.txHash = signedHash;
+  if (vaultId) uncertain.vaultId = vaultId;
+  return uncertain;
 }
 
 /** Decodes one contract event (docs/interfaces.md section 3.5); unknown events are ignored. */
@@ -68,6 +88,7 @@ export class TestnetVaultClient implements VaultClient {
   private readonly o: TestnetOptions;
   private readonly server: rpc.Server;
   private readonly timeout: number;
+  onSigned?: (txHash: string, vaultId?: string) => void;
 
   constructor(options: TestnetOptions) {
     this.o = options;
@@ -98,7 +119,7 @@ export class TestnetVaultClient implements VaultClient {
       );
       // The contract address is known from the simulation: keep it if the confirmation times out.
       const vaultId = (tx.result as VaultBindings).options.contractId;
-      const sent = await this.send(tx, vaultId);
+      const sent = await this.send(tx, this.o.keeper, vaultId);
       return { vaultId, txHash: this.hashOf(sent) };
     });
   }
@@ -215,7 +236,7 @@ export class TestnetVaultClient implements VaultClient {
   ): Promise<TxResult> {
     return this.guard(vaultId, async () => {
       const tx = await call(this.bindings(vaultId, signer), { timeoutInSeconds: this.timeout });
-      const sent = await this.send(tx, vaultId);
+      const sent = await this.send(tx, signer, vaultId);
       const txHash = this.hashOf(sent);
       const res = await this.confirm(txHash);
       // The transaction is confirmed: a failing event read must not turn it into an error.
@@ -224,19 +245,22 @@ export class TestnetVaultClient implements VaultClient {
     });
   }
 
-  /** signAndSend, tagging a lost confirmation with the hash of the transaction that was already sent. */
-  private async send<T extends { signAndSend(): Promise<unknown>; sendTransactionResponse?: { hash: string } }>(
-    tx: T, vaultId?: string,
+  /** Signs with the given key, reports the hash before sending (`onSigned`), then sends and waits. */
+  private async send<T extends { signAndSend(o: { signTransaction: NodeSigner["signTransaction"] }): Promise<unknown> }>(
+    tx: T, signer: Keypair, vaultId?: string,
   ): Promise<Awaited<ReturnType<T["signAndSend"]>>> {
+    const node = contract.basicNodeSigner(signer, this.o.networkPassphrase);
+    let signedHash: string | undefined;
+    const signTransaction: NodeSigner["signTransaction"] = async (xdrString, opts) => {
+      const out = await node.signTransaction(xdrString, opts);
+      signedHash = TransactionBuilder.fromXDR(out.signedTxXdr, this.o.networkPassphrase).hash().toString("hex");
+      this.onSigned?.(signedHash, vaultId);
+      return out;
+    };
     try {
-      return (await tx.signAndSend()) as Awaited<ReturnType<T["signAndSend"]>>;
+      return (await tx.signAndSend({ signTransaction })) as Awaited<ReturnType<T["signAndSend"]>>;
     } catch (e) {
-      const mapped = mapChainError(e, vaultId);
-      if (mapped.code === "RpcUnavailable" && tx.sendTransactionResponse?.hash) {
-        mapped.txHash = tx.sendTransactionResponse.hash;
-        if (vaultId) mapped.vaultId = vaultId;
-      }
-      throw mapped;
+      throw classifySendError(e, signedHash, vaultId);
     }
   }
 

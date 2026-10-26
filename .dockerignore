@@ -4,5 +4,7 @@ node_modules
 .git
 .env
 .env.*
+**/.env
+**/.env.*
 **/* 2.*
 contracts/target

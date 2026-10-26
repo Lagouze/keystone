@@ -250,7 +250,7 @@ What a hosted keeper does differently from a local one (all covered by tests in 
 - **Write routes need an access code.** Every `POST` returns `Unauthorized` (401) without `Authorization: Bearer <code>`; codes live only in the host's `KEEPER_ACCESS_TOKENS`. The dashboard asks for the code once and keeps it in the browser. CORS and the Host/Origin checks are kept (exact origins only) but are not the authorization.
 - **No fund key.** It refuses to start with `SIGNER=keeper` or a `FUND_SECRET`: deposits and withdrawals are always signed in Freighter.
 - **The session survives a restart.** It is saved in `KEEPER_DATA_DIR` and checked against the vault on-chain when reloaded.
-- **Uncertain transactions are reconciled by hash.** After a timeout the entry stays `pending` with its hash; no other transaction is sent until the hash is found confirmed, failed or expired.
+- **Uncertain transactions are reconciled by hash.** The hash is recorded before a keeper-signed transaction is sent; after a timeout (or a restart during the wait) the entry stays `pending`, and no other transaction is sent until the hash is found confirmed, failed or expired.
 - **`GET /config` states the backend** (`backend: "testnet" | "fake"`); the page labels a fake backend.
 
 Status: configuration and tests written; **not deployed yet** (see the progress table).

@@ -30,6 +30,9 @@ export class FakeVaultClient implements VaultClient {
     this.fundInitial = opts.fundInitialUnits ?? 10_000_000_000n; // 1 000 units, like the bootstrap
   }
 
+  /** Part of the VaultClient contract; the fake never signs, so it never calls it. */
+  onSigned?: (txHash: string, vaultId?: string) => void;
+
   /** Test hook: hashes set here answer SUCCESS; every other hash is NOT_FOUND. */
   readonly known = new Map<string, TxStatus>();
 

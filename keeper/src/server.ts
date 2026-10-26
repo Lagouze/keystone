@@ -10,6 +10,7 @@ import type { SessionManager, StreamMessage } from "./session.ts";
 const I128_MAX = (1n << 127n) - 1n;
 const HEARTBEAT_MS = 15_000;
 const MAX_STREAMS = 100;
+const MAX_STREAMS_PER_IP = 10;
 /** Railway's health probe calls /api/health with this Host; it is let through for that route only. */
 const PROBE_HOST = "healthcheck.railway.app";
 
@@ -53,6 +54,7 @@ export function buildServer(config: KeystoneConfig, sessions: SessionManager, op
     ...(options.trustProxyHops ? { trustProxy: (_address: string, hop: number) => hop < options.trustProxyHops! } : {}),
   });
   const streams = new Set<FastifyReply>();
+  const streamsByIp = new Map<string, number>();
   const market = options.market ?? createMarketProvider();
 
   // A page that rebinds its DNS name to 127.0.0.1 is same-origin with the keeper and bypasses CORS:
@@ -146,7 +148,8 @@ export function buildServer(config: KeystoneConfig, sessions: SessionManager, op
     api.post("/session/settle-default", async () => sessions.settleDefault());
 
     api.get("/events", (req, reply) => {
-      if (streams.size >= MAX_STREAMS) {
+      const ip = req.ip;
+      if (streams.size >= MAX_STREAMS || (streamsByIp.get(ip) ?? 0) >= MAX_STREAMS_PER_IP) {
         return reply.status(503).send({ error: { code: "RpcUnavailable", message: "Too many open streams: try again shortly" } });
       }
       reply.hijack();
@@ -166,7 +169,10 @@ export function buildServer(config: KeystoneConfig, sessions: SessionManager, op
       for (const m of sessions.replay()) write(m);
       const heartbeat = setInterval(() => res.write(": ping\n\n"), HEARTBEAT_MS);
       streams.add(reply);
+      streamsByIp.set(ip, (streamsByIp.get(ip) ?? 0) + 1);
       req.raw.on("close", () => {
+        const left = (streamsByIp.get(ip) ?? 1) - 1;
+        if (left > 0) streamsByIp.set(ip, left); else streamsByIp.delete(ip);
         clearInterval(heartbeat);
         unsubscribe();
         streams.delete(reply);

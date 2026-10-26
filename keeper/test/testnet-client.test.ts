@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Account, Contract, Keypair, Networks, nativeToScVal, Operation, TransactionBuilder, xdr } from "vault-client";
 import { KeeperError, VaultError } from "../src/errors.ts";
-import { TestnetVaultClient, decodeEvent, mapChainError } from "../src/testnet-vault-client.ts";
+import { TestnetVaultClient, classifySendError, decodeEvent, mapChainError } from "../src/testnet-vault-client.ts";
 import { isLocalOrigin } from "../src/server.ts";
 
 const sym = (s: string) => xdr.ScVal.scvSymbol(s);
@@ -100,5 +100,35 @@ describe("inspectSigned only accepts a signed deposit or withdraw on the vault",
   it("reports the vault so the caller can compare it", () => {
     const other = new Contract("CDB3KHRGMFXFRXEVVJUNUCDVPIR5RPKSSCTP5JUBK32F2ZMOZQVLMIA5").call("deposit", amount);
     expect(client.inspectSigned(build([other])).vaultId).not.toBe(VAULT);
+  });
+});
+
+describe("classifySendError (keeper-signed sends)", () => {
+  const HASH = "ab".repeat(32);
+  class SendFailedError extends Error {}
+  class TransactionStillPendingError extends Error {}
+
+  it("keeps the plain mapping when nothing was signed", () => {
+    const e = classifySendError(new Error("Error(Contract, #2)"), undefined);
+    expect(e.code).toBe("InsufficientAvailable");
+    expect(e.txHash).toBeUndefined();
+  });
+
+  it("marks a refusal by the network as not sent", () => {
+    const e = classifySendError(new SendFailedError("Sending transaction failed"), HASH);
+    expect(e.notSent).toBe(true);
+    expect(e.txHash).toBeUndefined();
+  });
+
+  it("keeps the hash of a transaction whose confirmation was lost", () => {
+    const e = classifySendError(new TransactionStillPendingError("Transaction still pending"), HASH, "CVAULT");
+    expect([e.code, e.txHash, e.vaultId, e.notSent]).toEqual(["RpcUnavailable", HASH, "CVAULT", undefined]);
+  });
+
+  it("treats any other failure after signing as possibly in flight, even an unrecognised one", () => {
+    for (const msg of ["getaddrinfo EAI_AGAIN soroban-testnet.stellar.org", "Network Error", "The operation was aborted", "weird failure"]) {
+      const e = classifySendError(new Error(msg), HASH);
+      expect([e.code, e.txHash], msg).toEqual(["RpcUnavailable", HASH]);
+    }
   });
 });

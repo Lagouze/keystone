@@ -4,11 +4,12 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { makeAuthorizer, originMatcher, parseAccessTokens } from "../src/access.ts";
 import { KeeperError } from "../src/errors.ts";
+import { readExposure } from "../src/hosted.ts";
 import { FakeVaultClient } from "../src/fake-vault-client.ts";
 import { buildServer } from "../src/server.ts";
 import { SessionManager } from "../src/session.ts";
 import { SessionStore } from "../src/store.ts";
-import type { TxResult } from "../src/vault-client.ts";
+import type { TxResult, VaultState } from "../src/vault-client.ts";
 import { config, scenario } from "./helpers.ts";
 
 const TOKEN = "t".repeat(40);
@@ -190,5 +191,92 @@ describe("durable session and uncertain transactions", () => {
     const b = make(a.client, a.clock);
     await b.sessions.restore();
     await expect(b.sessions.deposit(1_000_000n)).rejects.toMatchObject({ code: "PendingTransaction" });
+  });
+
+  it("records a keeper-signed hash before it is sent, so a restart in the confirmation wait is still guarded", async () => {
+    const a = make();
+    await a.sessions.start("KMMF");
+    const hash = "12".repeat(32);
+    let during: Promise<unknown> | undefined;
+    const hook = a.client.onSigned; // each manager installs its own hook on the shared client
+    a.client.deposit = async () => {
+      a.client.deposit = FakeVaultClient.prototype.deposit.bind(a.client);
+      hook?.(hash); // the real client reports the hash between signing and sending
+      const b = make(a.client, a.clock);
+      await b.sessions.restore(); // the process "restarts" while the confirmation is awaited
+      during = b.sessions.deposit(1_000_000n).catch((e: KeeperError) => e.code);
+      throw new Error("process died");
+    };
+    await expect(a.sessions.deposit(1_000_000n)).rejects.toThrow("process died");
+    await expect(during).resolves.toBe("PendingTransaction");
+  });
+
+  it("guards a pending entry saved without any hash until its window has passed", async () => {
+    const a = make();
+    await a.sessions.start("KMMF");
+    a.client.deposit = async () => {
+      a.client.deposit = FakeVaultClient.prototype.deposit.bind(a.client);
+      // crash after the entry was saved as pending, before any hash was recorded
+      const b = make(a.client, a.clock);
+      await b.sessions.restore();
+      await expect(b.sessions.deposit(1_000_000n)).rejects.toMatchObject({ code: "PendingTransaction" });
+      a.clock.ms += 300_000;
+      await expect(b.sessions.deposit(1_000_000n)).resolves.toBeTruthy();
+      throw new Error("process died");
+    };
+    await expect(a.sessions.deposit(1_000_000n)).rejects.toThrow("process died");
+  });
+
+  it("keeps the saved session when the chain cannot be reached at start-up, and drops it only if the vault is gone", async () => {
+    const a = make();
+    const started = await a.sessions.start("KMMF");
+    const down = make(a.client, a.clock);
+    a.client.getState = async () => { throw new KeeperError("TxFailed", "getaddrinfo EAI_AGAIN soroban-testnet.stellar.org"); };
+    await down.sessions.restore();
+    a.client.getState = FakeVaultClient.prototype.getState.bind(a.client);
+    expect((await down.sessions.getState()).vaultId).toBe(started.vaultId);
+  });
+
+  it("marks a transaction refused by the network failed at once, and one that never left (no hash) too", async () => {
+    const { client, sessions } = make();
+    await sessions.start("KMMF");
+    client.deposit = async () => { const e = new KeeperError("RpcUnavailable", "refused"); e.notSent = true; e.txHash = "ab".repeat(32); throw e; };
+    await expect(sessions.deposit(1n)).rejects.toMatchObject({ code: "RpcUnavailable" });
+    client.deposit = async () => { throw new KeeperError("RpcUnavailable", "RPC down before signing"); };
+    await expect(sessions.deposit(1n)).rejects.toMatchObject({ code: "RpcUnavailable" });
+    const entries = sessions.replay().map((m) => m.data as { type: string; status: string });
+    expect(entries.filter((e) => e.type === "deposit").map((e) => e.status)).toEqual(["failed", "failed"]);
+    // nothing is in flight: the next write is not blocked
+    client.deposit = FakeVaultClient.prototype.deposit.bind(client);
+    await expect(sessions.deposit(1_000_000n)).resolves.toBeTruthy();
+  });
+});
+
+describe("hosted start-up rules", () => {
+  const ok = { KEEPER_HOST: "0.0.0.0", KEEPER_ACCESS_TOKENS: TOKEN, KEEPER_ALLOWED_ORIGINS: WEB, KEEPER_PUBLIC_HOSTS: "keeper.example.com" };
+
+  it("leaves a loopback keeper as it was", () => {
+    expect(readExposure({}, "keeper")).toEqual({ host: "127.0.0.1", hosted: false, accessTokens: [] });
+    expect(readExposure({ KEEPER_HOST: "localhost" }, "freighter").hosted).toBe(false);
+  });
+
+  it("accepts a fully configured public keeper", () => {
+    expect(readExposure(ok, "freighter")).toMatchObject({ hosted: true, accessTokens: [TOKEN] });
+  });
+
+  it("refuses a public keeper that is not locked down", () => {
+    expect(() => readExposure(ok, "keeper")).toThrow(/SIGNER=freighter/);
+    expect(() => readExposure({ ...ok, KEEPER_ACCESS_TOKENS: "" }, "freighter")).toThrow(/KEEPER_ACCESS_TOKENS/);
+    expect(() => readExposure({ ...ok, KEEPER_ACCESS_TOKENS: "short" }, "freighter")).toThrow(/at least 32/);
+    expect(() => readExposure({ ...ok, KEEPER_ALLOWED_ORIGINS: "" }, "freighter")).toThrow(/KEEPER_ALLOWED_ORIGINS/);
+    expect(() => readExposure({ ...ok, KEEPER_PUBLIC_HOSTS: "" }, "freighter")).toThrow(/KEEPER_PUBLIC_HOSTS/);
+    expect(() => readExposure({ ...ok, FUND_SECRET: "S" }, "freighter")).toThrow(/FUND_SECRET/);
+  });
+
+  it("refuses a data directory it cannot write", () => {
+    expect(() => new SessionStore("/proc/definitely/not/writable").assertWritable()).toThrow();
+    const dir = mkdtempSync(join(tmpdir(), "keystone-probe-"));
+    expect(() => new SessionStore(dir).assertWritable()).not.toThrow();
+    rmSync(dir, { recursive: true, force: true });
   });
 });
