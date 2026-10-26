@@ -123,11 +123,14 @@ function Aura() {
 
 function Main({ user, onLock }: { user: string; onLock(): void }) {
   const k = useKeystone()
+  // Reading a shared keeper session must not skip the presentation. Navigation is local only.
+  const [view, setView] = useState<'home' | 'dashboard'>('home')
   // Set when the user starts a session from this page: that first session opens with the stagger.
   const [startedHere, setStartedHere] = useState(false)
   const stage = useChoreography(k.session, startedHere)
   const startSession = (asset: AssetId) => {
     setStartedHere(true)
+    setView('dashboard')
     return k.startSession(asset)
   }
   const mocks = k.source === 'mocks'
@@ -147,7 +150,9 @@ function Main({ user, onLock }: { user: string; onLock(): void }) {
         mocks={mocks}
         user={user}
         onLock={onLock}
-        onDetails={stage && asset ? () => setDetails(true) : undefined}
+        onDetails={view === 'dashboard' && stage && asset ? () => setDetails(true) : undefined}
+        onHome={view === 'dashboard' ? () => { setDetails(false); setView('home') } : undefined}
+        onResume={view === 'home' && stage && asset ? () => setView('dashboard') : undefined}
         onStart={startSession}
       />
 
@@ -201,7 +206,7 @@ function Main({ user, onLock }: { user: string; onLock(): void }) {
               <HeroSkeleton />
             </Page>
           )
-        ) : !stage || !asset ? (
+        ) : view === 'home' || !stage || !asset ? (
           <Page key="landing">
             <Landing config={k.config} busy={k.busy === 'start'} onStart={startSession} />
           </Page>
@@ -227,6 +232,8 @@ function TopBar({
   user,
   onLock,
   onDetails,
+  onHome,
+  onResume,
   onStart,
 }: {
   k: KeystoneHook
@@ -234,6 +241,8 @@ function TopBar({
   user: string
   onLock(): void
   onDetails?: () => void
+  onHome?: () => void
+  onResume?: () => void
   onStart(asset: AssetId): void
 }) {
   return (
@@ -273,6 +282,8 @@ function TopBar({
             </span>
           </span>
           {/* The advisor is read-only: with a session running it stays one click away (it never starts or changes anything). */}
+          {onHome && <Button className="!h-9 !px-4" onClick={onHome}>Home</Button>}
+          {onResume && <Button className="!h-9 !px-4" onClick={onResume}>Resume session</Button>}
           {k.session && <MarketAdvisor className="!h-9 !px-4" label="Market" closeLabel="Close" inSession />}
           {onDetails && (
             <Button variant="sim" className="!h-9 !px-4" onClick={onDetails}>
