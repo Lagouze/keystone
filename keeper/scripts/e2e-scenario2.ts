@@ -79,6 +79,8 @@ show(done);
 check(done.vault.status === "defaulted", "status defaulted");
 check(done.vault.lockedUnits === "0" && done.vault.requiredUnits === "0" && done.vault.shortfallUnits === "0" && done.vault.callDeadline === null, "locked, required, shortfall and deadline cleared");
 check(BigInt(done.balances.bankUnits) - bankBefore === lockedAtCall, `bank received exactly the ${u(lockedAtCall.toString())} locked`);
+const settled = sessions.replay().flatMap((m) => (m.event === "activity" && m.data.type === "defaulted" && m.data.status === "confirmed" ? [m.data] : []));
+check(settled.length === 1 && settled[0]!.title.includes(`${(Number(lockedAtCall) / 1e7).toFixed(7)} KBOND`) && !!settled[0]!.txHash, "defaulted feed entry carries the event amount and the hash");
 const chain = await client.getState(done.vaultId);
 check(chain.status === "Defaulted" && chain.locked === 0n && chain.epoch === 1n, "get_state: Defaulted, locked 0, epoch kept");
 check(JSON.stringify(done.margin) === JSON.stringify(frozenMargin), "historical margin still displayed after default");
