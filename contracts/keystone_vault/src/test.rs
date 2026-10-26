@@ -11,6 +11,7 @@ struct Fixture {
     bank: Address,
     keeper: Address,
     asset: Address,
+    issuer: soroban_sdk::testutils::StellarAssetIssuer,
     last_events: std::cell::RefCell<soroban_sdk::testutils::ContractEvents>,
 }
 
@@ -22,7 +23,9 @@ impl Fixture {
         let bank = Address::generate(&env);
         let keeper = Address::generate(&env);
         let admin = Address::generate(&env);
-        let asset = env.register_stellar_asset_contract_v2(admin).address();
+        let sac = env.register_stellar_asset_contract_v2(admin);
+        let asset = sac.address();
+        let issuer = sac.issuer();
         let vault = env.register(
             KeystoneVault,
             (&fund, &bank, &keeper, &asset, 10_000i128, 90u64),
@@ -38,6 +41,7 @@ impl Fixture {
             bank,
             keeper,
             asset,
+            issuer,
             last_events,
         }
     }
@@ -104,6 +108,14 @@ impl Fixture {
         state
     }
 
+    fn settle(&self, surplus: i128) -> VaultState {
+        self.env.set_auths(&[]);
+        let state = self.client().settle_default();
+        *self.last_events.borrow_mut() = self.env.events().all();
+        self.assert_balance(surplus);
+        state
+    }
+
     fn assert_balance(&self, surplus: i128) {
         let state = self.client().get_state();
         let token = token::Client::new(&self.env, &self.asset);
@@ -111,10 +123,12 @@ impl Fixture {
             token.balance(&self.vault),
             state.available + state.locked + surplus
         );
-        assert_eq!(token.balance(&self.bank), 0);
+        if state.status != Status::Defaulted {
+            assert_eq!(token.balance(&self.bank), 0);
+        }
         assert_eq!(token.balance(&self.keeper), 0);
         assert_eq!(
-            token.balance(&self.fund) + token.balance(&self.vault),
+            token.balance(&self.fund) + token.balance(&self.vault) + token.balance(&self.bank),
             100_000
         );
         assert!(state.available >= 0 && state.locked >= 0 && state.shortfall >= 0);
@@ -474,4 +488,200 @@ fn margin_at_cap_is_accepted_and_refreshes_instance_ttl() {
     assert_eq!((state.required, state.shortfall), (10_000, 10_000));
     assert_eq!(state.status, Status::MarginCall);
     assert!(ttl() >= TTL_EXTEND_TO);
+}
+
+#[test]
+fn settlement_rejects_active_cured_and_premature_calls_without_changes() {
+    let f = Fixture::new();
+    f.deposit(300);
+    let active = f.client().get_state();
+    f.env.set_auths(&[]);
+    error_code(f.client().try_settle_default(), Error::NotInMarginCall);
+    assert_eq!(f.client().get_state(), active);
+    f.assert_balance(0);
+
+    let call = f.margin(1, 400);
+    f.env
+        .ledger()
+        .with_mut(|l| l.timestamp = call.call_deadline - 1);
+    f.env.set_auths(&[]);
+    error_code(f.client().try_settle_default(), Error::GracePeriodRunning);
+    assert_eq!(f.client().get_state(), call);
+    f.assert_balance(0);
+
+    let cured = f.deposit(100);
+    f.env
+        .ledger()
+        .with_mut(|l| l.timestamp = call.call_deadline + 1);
+    f.env.set_auths(&[]);
+    error_code(f.client().try_settle_default(), Error::NotInMarginCall);
+    assert_eq!(f.client().get_state(), cured);
+    f.assert_balance(0);
+}
+
+#[test]
+fn settlement_at_deadline_is_permissionless_exact_and_terminal() {
+    let f = Fixture::new();
+    f.deposit(300);
+    let call = f.margin(7, 400);
+    let fund_before = token::Client::new(&f.env, &f.asset).balance(&f.fund);
+    f.env
+        .ledger()
+        .with_mut(|l| l.timestamp = call.call_deadline);
+    let settled = f.settle(0);
+    assert_eq!(
+        settled,
+        VaultState {
+            locked: 0,
+            required: 0,
+            shortfall: 0,
+            call_deadline: 0,
+            status: Status::Defaulted,
+            ..call
+        }
+    );
+    let token = token::Client::new(&f.env, &f.asset);
+    assert_eq!(token.balance(&f.bank), 300);
+    assert_eq!(token.balance(&f.fund), fund_before);
+    assert_eq!(token.balance(&f.vault), 0);
+    assert_eq!(token.balance(&f.keeper), 0);
+    f.event(
+        "defaulted",
+        Map::from_array(
+            &f.env,
+            [(Symbol::new(&f.env, "amount"), 300i128.into_val(&f.env))],
+        ),
+    );
+
+    // Replaying settlement cannot transfer the collateral twice.
+    f.env.set_auths(&[]);
+    error_code(f.client().try_settle_default(), Error::NotInMarginCall);
+    f.auth(&f.fund, "deposit", (1i128,).into_val(&f.env), Some(1));
+    error_code(f.client().try_deposit(&1), Error::Defaulted);
+    f.auth(
+        &f.keeper,
+        "post_margin",
+        (8u64, 0i128).into_val(&f.env),
+        None,
+    );
+    error_code(f.client().try_post_margin(&8, &0), Error::Defaulted);
+    f.auth(&f.fund, "withdraw", (1i128,).into_val(&f.env), None);
+    error_code(f.client().try_withdraw(&1), Error::InsufficientAvailable);
+    assert_eq!(f.client().get_state(), settled);
+    assert_eq!(token.balance(&f.bank), 300);
+    f.assert_balance(0);
+}
+
+#[test]
+fn settlement_excludes_unsolicited_surplus() {
+    let f = Fixture::new();
+    f.deposit(300);
+    f.env.mock_all_auths();
+    token::Client::new(&f.env, &f.asset).transfer(&f.fund, &f.vault, &50);
+    f.auth(
+        &f.keeper,
+        "post_margin",
+        (1u64, 400i128).into_val(&f.env),
+        None,
+    );
+    let call = f.client().post_margin(&1, &400);
+    f.assert_balance(50);
+    f.env
+        .ledger()
+        .with_mut(|l| l.timestamp = call.call_deadline + 1);
+    f.settle(50);
+    assert_eq!(token::Client::new(&f.env, &f.asset).balance(&f.bank), 300);
+    f.auth(&f.fund, "withdraw", (1i128,).into_val(&f.env), None);
+    error_code(f.client().try_withdraw(&1), Error::InsufficientAvailable);
+    f.assert_balance(50);
+}
+
+#[test]
+fn no_shortfall_guard_rejects_a_synthetic_inconsistent_margin_call() {
+    let f = Fixture::new();
+    f.deposit(300);
+    // A cured vault is normally Active. Inject an inconsistent state solely to
+    // test the defensive NoShortfall guard, not as a reachable user flow.
+    f.env.as_contract(&f.vault, || {
+        let mut state = load(&f.env);
+        state.status = Status::MarginCall;
+        state.call_deadline = 1_000;
+        save(&f.env, &state);
+    });
+    let before = f.client().get_state();
+    f.env.set_auths(&[]);
+    error_code(f.client().try_settle_default(), Error::NoShortfall);
+    assert_eq!(f.client().get_state(), before);
+    f.assert_balance(0);
+}
+
+#[test]
+fn settlement_with_no_collateral_can_finalize_a_positive_shortfall() {
+    let f = Fixture::new();
+    let call = f.margin(1, 100);
+    f.env
+        .ledger()
+        .with_mut(|l| l.timestamp = call.call_deadline);
+    let state = f.settle(0);
+    assert_eq!(state.status, Status::Defaulted);
+    assert_eq!(state.epoch, 1);
+    f.event(
+        "defaulted",
+        Map::from_array(
+            &f.env,
+            [(Symbol::new(&f.env, "amount"), 0i128.into_val(&f.env))],
+        ),
+    );
+}
+
+#[test]
+fn settlement_preserves_synthetic_available_and_terminal_withdraw_does_not_relock() {
+    let f = Fixture::new();
+    f.deposit(300);
+    // In normal rebalancing, shortfall > 0 implies available = 0. This
+    // deliberately constructed state tests preservation of both independent
+    // fields and the terminal withdrawal branch with nonzero available.
+    f.env.as_contract(&f.vault, || {
+        let mut state = load(&f.env);
+        state.available = 50;
+        state.locked = 250;
+        state.required = 400;
+        state.shortfall = 150;
+        state.epoch = 9;
+        state.status = Status::MarginCall;
+        state.call_deadline = 1_000;
+        save(&f.env, &state);
+    });
+    let state = f.settle(0);
+    assert_eq!((state.available, state.epoch), (50, 9));
+    assert_eq!(token::Client::new(&f.env, &f.asset).balance(&f.bank), 250);
+    let state = f.withdraw(50);
+    assert_eq!((state.available, state.locked, state.required), (0, 0, 0));
+    assert_eq!(state.status, Status::Defaulted);
+    assert_eq!(state.epoch, 9);
+}
+
+#[test]
+fn rejected_bank_transfer_leaves_margin_call_and_collateral_unchanged() {
+    let f = Fixture::new();
+    f.deposit(300);
+    let call = f.margin(1, 400);
+    // Model a SAC recipient authorization failure; no successful settlement
+    // or terminal state may be recorded when the token transfer is rejected.
+    f.issuer
+        .set_flag(soroban_sdk::testutils::IssuerFlags::RevocableFlag);
+    f.env.mock_all_auths();
+    token::StellarAssetClient::new(&f.env, &f.asset).set_authorized(&f.bank, &false);
+    f.env
+        .ledger()
+        .with_mut(|l| l.timestamp = call.call_deadline);
+    f.env.set_auths(&[]);
+    assert!(f.client().try_settle_default().is_err());
+    assert_eq!(f.client().get_state(), call);
+    f.assert_balance(0);
+
+    f.env.mock_all_auths();
+    token::StellarAssetClient::new(&f.env, &f.asset).set_authorized(&f.bank, &true);
+    f.settle(0);
+    assert_eq!(token::Client::new(&f.env, &f.asset).balance(&f.bank), 300);
 }

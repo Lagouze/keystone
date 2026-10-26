@@ -51,6 +51,7 @@ export type Status = {tag: "Active", values: void} | {tag: "MarginCall", values:
 
 
 
+
 export interface VaultState {
   asset: string;
   available: i128;
@@ -89,6 +90,11 @@ export interface Client {
    */
   post_margin: ({epoch, required}: {epoch: u64, required: i128}, options?: MethodOptions) => Promise<AssembledTransaction<VaultState>>
 
+  /**
+   * Construct and simulate a settle_default transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   */
+  settle_default: (options?: MethodOptions) => Promise<AssembledTransaction<VaultState>>
+
 }
 export class Client extends ContractClient {
   static async deploy<T = Client>(
@@ -112,6 +118,7 @@ export class Client extends ContractClient {
       new ContractSpec([ "AAAABAAAAAAAAAAAAAAABUVycm9yAAAAAAAACAAAAAAAAAANSW52YWxpZEFtb3VudAAAAAAAAAEAAAAAAAAAFUluc3VmZmljaWVudEF2YWlsYWJsZQAAAAAAAAIAAAAAAAAAClN0YWxlRXBvY2gAAAAAAAMAAAAAAAAACEFib3ZlQ2FwAAAABAAAAAAAAAAPTm90SW5NYXJnaW5DYWxsAAAAAAUAAAAAAAAAEkdyYWNlUGVyaW9kUnVubmluZwAAAAAABgAAAAAAAAALTm9TaG9ydGZhbGwAAAAABwAAAAAAAAAJRGVmYXVsdGVkAAAAAAAACA==",
         "AAAABQAAAAAAAAAAAAAABUN1cmVkAAAAAAAAAQAAAAVjdXJlZAAAAAAAAAAAAAAC",
         "AAAAAgAAAAAAAAAAAAAABlN0YXR1cwAAAAAAAwAAAAAAAAAAAAAABkFjdGl2ZQAAAAAAAAAAAAAAAAAKTWFyZ2luQ2FsbAAAAAAAAAAAAAAAAAAJRGVmYXVsdGVkAAAA",
+        "AAAABQAAAAAAAAAAAAAACURlZmF1bHRlZAAAAAAAAAEAAAAJZGVmYXVsdGVkAAAAAAAAAQAAAAAAAAAGYW1vdW50AAAAAAALAAAAAAAAAAI=",
         "AAAABQAAAAAAAAAAAAAACURlcG9zaXRlZAAAAAAAAAEAAAAJZGVwb3NpdGVkAAAAAAAAAQAAAAAAAAAGYW1vdW50AAAAAAALAAAAAAAAAAI=",
         "AAAABQAAAAAAAAAAAAAACU1hcmdpblNldAAAAAAAAAEAAAAKbWFyZ2luX3NldAAAAAAABAAAAAAAAAAFZXBvY2gAAAAAAAAGAAAAAAAAAAAAAAAIcmVxdWlyZWQAAAALAAAAAAAAAAAAAAAGbG9ja2VkAAAAAAALAAAAAAAAAAAAAAAJc2hvcnRmYWxsAAAAAAAACwAAAAAAAAAC",
         "AAAABQAAAAAAAAAAAAAACVdpdGhkcmF3bgAAAAAAAAEAAAAJd2l0aGRyYXduAAAAAAAAAQAAAAAAAAAGYW1vdW50AAAAAAALAAAAAAAAAAI=",
@@ -121,7 +128,8 @@ export class Client extends ContractClient {
         "AAAAAAAAAAAAAAAId2l0aGRyYXcAAAABAAAAAAAAAAZhbW91bnQAAAAAAAsAAAABAAAH0AAAAApWYXVsdFN0YXRlAAA=",
         "AAAAAAAAAAAAAAAJZ2V0X3N0YXRlAAAAAAAAAAAAAAEAAAfQAAAAClZhdWx0U3RhdGUAAA==",
         "AAAAAAAAAAAAAAALcG9zdF9tYXJnaW4AAAAAAgAAAAAAAAAFZXBvY2gAAAAAAAAGAAAAAAAAAAhyZXF1aXJlZAAAAAsAAAABAAAH0AAAAApWYXVsdFN0YXRlAAA=",
-        "AAAAAAAAAAAAAAANX19jb25zdHJ1Y3RvcgAAAAAAAAYAAAAAAAAABGZ1bmQAAAATAAAAAAAAAARiYW5rAAAAEwAAAAAAAAAGa2VlcGVyAAAAAAATAAAAAAAAAAVhc3NldAAAAAAAABMAAAAAAAAADG1heF9yZXF1aXJlZAAAAAsAAAAAAAAAEWdyYWNlX3BlcmlvZF9zZWNzAAAAAAAABgAAAAA=" ]),
+        "AAAAAAAAAAAAAAANX19jb25zdHJ1Y3RvcgAAAAAAAAYAAAAAAAAABGZ1bmQAAAATAAAAAAAAAARiYW5rAAAAEwAAAAAAAAAGa2VlcGVyAAAAAAATAAAAAAAAAAVhc3NldAAAAAAAABMAAAAAAAAADG1heF9yZXF1aXJlZAAAAAsAAAAAAAAAEWdyYWNlX3BlcmlvZF9zZWNzAAAAAAAABgAAAAA=",
+        "AAAAAAAAAAAAAAAOc2V0dGxlX2RlZmF1bHQAAAAAAAAAAAABAAAH0AAAAApWYXVsdFN0YXRlAAA=" ]),
       options
     )
   }
@@ -129,6 +137,7 @@ export class Client extends ContractClient {
     deposit: this.txFromJSON<VaultState>,
         withdraw: this.txFromJSON<VaultState>,
         get_state: this.txFromJSON<VaultState>,
-        post_margin: this.txFromJSON<VaultState>
+        post_margin: this.txFromJSON<VaultState>,
+        settle_default: this.txFromJSON<VaultState>
   }
 }

@@ -71,7 +71,11 @@ pub struct MarginCall {
 #[contractevent(topics = ["cured"])]
 pub struct Cured {}
 
-// C2 will add settle_default and its event; C1 cannot transfer to the bank.
+#[contractevent(topics = ["defaulted"])]
+pub struct Defaulted {
+    pub amount: i128,
+}
+
 #[contract]
 pub struct KeystoneVault;
 
@@ -230,6 +234,35 @@ impl KeystoneVault {
             shortfall: state.shortfall,
         }
         .publish(&env);
+        state
+    }
+
+    pub fn settle_default(env: Env) -> VaultState {
+        let mut state = load(&env);
+        // Permissionless trigger: the ledger and stored state decide eligibility.
+        if state.status != Status::MarginCall {
+            panic_with_error!(&env, Error::NotInMarginCall);
+        }
+        if env.ledger().timestamp() < state.call_deadline {
+            panic_with_error!(&env, Error::GracePeriodRunning);
+        }
+        if state.shortfall <= 0 {
+            panic_with_error!(&env, Error::NoShortfall);
+        }
+        let amount = state.locked;
+        token::Client::new(&env, &state.asset).transfer(
+            &env.current_contract_address(),
+            &state.bank,
+            &amount,
+        );
+        state.locked = 0;
+        state.required = 0;
+        state.shortfall = 0;
+        state.call_deadline = 0;
+        state.status = Status::Defaulted;
+        // Preserve available and epoch; never rebalance a terminal vault.
+        save(&env, &state);
+        Defaulted { amount }.publish(&env);
         state
     }
 
