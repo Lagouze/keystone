@@ -280,6 +280,26 @@ Verified so far: both scenarios on the mock keeper; the HTTP and SSE client agai
 1. **Margin and release (KMMF).** Deposit, rate shock of −50 bp (collateral locked), further −30 bp (margin call, top-up, cured), +60 bp (collateral released and withdrawn).
 2. **Default (KBOND).** Deposit, rate shock of −100 bp (margin call), no top-up, 90-second grace period, settlement: the locked collateral is transferred to the bank.
 
+### Local demo accounts and recovery
+
+The arrival screen uses PGlite (PostgreSQL WASM) in this browser's IndexedDB. It is a demo screen gate, **not centralized authentication and not authorization for keeper write routes**. No email is sent. Existing accounts and their PBKDF2-SHA256 hashes (210,000 iterations, individual random salts) remain compatible, including `demo@keystone.app` / `stellar`.
+
+Sign up requires a valid normalized email, at least 10 password characters and matching confirmation. PostgreSQL's email primary key enforces uniqueness, including concurrent requests. Existing shorter passwords still sign in. Eye buttons toggle each password independently. The current user survives reload in the same tab via `sessionStorage`; Lock clears it, and closing the tab locks again. If IndexedDB is blocked, the existing in-memory fallback loses accounts on reload.
+
+**Forgot password** is explicitly a local demonstration: enter an email, view **Demo recovery code** for a matching local account, enter that code, then choose and confirm a new password. A cryptographically random 48-bit code expires after ten minutes and permits five attempts. Verification consumes it and issues a random 192-bit reset grant with the same deadline. Successful reset consumes that grant atomically. Resending invalidates previous codes and grants. Codes/grants are stored as SHA-256 hashes; new passwords use the same salted PBKDF2 format. Anyone controlling this browser/database can recover a local account; this is not proof of email ownership and must not be used for production access control.
+
+**Development account maintenance:** after opening the lock screen with `npm run dev -w @keystone/app`, the developer console exposes `window.keystoneDemoAccounts`. `await ...list()` returns email and creation date only; `await ...resetPassword(email, newPassword)` changes one local password; `await ...deleteAccount(email)` deletes one test account. `await ...resetDatabase('RESET LOCAL DEMO ACCOUNTS')` clears only this demo database and recreates the default demo account. These actions clear the stored local session; reload to show the lock screen if already unlocked. No keeper/admin HTTP route exists. This module is excluded from production builds. Use only disposable test accounts in the console; do not paste real credentials or logs.
+
+**Supabase: migration prepared, not implemented or tested.** No Supabase project/public configuration was available for this change. Merely adding variables does not switch modes. To build a separate central provider:
+
+1. Create a Supabase project and enable email/password Auth; configure a working SMTP sender for real emails. Configure Site URL and an exact allowed recovery redirect such as `http://localhost:5173/account/update-password` (use the final HTTPS URL when deployed).
+2. Add public build variables `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` in the ignored root `.env` (a legacy public anon key may be used instead). Never add a service-role, secret or database connection key to a `VITE_*` variable.
+3. Add the official `@supabase/supabase-js` client behind an explicit provider selection; use `signUp`, `signInWithPassword`, `signOut`, `getSession` and `onAuthStateChange` instead of local session strings. Keep local demo mode separate and visibly labelled. No automatic upload of browser accounts/password hashes: users register centrally or use an email-based recovery/invitation flow.
+4. Use `resetPasswordForEmail(email, { redirectTo })`, then complete the recovery callback and call `updateUser({ password })` only with the authenticated recovery session. Never display a recovery code in central mode. See [Supabase password flows](https://supabase.com/docs/guides/auth/passwords) and [redirect configuration](https://supabase.com/docs/guides/auth/redirect-urls).
+5. Enable Row Level Security on any application profile table; authorize per `auth.uid()`. Admin resets/deletions belong in the restricted Supabase dashboard or a server endpoint with verified admin authorization, never in public frontend code. Protect keeper writes separately with server-side session/token verification, role checks and transaction-signing policy before connecting it to centralized auth.
+
+Validation commands: `npm ci`, `npm run typecheck`, `npm test`, `npm run build -w @keystone/app`. Auth tests use an actual in-memory PGlite database and Web Crypto; they cover normalization, concurrent duplicates, old accounts, generic sign-in failure, reset expiry/replay/concurrency/attempt limits and tab session storage. Browser checks and any remaining limits are recorded in the feature PR. No Stellar transaction is needed for these checks.
+
 ## 11. Workflow
 
 - Each pole works on its branch and opens pull requests into `staging`. No direct commit on `main` or `staging`. Humans merge.
