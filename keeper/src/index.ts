@@ -98,6 +98,7 @@ const app = buildServer(config, sessions, {
   allowedHost: (h) => (!hosted && /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(h)) || publicHosts.includes(h),
   accessTokens,
   backend,
+  healthProbeAnyHost: hosted,
   trustProxyHops: hosted ? Number(process.env.KEEPER_TRUST_PROXY_HOPS || 1) : undefined,
 });
 await app.listen({ port, host });

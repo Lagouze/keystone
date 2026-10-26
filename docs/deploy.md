@@ -1,6 +1,6 @@
-# Keystone — Déploiement (Vercel + Railway)
+# Keystone — Déploiement (Vercel + Railway ou Render)
 
-Ce document est le mode d'emploi du déploiement en ligne. Le site (statique) va sur Vercel, le keeper (processus Node permanent) sur Railway. Tout reste sur Stellar **Testnet**. Aucun contrat n'est redéployé : le keeper lit les adresses et le hash WASM de `deployments/testnet.json`.
+Ce document est le mode d'emploi du déploiement en ligne. Le site (statique) va sur Vercel, le keeper (processus Node permanent) sur Railway ou sur Render (voir l'état de Railway au §4 et la variante Render au §5bis). Tout reste sur Stellar **Testnet**. Aucun contrat n'est redéployé : le keeper lit les adresses et le hash WASM de `deployments/testnet.json`.
 
 ## 1. Architecture
 
@@ -48,6 +48,12 @@ Limites assumées : un seul code partagé par personne (pas de comptes), pas de 
 | Vercel | Hobby | 0 $ | Usage personnel et non commercial seulement (règle d'usage équitable). 100 déploiements par jour. « Vercel Authentication » (accès réservé aux membres du compte) est disponible pour les previews et la production : à garder activé sur les previews. Un projet d'équipe ou à usage commercial demande Pro (20 $ par personne et par mois) |
 | Railway | Free | 0 $, 1 $ de crédit par mois | 0,5 Go de RAM, 0,5 Go de volume : à peine suffisant, et le service s'arrête quand le crédit est épuisé |
 | Railway | Hobby | 5 $ par mois, 5 $ d'usage inclus | 5 Go de volume. **Recommandé** : le keeper consomme peu (un processus Node, ~150 Mo) |
+
+| Render | Free | 0 $ | Le service s'endort après 15 min sans requête entrante ; **pas de disque persistant** (la session est perdue à chaque redémarrage ou redéploiement). Convient à un essai ou à une démo courte, avec un moniteur qui l'interroge toutes les 5 min (§5bis) |
+| Render | Payant | non vérifié | Seul le payant permet un disque persistant (montage `/data`) ; un disque interdit les déploiements sans coupure et la duplication du service |
+| UptimeRobot | Free | 0 $, sans carte | 50 moniteurs HTTP(s), intervalle minimal de 5 min |
+
+**État de Railway au 26 octobre 2026 :** la création de nouveaux comptes est suspendue (page de statut de Railway, notice du 23 octobre). Tant qu'elle l'est, utiliser Render (§5bis).
 
 Aucun plan payant n'est activé par ce dépôt : c'est une décision de l'équipe. Railway ne met pas un service à dormir de lui-même ; l'option « Serverless / App Sleeping » existe dans les réglages du service et doit rester **désactivée** (elle couperait les flux SSE et vider la mémoire).
 
@@ -107,6 +113,21 @@ Dans le navigateur : site chargé, logo et animations, écran de verrouillage (*
 ### E. Premier essai Freighter (après un GO écrit de l'équipe)
 
 Même parcours que le test local : session KMMF (signée par le keeper, un vault déployé), dépôt de 1 KMMF, retrait de 1 KMMF, signés dans Freighter (Testnet, compte `GDQ6AW…MQOY`). Coller les hashes dans la PR.
+
+## 5bis. Variante Render + UptimeRobot (offre gratuite pour un essai)
+
+Les variables d'environnement, les codes d'accès, le `Dockerfile` et la partie Vercel (§5.C) sont identiques. Seul l'hébergeur du keeper change.
+
+1. 👤 render.com → *Get Started* → se connecter avec GitHub.
+2. 👤 *New +* → *Web Service* → *Build and deploy from a Git repository* → autoriser Render sur le seul dépôt `Lagouze/keystone` → le choisir.
+3. 👤 Réglages : *Name* `keystone-keeper` ; *Language* **Docker** ; *Branch* `deploy/vercel-railway` ; *Region* proche (Frankfurt) ; *Instance Type* **Free** pour l'essai ; laisser *Root Directory* et *Dockerfile Path* par défaut.
+4. 👤 *Environment Variables* (mêmes valeurs qu'au §5.B, sans `RAILWAY_*`) : `KEEPER_SECRET`, `KEEPER_ACCESS_TOKENS`, `KEEPER_DATA_DIR=/data`, `KEEPER_ALLOWED_ORIGINS` (provisoire), `KEEPER_PUBLIC_HOSTS` (provisoire : `keystone-keeper.onrender.com`). Render fournit `PORT` (10000 par défaut) : le keeper l'utilise.
+5. 👤 *Advanced* → *Health Check Path* : `/api/health`.
+6. 👤 *Create Web Service*. Le premier build prend quelques minutes. L'adresse est `https://<nom>.onrender.com` ; mettre à jour `KEEPER_PUBLIC_HOSTS` avec ce nom exact (sans `https://`).
+7. Vérifier : `curl https://<nom>.onrender.com/api/config` (mêmes attendus qu'au §5.B.6).
+8. 👤 UptimeRobot : uptimerobot.com → créer un compte → *Add New Monitor* → type **HTTP(s)**, URL `https://<nom>.onrender.com/api/health`, intervalle **5 minutes**.
+
+Limites de cette variante (offre gratuite) : réveil lent après une veille, session perdue à chaque redémarrage ou redéploiement, garde « pas de double transaction » perdue avec elle. Pour garder une session ou montrer la démo au jury : passer le service à un plan payant et lui attacher un disque monté sur `/data` (*Disks* → *Add Disk*).
 
 ## 6. Exploitation
 

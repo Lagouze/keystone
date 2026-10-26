@@ -243,7 +243,7 @@ Still to come, once they work: a single e2e script chaining both scenarios.
 
 ### Hosted deployment (web app on Vercel, keeper on Railway)
 
-The web app is a static Vite build served by Vercel (`vercel.json`). The keeper is a long-lived Node process (Fastify, server-sent events, in-memory session) and runs in a container on Railway (`Dockerfile`, `railway.json`), not as serverless functions. Step-by-step instructions, variables and checks are in [`docs/deploy.md`](docs/deploy.md).
+The web app is a static Vite build served by Vercel (`vercel.json`). The keeper is a long-lived Node process (Fastify, server-sent events, in-memory session) and runs in a container (`Dockerfile`; Railway via `railway.json`, or Render), not as serverless functions. Step-by-step instructions, variables and checks are in [`docs/deploy.md`](docs/deploy.md).
 
 What a hosted keeper does differently from a local one (all covered by tests in `keeper/test/hosted.test.ts`):
 

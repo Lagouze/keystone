@@ -48,7 +48,7 @@ describe("hosted API", () => {
     const client = new FakeVaultClient();
     const sessions = new SessionManager({ client, config: config("freighter"), scenario, euribor });
     const app = buildServer(config("freighter"), sessions, {
-      accessTokens: [TOKEN], backend: "testnet",
+      accessTokens: [TOKEN], backend: "testnet", healthProbeAnyHost: true,
       allowedOrigin: (o) => o === WEB, allowedHost: (h) => h === "keeper.example.com",
     });
     const call = (method: "GET" | "POST" | "OPTIONS", url: string, headers: Record<string, string> = {}, payload?: object) =>
@@ -91,10 +91,17 @@ describe("hosted API", () => {
     expect((await call("GET", "/session", { origin: "https://evil.example.com" })).statusCode).toBe(403);
   });
 
-  it("lets the platform probe reach /api/health only", async () => {
-    const { call } = make();
-    expect((await call("GET", "/health", { host: "healthcheck.railway.app", origin: "" })).statusCode).toBe(200);
-    expect((await call("GET", "/config", { host: "healthcheck.railway.app" })).statusCode).toBe(403);
+  it("lets a platform probe or uptime monitor reach /api/health only, whatever its Host", async () => {
+    const { app } = make();
+    const get = (url: string, host: string, origin?: string) =>
+      app.inject({ method: "GET", url: `/api${url}`, headers: { host, ...(origin ? { origin } : {}) } });
+    for (const host of ["healthcheck.railway.app", "keystone-keeper.onrender.com", "10.0.0.5:10000"]) {
+      expect((await get("/health", host)).statusCode, host).toBe(200);
+      expect((await get("/config", host)).statusCode, host).toBe(403);
+      expect((await get("/session", host)).statusCode, host).toBe(403);
+    }
+    // a page of another origin is still refused, even on the health route
+    expect((await get("/health", "x.onrender.com", "https://evil.example.com")).statusCode).toBe(403);
   });
 });
 

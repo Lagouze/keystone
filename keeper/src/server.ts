@@ -11,8 +11,8 @@ const I128_MAX = (1n << 127n) - 1n;
 const HEARTBEAT_MS = 15_000;
 const MAX_STREAMS = 100;
 const MAX_STREAMS_PER_IP = 10;
-/** Railway's health probe calls /api/health with this Host; it is let through for that route only. */
-const PROBE_HOST = "healthcheck.railway.app";
+/** Platform probes and uptime monitors call GET /api/health with a Host of their own. */
+const isHealthProbe = (method: string, url: string) => method === "GET" && url === "/api/health";
 
 function parseUnits(body: unknown): bigint {
   const units = (body as { units?: unknown } | null)?.units;
@@ -39,6 +39,8 @@ export interface ServerOptions {
   accessTokens?: string[];
   /** Shown by GET /config so the interface never presents a fake vault as the real one. Default "fake". */
   backend?: "testnet" | "fake";
+  /** Hosted keeper: GET /api/health skips the Host check (health probes, uptime monitors). Off locally, against DNS rebinding. */
+  healthProbeAnyHost?: boolean;
   /** Number of reverse proxies in front of the keeper (hosted), for the client address. */
   trustProxyHops?: number;
 }
@@ -61,8 +63,8 @@ export function buildServer(config: KeystoneConfig, sessions: SessionManager, op
   // refuse any request whose Host or Origin is not expected.
   app.addHook("onRequest", async (req, reply) => {
     const origin = req.headers.origin;
-    const probe = req.headers.host === PROBE_HOST && req.method === "GET" && req.url === "/api/health";
-    if (!probe && (!allowedHost(req.headers.host ?? "") || (origin !== undefined && !allowed(origin)))) {
+    const hostOk = (options.healthProbeAnyHost && isHealthProbe(req.method, req.url)) || allowedHost(req.headers.host ?? "");
+    if (!hostOk || (origin !== undefined && !allowed(origin))) {
       return reply.status(403).send({ error: { code: "BadRequest", message: "Host or Origin not allowed" } });
     }
   });
