@@ -293,6 +293,26 @@ describe("scenario 2: default (KBOND)", () => {
   });
 });
 
+describe("defaulted feed entry (what the e2e script asserts)", () => {
+  it("carries the amount of the defaulted event and the hash, and only for the collateral really locked", async () => {
+    for (const deposit of ["3000000000", "1234567890"]) {
+      const k = start();
+      await k.post("/session", { asset: "KBOND" });
+      await k.post("/session/deposit", { units: deposit });
+      await k.post("/session/rate-shock", { bp: -100 });
+      k.clock.seconds += 90n;
+      const done = await k.post("/session/settle-default");
+      const settled = feed(k).filter((e) => e.type === "defaulted" && e.status === "confirmed");
+      expect(settled).toHaveLength(1);
+      const expected = `${(Number(done.body.balances.bankUnits) / 1e7).toFixed(7)} KBOND`; // bank received what was locked
+      expect(settled[0]!.title).toContain(expected);
+      expect(settled[0]!.title).not.toContain(`${(Number(deposit) / 1e7 + 1).toFixed(7)} KBOND`);
+      expect(settled[0]!.txHash).toBeDefined();
+      await k.app.close(); keeper = null;
+    }
+  });
+});
+
 describe("sessions", () => {
   it("POST /session replaces the session and clears the history", async () => {
     const k = start();

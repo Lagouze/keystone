@@ -25,6 +25,9 @@ export interface Deployments {
     uploadTx?: string;
     deployTx?: string;
     testDepositTx?: string;
+    // proof of the C2 settlement on an independent fixture, and the immutable C1 deployment kept for history
+    c2?: { settlementFixtureVaultId: string; settlementFixtureSettleTx: string };
+    c1?: { wasmHash: string | null; testVaultId: string | null; uploadTx?: string; deployTx?: string; testDepositTx?: string };
   };
   updatedAt: string;
 }

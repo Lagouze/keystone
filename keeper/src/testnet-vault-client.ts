@@ -111,8 +111,9 @@ export class TestnetVaultClient implements VaultClient {
     return this.write(vaultId, this.o.keeper, (c, o) => c.post_margin({ epoch, required }, o));
   }
 
-  async settleDefault(): Promise<TxResult> {
-    throw new KeeperError("TxFailed", "settle_default does not exist in the deployed contract (C1): it arrives with C2");
+  /** Permissionless: the keeper only pays the fee, no vault role authorizes the call (contract C2). */
+  settleDefault(vaultId: string): Promise<TxResult> {
+    return this.write(vaultId, this.o.keeper, (c, o) => c.settle_default(o));
   }
 
   deposit(vaultId: string, units: bigint): Promise<TxResult> {
