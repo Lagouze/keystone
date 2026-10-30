@@ -19,8 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
-This licence covers the code written by the Keystone team. Third-party code
-keeps its own licence: the components under app/src/ui/bits/ are covered by
-app/src/ui/bits/LICENSE.md (MIT with the Commons Clause), and the npm and Rust
-dependencies are covered by their own licences.
