@@ -4,7 +4,7 @@ Keystone is a programmable collateral engine for an OTC interest rate swap betwe
 
 Built during HackMeridian 2026 (Lisbon, 25–26 October 2026), track Genesis.
 
-> **Project status: working MVP on Stellar Testnet, deployed.** The Soroban vault (C1 deposit/withdraw/margin and C2 default settlement), the keeper API and the dashboard work together: both scenarios were played on Stellar Testnet from a browser, and a deposit and a withdrawal were signed in the Freighter wallet (section 6). The dashboard is live (section 4). The demo video link is added to section 4 at submission. Not done: the guarantees of a production system (section 14). The progress table (section 12) is the reference, and a line only says *verified* with a proof.
+> **Project status: working MVP on Stellar Testnet, deployed.** The Soroban vault (C1 deposit/withdraw/margin and C2 default settlement), the keeper API and the dashboard work together: both scenarios were played on Stellar Testnet from a browser, and a deposit and a withdrawal were signed in the Freighter wallet (section 6). The dashboard is live (section 4). Not done: the guarantees of a production system (section 14). The progress table (section 12) is the reference, and a line only says *verified* with a proof.
 
 ## 1. Summary
 
@@ -42,7 +42,6 @@ After signing in, every page load opens the animated landing, including when the
 | --- | --- |
 | **Live web app** (real mode: it talks to the hosted keeper on Stellar Testnet) | <https://keystone-eta-ebon.vercel.app> |
 | **Simulated demo** (the whole flow on simulated data, nothing sent to Stellar, no wallet, no code) | <https://keystone-eta-ebon.vercel.app/?demo> |
-| **Demo video** | **Final public URL pending from the team** |
 | Hosted keeper API (read routes are open) | `https://keystone-keeper.onrender.com/api` (`/health`, `/config`, `/market-advisor`, `/session`, `/events`) |
 
 ### Judges: try the real Testnet app in three steps
@@ -84,9 +83,9 @@ No local installation or environment variables are needed for the hosted app. Th
 | Transactions | Real Stellar Testnet transactions: vault deployment, deposit, margin posting, release, default settlement. Shown as **On-chain** with a stellar.expert link | None. Nothing leaves the page; every address and hash starts with `MOCK`, shown as **Demo tx** with no link |
 | Rules and numbers | The Soroban vault and the keeper's margin model | The same margin formula and the same vault rules (locked, released, margin call, 90 s grace period, default), re-implemented for the browser |
 | Who can use it | Anyone can read it (landing, Market Advisor, the running session). Acting needs a team access code, and deposits and withdrawals are signed in Freighter by the demo fund account | Anyone, with no code and no wallet. Each visitor has their own session; a reload resets it |
-| Where to see it work | Section 6 (every step with its hash) and the demo video | Open the link and play both scenarios |
+| Where to see it work | Section 6 (every step with its hash) | Open the link and play both scenarios |
 
-**Why a simulated demo exists.** Real mode spends Testnet fees and moves tokens held by one fund account, so it cannot be left open to anyone: the keeper's actions need a code, the fund's deposits need the shared demo fund wallet (import instructions above), and the keeper holds a single shared session. The simulated demo lets every judge and mentor try the whole flow at once without any of that. It proves how the product behaves; **the proof that it works on Stellar is section 6 and the video**, not the demo. The page always says which mode it is in: the header reads "Demo data · nothing sent to Stellar" in demo mode and "Stellar Testnet · Keeper connected" in real mode.
+**Why a simulated demo exists.** Real mode spends Testnet fees and moves tokens held by one fund account, so it cannot be left open to anyone: the keeper's actions need a code, the fund's deposits need the shared demo fund wallet (import instructions above), and the keeper holds a single shared session. The simulated demo lets every judge and mentor try the whole flow at once without any of that. It proves how the product behaves; **the proof that it works on Stellar is section 6**, not the demo. The page always says which mode it is in: the header reads "Demo data · nothing sent to Stellar" in demo mode and "Stellar Testnet · Keeper connected" in real mode.
 
 **What a judge can do.**
 
@@ -94,7 +93,7 @@ No local installation or environment variables are needed for the hosted app. Th
 - Open the `?demo` link for the full hands-on flow: pick KMMF or KBOND, deposit, move rates, margin call, cure, release, default. Every transaction there is labelled **Demo tx**: nothing is sent to Stellar.
 - Check the real transactions in section 6: every on-chain step has a stellar.expert link.
 
-**How the real demo is authorized.** In real mode, deposits and withdrawals are signed in the Freighter wallet by the demo fund account, whose Testnet recovery phrase is intentionally shared above for jury testing, and every action that writes (starting a session deploys a vault) needs a team access code, because the keeper is public and pays Testnet fees. This is deliberate (section 9, *Hosted deployment*). The demo video shows the real flow with Freighter. The hosted keeper runs on a free plan: its first answer after a long idle period can take up to a minute, and the session is restored from KEEPER_DATA_DIR when that storage survives a restart; an ephemeral host can lose it while the vault remains on-chain.
+**How the real demo is authorized.** In real mode, deposits and withdrawals are signed in the Freighter wallet by the demo fund account, whose Testnet recovery phrase is intentionally shared above for jury testing, and every action that writes (starting a session deploys a vault) needs a team access code, because the keeper is public and pays Testnet fees. This is deliberate (section 9, *Hosted deployment*). The hosted keeper runs on a free plan: its first answer after a long idle period can take up to a minute, and the session is restored from KEEPER_DATA_DIR when that storage survives a restart; an ephemeral host can lose it while the vault remains on-chain.
 
 ## 5. Architecture and use of Stellar
 
@@ -240,6 +239,7 @@ The project is built by three poles working in parallel, each on its own branch,
 
 ```
 README.md                  this file
+LICENSE                    MIT licence of the Keystone code
 AGENTS.md                  working rules for the AI agents and the team
 docs/interfaces.md         shared interfaces (single source of truth)
 docs/decisions.md          decisions log
@@ -454,7 +454,7 @@ Only the status "verified" counts as done, and only with a proof link.
 | 8 | Real Stellar Testnet transactions shown with proof | Verified (both scenarios from the browser) | Nine KMMF and four KBOND transactions with On-chain badges and Explorer links in section 6 |
 | 9 | Dashboard showing asset choice, steps and on-chain proof | Verified on the real keeper for both scenarios (Liquid Glass UI in a browser); Freighter deposit and withdrawal verified (section 6) | [KMMF deposit](https://stellar.expert/explorer/testnet/tx/e00a4b80d5de4e6d6dc08baa06bc9e1c3fdb4fded1bdfb209a32e280c2a15286), [KMMF cure](https://stellar.expert/explorer/testnet/tx/b651b662f4200556cb26975b2243628db34305fe02908911a3969ca5e418723b), [KBOND settlement](https://stellar.expert/explorer/testnet/tx/0c3bd3d7db474f950a6b4bf3119f78536c5ac89c4a6498c67b811a35589add43) |
 | 10 | End-to-end integration of the three poles | Verified (the Freighter flow from the hosted web app is not tested) | Browser → keeper → C2 vault proven for both scenarios, Freighter deposit and withdrawal signed in the wallet, hosted keeper (Render) deploying a vault from the Vercel app (section 6) |
-| 11 | Submission: public repo, README, public URL, video, pitch deck | In progress: public repo, README and live URL done; video and deck by the team | Section 4 |
+| 11 | Submission: public repo, README, public URL, video, pitch deck | Verified for the public repo, the README and the live URL; the video and the pitch deck are not part of this repository | Section 4 |
 | 12 | Continuous quality: review of every PR, tests, README updates | In place from phase zero | This repository's PR history |
 
 ## 13. Prior work and work done during the event
@@ -477,3 +477,7 @@ Only the status "verified" counts as done, and only with a proof link.
 - **The contract is not audited.** The C2 settlement change was reviewed by automated AI reviewers (decision A11 in `docs/decisions.md`), not by an independent human auditor, and two reserves remain open: a token trustline or freeze can block `withdraw` and `settle_default` (`docs/interfaces.md` section 3.7), and the contract instance TTL must be extended on a long-lived deployment.
 - The public demo is not a production system: the hosted keeper is a single instance on a free plan (idle wake-up delay, session can be lost when storage is ephemeral), actions need an access code (the public jury code above is shared; there are no per-user server accounts), and the read routes (`/session`, `/events`) are public Testnet data. Local accounts live in each browser (PGlite) and are not an authorization.
 - Testnet only. No real money, no Mainnet.
+
+## 15. Licence
+
+The code written by the Keystone team is released under the [MIT licence](LICENSE). Third-party code keeps its own licence: the React Bits components under `app/src/ui/bits/` are MIT with the Commons Clause ([`app/src/ui/bits/LICENSE.md`](app/src/ui/bits/LICENSE.md)), and the dependencies are listed in section 13.
