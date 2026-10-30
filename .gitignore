@@ -55,3 +55,7 @@ Thumbs.db
 # Keeper runtime state (hosted or local run)
 keeper/data/session.json*
 keeper/data/*.probe
+
+# Video production material (script, animated scenes, teleprompter): kept out of the repository
+docs/pitch/
+docs/pitch-*.md
